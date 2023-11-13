@@ -163,3 +163,5 @@ cython_debug/
 scrapl sandbox.ipynb
 .DS_Store
 effnet sandbox.ipynb
+
+.idea/
