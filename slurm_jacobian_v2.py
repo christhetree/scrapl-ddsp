@@ -4,9 +4,9 @@ import slurmjobs
 username = "vl1019"
 jobs = slurmjobs.Singularity(
     "python script_jacobian.py",
-    f'/scratch/{username}/ic24_overlay-15GB-500K.ext3',
+    f"/scratch/{username}/ic24_overlay-15GB-500K.ext3",
     "/scratch/work/public/singularity/cuda12.1.1-cudnn8.9.0-devel-ubuntu22.04.2.sif",
-    email='',
+    email="",
     sbatch=dict(time="4:00:00", mem="32G"),
     template="""{% extends 'job.singularity.j2' %}
       
@@ -21,7 +21,7 @@ echo "Many thanks to Bea Steers, author of SLURMJOBS."
 )
 
 # generate jobs across parameter grid
-sav_dir = f'/scratch/{username}/icassp2024_scrapl_data'
+sav_dir = f"/scratch/{username}/icassp2024_scrapl_data"
 run_script, job_paths = jobs.generate(
     [
         ("density_idx", [0, 1, 2, 4, 5, 6]),

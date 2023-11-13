@@ -10,6 +10,7 @@ import time
 import torch
 import sys
 
+
 def run(loss_type, sav_dir, job_id):
     # Print header
     start_time = int(time.time())
@@ -35,12 +36,13 @@ def run(loss_type, sav_dir, job_id):
         n_densities=n_densities,
         n_slopes=n_slopes,
         n_folds=n_folds,
-        batch_size=batch_size)
+        batch_size=batch_size,
+    )
 
     dataset.setup()
 
     samples_per_epoch = 768
-    steps_per_epoch = samples_per_epoch / dataset.batch_size 
+    steps_per_epoch = samples_per_epoch / dataset.batch_size
 
     steps_per_epoch = 1
     models_dir = os.path.join(sav_dir, "models_{}".format(loss_type))
@@ -50,12 +52,12 @@ def run(loss_type, sav_dir, job_id):
     tb_logger = pl_loggers.TensorBoardLogger(save_dir=logs_dir)
 
     trainer = pl.Trainer(
-            max_epochs=-1,
-            limit_train_batches=steps_per_epoch,
-            callbacks=[],
-            logger=tb_logger,
-            max_time=timedelta(hours=12)
-        )
+        max_epochs=-1,
+        limit_train_batches=steps_per_epoch,
+        callbacks=[],
+        logger=tb_logger,
+        max_time=timedelta(hours=12),
+    )
 
     trainer.fit(model, dataset)
 
@@ -71,5 +73,5 @@ def run(loss_type, sav_dir, job_id):
     print("Total elapsed time: " + elapsed_str + ".")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     fire.Fire(run)
