@@ -25,12 +25,12 @@ class EffNet(pl.LightningModule):
         self.hop_length = 2**6
         self.cqt_epsilon = 1e-3
         self.duration = 4
-        self.event_duration = 2**(-2)
+        self.event_duration = 2 ** (-2)
         self.fmin = 2**8
         self.fmax = 2**11
         self.n_events = 2**6
         self.sr = 2**13
-    
+
         super().__init__()
         self.batchnorm1 = nn.BatchNorm2d(
             1, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True
@@ -55,14 +55,16 @@ class EffNet(pl.LightningModule):
                 Q=(24, 2),
                 Q_fr=2,
                 J_fr=5,
-                T='global',
-                F='global',
-                format='time',
+                T="global",
+                F="global",
+                format="time",
             )
+
             def jtfs_distance(x, x_pred):
                 Sx = self.jtfs(x)[1:]
                 Sx_pred = self.jtfs(x_pred)[1:]
                 return torch.linalg.vector_norm(Sx - Sx_pred, p=2, dim=1)
+
             self.spectral_distance = jtfs_distance
         elif self.loss_type == "scrapl":
             self.scrapl = TimeFrequencyScrapl(
@@ -71,24 +73,26 @@ class EffNet(pl.LightningModule):
                 Q=(24, 2),
                 Q_fr=2,
                 J_fr=5,
-                T='global',
-                F='global',
+                T="global",
+                F="global",
             )
             scrapl_meta = self.scrapl.meta()
-            self.scrapl_keys = [key for key in scrapl_meta["key"] if len(key)==2]
+            self.scrapl_keys = [key for key in scrapl_meta["key"] if len(key) == 2]
+
             def scrapl_distance(x, x_pred):
                 n2, n_fr = np.random.choice(self.scrapl_keys)
                 Sx = self.scrapl.scattering_singlepath(x, n2, n_fr)
                 Sx_pred = self.scrapl.scattering_singlepath(x_pred, n2, n_fr)
                 return torch.linalg.vector_norm(Sx - Sx_pred, p=2, dim=1)
+
             self.spectral_distance = scrapl_distance
 
         # TODO: Open-L3 loss
 
         self.save_path = save_path
         self.val_loss = None
-        #self.metric_macro = metrics.JTFSloss()
-        #self.metric_mss = metrics.MSSloss()
+        # self.metric_macro = metrics.JTFSloss()
+        # self.metric_mss = metrics.MSSloss()
         self.monitor_valloss = torch.inf
         self.current_device = "cuda" if torch.cuda.is_available() else "cpu"
         self.best_params = self.parameters
@@ -110,11 +114,11 @@ class EffNet(pl.LightningModule):
         # apply batch normalization onto x
         x = self.batchnorm2(x)
         x = self.dense(x)
-        
+
         density = torch.sigmoid(x[:, 0])
         slope = torch.tanh(x[:, 1])
         return {"density": density, "slope": slope}
-    
+
     def step(self, batch, subset):
         U = batch["feature"].to(self.current_device)
         density = batch["density"].to(self.current_device)
@@ -127,7 +131,7 @@ class EffNet(pl.LightningModule):
             density_loss = F.mse_loss(density_pred, density)
             slope_loss = F.mse_loss(slope_pred, slope)
             loss = density_loss + slope_loss
-        else: # spectral loss
+        else:  # spectral loss
             x, x_pred = [], []
             for i in range(U.shape[0]):
                 x.append(self.x_from_theta(density[i], slope[i]))
@@ -135,45 +139,44 @@ class EffNet(pl.LightningModule):
             x = torch.stack(x)
             x_pred = torch.stack(x_pred)
             if self.loss_type == "mss":
-                loss = self.spectral_distance(
-                    x.unsqueeze(1), x_pred.unsqueeze(1))
+                loss = self.spectral_distance(x.unsqueeze(1), x_pred.unsqueeze(1))
             elif self.loss_type == "jtfs":
                 loss = self.spectral_distance(x, x_pred)
 
-        if subset == 'train':
+        if subset == "train":
             self.train_outputs.append(loss)
             self.log("train_loss", loss, prog_bar=True)
-        elif subset == 'test':
+        elif subset == "test":
             self.test_outputs.append(loss)
             self.test_preds.append(theta_pred)
-            theta_ref = {'density': density, 'slope': slope}
+            theta_ref = {"density": density, "slope": slope}
             self.test_gts.append(theta_ref)
-        elif subset == 'val':
+        elif subset == "val":
             self.val_outputs.append(loss)
         return {"loss": loss}
-    
+
     def training_step(self, batch, batch_idx):
-        return self.step(batch, 'train')
-    
+        return self.step(batch, "train")
+
     def validation_step(self, batch, batch_idx):
-        return self.step(batch, 'val')
-    
+        return self.step(batch, "val")
+
     def test_step(self, batch, batch_idx):
-        return self.step(batch, 'test')
-    
+        return self.step(batch, "test")
+
     def on_train_epoch_start(self):
         self.train_outputs = []
         self.test_outputs = []
         self.val_outputs = []
-        self.log("lr", self.optimizer.param_groups[-1]['lr'])
+        self.log("lr", self.optimizer.param_groups[-1]["lr"])
 
     def on_train_epoch_end(self):
         avg_loss = torch.tensor(self.train_outputs).mean()
-        self.log('train_loss', avg_loss, prog_bar=True)
+        self.log("train_loss", avg_loss, prog_bar=True)
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters())
-    
+
     def x_from_theta(self, theta_density, theta_slope):
         return synth.generate_chirp_texture(
             theta_density,
@@ -186,9 +189,9 @@ class EffNet(pl.LightningModule):
             n_events=self.n_events,
             Q=self.Q,
             hop_length=self.hop_length,
-            seed=self.seed)
-            
-    
+            seed=self.seed,
+        )
+
 
 class ChirpTextureData(Dataset):
     def __init__(self, df):
@@ -202,30 +205,28 @@ class ChirpTextureData(Dataset):
 
         self.cqt_epsilon = 1e-3
         self.duration = 4
-        self.event_duration = 2**(-2)
+        self.event_duration = 2 ** (-2)
         self.fmin = 2**8
         self.fmax = 2**11
         self.n_events = 2**6
         self.sr = 2**13
-     
+
         # define CQT closure
         cqt_params = {
-            'sr': self.sr,
-            'bins_per_octave': self.Q,
-            'n_bins': self.J * self.Q,
-            'hop_length': self.hop_length,
-            'fmin': (0.4*self.sr) / (2**self.J)
-        }   
+            "sr": self.sr,
+            "bins_per_octave": self.Q,
+            "n_bins": self.J * self.Q,
+            "hop_length": self.hop_length,
+            "fmin": (0.4 * self.sr) / (2**self.J),
+        }
         if torch.cuda.is_available():
             self.cqt_function = CQT(**cqt_params).cuda()
         else:
             self.cqt_function = CQT(**cqt_params)
 
     def __getitem__(self, idx):
-        theta_density = torch.tensor(
-            self.df.iloc[idx]["density"], dtype=torch.float32)
-        theta_slope = torch.tensor(
-            self.df.iloc[idx]["slope"], dtype=torch.float32)
+        theta_density = torch.tensor(self.df.iloc[idx]["density"], dtype=torch.float32)
+        theta_slope = torch.tensor(self.df.iloc[idx]["slope"], dtype=torch.float32)
         seed = self.df.iloc[idx]["seed"]
 
         x = synth.generate_chirp_texture(
@@ -242,22 +243,22 @@ class ChirpTextureData(Dataset):
             seed=seed,
         )
         U = self.cqt_from_x(x)
-        return {'feature': U, 'density': theta_density, 'slope': theta_slope}
-    
+        return {"feature": U, "density": theta_density, "slope": theta_slope}
+
     def __len__(self):
         return len(self.df)
 
     def cqt_from_x(self, x):
         CQT_x = self.cqt_function(x).abs()
         n_columns = CQT_x.shape[2]
-        CQT_x = CQT_x[0, :, (n_columns//4):(3*n_columns//4)]
-        #return CQT_x
+        CQT_x = CQT_x[0, :, (n_columns // 4) : (3 * n_columns // 4)]
+        # return CQT_x
         return torch.log1p(CQT_x / self.cqt_epsilon)
-        
+
 
 class ChirpTextureDataModule(pl.LightningDataModule):
     def __init__(self, *, n_densities, n_slopes, n_seeds_per_fold, n_folds, batch_size):
-        super().__init__() 
+        super().__init__()
 
         self.n_densities = n_densities
         self.n_slopes = n_slopes
@@ -267,7 +268,7 @@ class ChirpTextureDataModule(pl.LightningDataModule):
 
         slope_idx = np.arange(n_slopes)
         density_idx = np.arange(n_densities)
-        seeds = np.arange(n_seeds_per_fold*n_folds)
+        seeds = np.arange(n_seeds_per_fold * n_folds)
 
         theta_idx = list(itertools.product(density_idx, slope_idx, seeds))
         df_idx = pd.DataFrame(theta_idx, columns=["density_idx", "slope_idx", "seed"])
@@ -288,7 +289,7 @@ class ChirpTextureDataModule(pl.LightningDataModule):
 
         val_df = self.df[self.df["fold"] == (self.n_folds - 2)]
         self.val_ds = ChirpTextureData(val_df)
-        
+
         test_df = self.df[self.df["fold"] == (self.n_folds - 1)]
         self.test_ds = ChirpTextureData(test_df)
 

@@ -14,6 +14,7 @@ import torch
 import cnn
 import synth
 
+
 def run(density_idx, slope_idx, seed, sav_dir, job_id):
     # Print header
     start_time = int(time.time())
@@ -32,31 +33,29 @@ def run(density_idx, slope_idx, seed, sav_dir, job_id):
     sys.stdout.flush()
 
     dataset = cnn.ChirpTextureDataModule(
-        n_densities=7,
-        n_slopes=7,
-        n_folds=1,
-        batch_size=1)
+        n_densities=7, n_slopes=7, n_folds=1, batch_size=1
+    )
     dataset.setup()
 
     sub_df = dataset.df[
-        (dataset.df['density_idx']==density_idx) &
-        (dataset.df['slope_idx']==slope_idx)
+        (dataset.df["density_idx"] == density_idx)
+        & (dataset.df["slope_idx"] == slope_idx)
     ]
     if len(sub_df) == 1:
         row = sub_df.iloc[0]
         theta = torch.tensor([row["density"], row["slope"]], requires_grad=True)
     else:
         raise ValueError("Expected one row, got:\n {}".format(sub_df))
-    
+
     sc = TimeFrequencyScattering(
         shape=(2**15),
         J=6,
         Q=(24, 2),
         Q_fr=2,
         J_fr=5,
-        T='global',
-        F='global',
-        format='time',
+        T="global",
+        F="global",
+        format="time",
     )
 
     def S_from_theta(theta, sc, dataset, seed):
@@ -80,7 +79,8 @@ def run(density_idx, slope_idx, seed, sav_dir, job_id):
 
     # save the coefficients to sav_dir with formatted name
     jtfs_name = "jtfs_density-{}_slope-{}_seed-{}.pt".format(
-        density_idx, slope_idx, seed)
+        density_idx, slope_idx, seed
+    )
     jtfs_dir = os.path.join(sav_dir, "jtfs_7x7")
     os.makedirs(jtfs_dir, exist_ok=True)
     jtfs_path = os.path.join(jtfs_dir, jtfs_name)
@@ -88,7 +88,8 @@ def run(density_idx, slope_idx, seed, sav_dir, job_id):
 
     # save the Jacobian to sav_dir with formatted name
     jac_name = "jacobian_density-{}_slope-{}_seed-{}.pt".format(
-        density_idx, slope_idx, seed)
+        density_idx, slope_idx, seed
+    )
     jac_dir = os.path.join(sav_dir, "jacobians_7x7")
     os.makedirs(jac_dir, exist_ok=True)
     jac_path = os.path.join(jac_dir, jac_name)
@@ -110,5 +111,5 @@ def run(density_idx, slope_idx, seed, sav_dir, job_id):
     print("Total elapsed time: " + elapsed_str + ".")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     fire.Fire(run)
