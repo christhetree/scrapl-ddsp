@@ -11,8 +11,8 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch import Tensor as T
 
-from mod_extraction.plotting import plot_spectrogram, plot_mod_sig_callback, fig2img, plot_waveforms_stacked
-from mod_extraction.util import linear_interpolate_last_dim
+from experiments.plotting import plot_spectrogram, plot_mod_sig_callback, fig2img, plot_waveforms_stacked
+from experiments.util import linear_interpolate_last_dim
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
