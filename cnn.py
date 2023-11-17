@@ -219,10 +219,11 @@ class ChirpTextureData(Dataset):
             "hop_length": self.hop_length,
             "fmin": (0.4 * self.sr) / (2**self.J),
         }
-        if torch.cuda.is_available():
-            self.cqt_function = CQT(**cqt_params).cuda()
-        else:
-            self.cqt_function = CQT(**cqt_params)
+        # TODO(cm)
+        # if torch.cuda.is_available():
+        #     self.cqt_function = CQT(**cqt_params).cuda()
+        # else:
+        #     self.cqt_function = CQT(**cqt_params)
 
     def __getitem__(self, idx):
         theta_density = torch.tensor(self.df.iloc[idx]["density"], dtype=torch.float32)
@@ -257,7 +258,7 @@ class ChirpTextureData(Dataset):
 
 
 class ChirpTextureDataModule(pl.LightningDataModule):
-    def __init__(self, *, n_densities, n_slopes, n_seeds_per_fold, n_folds, batch_size):
+    def __init__(self, n_densities, n_slopes, n_seeds_per_fold, n_folds, batch_size):
         super().__init__()
 
         self.n_densities = n_densities
