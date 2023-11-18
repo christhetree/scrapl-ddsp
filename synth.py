@@ -68,6 +68,7 @@ def generate_chirp_texture(
 
     # Define the slope of the events
     gamma = get_slope(theta_slope, Q, hop_length, sr)
+    print(f"gamma: {gamma}")
 
     # Draw onsets at random
     chirp_duration = event_duration
@@ -94,6 +95,7 @@ def generate_chirp_texture(
     # sigma_window = 0.1
     # envelope = gaussian(chirp_length, sigma_window)
     envelope = make_hann_window(chirp_length)
+    # envelope = 1.0
 
     for event_id, onset, amplitude, frequency in patch_zip:
         phase = torch.expm1(gamma * const_log2 * time) / (gamma * const_log2)
