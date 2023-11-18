@@ -1,111 +1,131 @@
+import logging
+import os
+from typing import Optional
+
 import numpy as np
-import torch
+import torch as tr
+from torch import Tensor as T, nn
+
+logging.basicConfig()
+log = logging.getLogger(__name__)
+log.setLevel(level=os.environ.get('LOGLEVEL', 'INFO'))
 
 
-def gaussian(M, std, sym=True):
-    """Gaussian window converted from scipy.signal.gaussian"""
-    if M < 1:
-        return torch.array([])
-    if M == 1:
-        return torch.ones(1, "d")
-    odd = M % 2
-    if not sym and not odd:
-        M = M + 1
-    n = torch.arange(0, M) - (M - 1.0) / 2.0
+class GranularSynth(nn.Module):
+    def __init__(self,
+                 sr: float,
+                 n_samples: int,
+                 n_grains: int,
+                 grain_n_samples: int,
+                 f0_min_hz: float,
+                 f0_max_hz: float,
+                 Q: int,
+                 hop_len: int,
+                 seed: Optional[int] = None):
+        super().__init__()
+        assert n_samples > grain_n_samples
+        assert f0_max_hz > f0_min_hz
+        self.sr = sr
+        self.n_samples = n_samples
+        self.n_grains = n_grains
+        self.grain_n_samples = grain_n_samples
+        self.f0_min_hz = f0_min_hz
+        self.f0_max_hz = f0_max_hz
+        self.Q = Q
+        self.hop_len = hop_len
 
-    sig2 = 2 * std * std
-    w = torch.exp(-(n**2) / sig2)
-    if not sym and not odd:
-        w = w[:-1]
-    return w
+        self.log2_f0_min = tr.log2(tr.tensor(f0_min_hz))
+        self.log2_f0_max = tr.log2(tr.tensor(f0_max_hz))
+        self.const_log2 = tr.log2(tr.tensor(2.0))
+        self.grain_dur_s = grain_n_samples / sr
+        support = tr.arange(self.grain_n_samples) / self.sr - (self.grain_dur_s / 2)
+        self.grain_support = support.repeat(self.n_grains, 1)
+        if seed is None:
+            self.rand_gen = tr.default_generator
+        else:
+            self.rand_gen = tr.Generator()
+            self.rand_gen.manual_seed(seed)
+
+    def sample_onsets(self) -> T:
+        # TODO(cm): add support for edge padding
+        onsets = tr.rand(self.n_grains, generator=self.rand_gen) * (self.n_samples - self.grain_n_samples)
+        onsets = onsets.long()
+        return onsets
+
+    def sample_f0_freqs(self) -> T:
+        log2_f0_freqs = tr.rand(self.n_grains, generator=self.rand_gen) * (self.log2_f0_max - self.log2_f0_min) + self.log2_f0_min
+        f0_freqs = tr.pow(2.0, log2_f0_freqs)
+        f0_freqs = f0_freqs.view(-1, 1)
+        return f0_freqs
+
+    def calc_amplitudes(self, theta_density: T) -> T:
+        assert theta_density.ndim == 0
+        offset = 0.25 * theta_density + 0.75 * theta_density ** 2
+        grain_indices = tr.arange(self.n_grains)
+        sigmoid_operand = (1 - theta_density) * self.n_grains * (grain_indices / self.n_grains - offset)
+        amplitudes = 1 - tr.sigmoid(2 * sigmoid_operand)
+        amplitudes = amplitudes / tr.max(amplitudes)
+        amplitudes = amplitudes.view(-1, 1)
+        return amplitudes
+
+    def calc_slope(self, theta_slope: T) -> T:
+        """
+        theta_slope --> ±1 correspond to a near-vertical line.
+        theta_slope = 0 corresponds to a horizontal line.
+        The output is measured in octaves per second.
+        """
+        assert theta_slope.ndim == 0
+        typical_slope = self.sr / (self.Q * self.hop_len)
+        return tr.tan(theta_slope * np.pi / 2) * typical_slope / 4
+
+    def forward(self, theta_density: T, theta_slope: T) -> T:
+        # Create chirplet grains
+        f0_freqs_hz = self.sample_f0_freqs()
+        amplitudes = self.calc_amplitudes(theta_density)
+        window = self.make_hann_window(self.grain_n_samples)
+
+        phase = self.grain_support
+        gamma = self.calc_slope(theta_slope)  # TODO
+        if gamma != 0:
+            phase = tr.expm1(gamma * self.const_log2 * phase) / (gamma * self.const_log2)
+        grains = tr.sin(2 * tr.pi * f0_freqs_hz * phase) * amplitudes * window
+        grains /= tr.sqrt(f0_freqs_hz)
+
+        # Create audio
+        paddings = tr.zeros((self.n_grains, self.n_samples - self.grain_n_samples))
+        onsets = self.sample_onsets()
+        x = []
+        for grain, padding, onset in zip(grains, paddings, onsets):
+            grain = tr.cat((grain, padding))
+            x.append(tr.roll(grain, shifts=onset.item()))
+        x = tr.stack(x, dim=0)
+        x = tr.sum(x, dim=0)
+        x = x / tr.norm(x, p=2)  # TODO
+        return x
+
+    @staticmethod
+    def make_hann_window(n_samples: int) -> T:
+        x = tr.arange(n_samples)
+        y = tr.sin(tr.pi * x / n_samples) ** 2
+        return y
 
 
-def make_hann_window(n_samples: int) -> torch.Tensor:
-    x = torch.arange(n_samples)
-    y = torch.sin(torch.pi * x / n_samples) ** 2
-    return y
+if __name__ == "__main__":
+    sr = 2 ** 13
+    duration = 2 ** 2
+    grain_duration = 2 ** -1
+    n_grains = 2 ** 2
+    f0_min_hz = 2 ** 8
+    f0_max_hz = 2 ** 11
 
+    n_samples = int(duration * sr)
+    grain_n_samples = int(grain_duration * sr)
 
-def get_amplitudes(theta_density, n_events):
-    offset = 0.25 * theta_density + 0.75 * theta_density**2
-    event_ids = torch.tensor(np.arange(n_events)).type(torch.float32)
-    sigmoid_operand = (1 - theta_density) * n_events * (event_ids / n_events - offset)
-    amplitudes = 1 - torch.sigmoid(2 * sigmoid_operand)
-    amplitudes = amplitudes / torch.max(amplitudes)
-    return amplitudes
+    synth = GranularSynth(sr=sr,
+                          n_samples=n_samples,
+                          n_grains=n_grains,
+                          grain_n_samples=grain_n_samples,
+                          f0_min_hz=f0_min_hz,
+                          f0_max_hz=f0_max_hz)
 
-
-def get_slope(theta_slope, Q, hop_length, sr):
-    """theta_slope --> ±1 correspond to a near-vertical line.
-    theta_slope = 0 corresponds to a horizontal line.
-    The output is measured in octaves per second."""
-    typical_slope = sr / (Q * hop_length)
-    return torch.tan(torch.tensor(theta_slope * np.pi / 2)) * typical_slope / 4
-
-
-def generate_chirp_texture(
-    theta_density,
-    theta_slope,
-    *,
-    duration,
-    event_duration,
-    sr,
-    fmin,
-    fmax,
-    n_events,
-    Q,
-    hop_length,
-    seed,
-):
-    # Set random seed
-    random_state = np.random.RandomState(seed)
-
-    # Define constant log(2)
-    const_log2 = torch.log(torch.tensor(2.0))
-
-    # Define the amplitudes of the events
-    amplitudes = get_amplitudes(theta_density, n_events)
-
-    # Define the slope of the events
-    gamma = get_slope(theta_slope, Q, hop_length, sr)
-
-    # Draw onsets at random
-    chirp_duration = event_duration
-    chirp_length = torch.tensor(chirp_duration * sr).int()
-    rand_onsets = torch.from_numpy(random_state.rand(n_events))
-    # TODO
-    onsets = rand_onsets * (duration * sr / 2 - chirp_length) + duration * sr / 4
-    onsets = torch.floor(onsets).type(torch.int64)
-
-    # Draw frequencies at random
-    log2_fmin = torch.log2(torch.tensor(fmin))
-    log2_fmax = torch.log2(torch.tensor(fmax))
-    rand_pitches = torch.from_numpy(random_state.rand(n_events))
-    log2_frequencies = log2_fmin + rand_pitches * (log2_fmax - log2_fmin)
-    frequencies = torch.pow(2.0, log2_frequencies)
-
-    # Generate events one by one
-    X = torch.zeros(duration * sr, n_events)
-    time = torch.arange(chirp_length) / sr - chirp_duration / 2
-    event_ids = torch.arange(n_events)
-    patch_zip = zip(event_ids, onsets, amplitudes, frequencies)
-
-    # Define envelope
-    # sigma_window = 0.1
-    # envelope = gaussian(chirp_length, sigma_window)
-    envelope = make_hann_window(chirp_length)
-
-    for event_id, onset, amplitude, frequency in patch_zip:
-        phase = torch.expm1(gamma * const_log2 * time) / (gamma * const_log2)
-        phase[torch.isnan(phase)] = time[torch.isnan(phase)]
-        chirp = torch.sin(2 * torch.pi * frequency * phase)
-        offset = onset + chirp_length
-        X[onset:offset, event_id] = chirp * amplitude * envelope * torch.sqrt(frequency)
-
-    # Mix events
-    x = X.sum(axis=-1)
-
-    # Renormalize
-    x = x / torch.norm(x)
-
-    return x
+    x = synth.forward(theta_density=tr.tensor(1.0), theta_slope=tr.tensor(0.5))
