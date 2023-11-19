@@ -89,7 +89,7 @@ nnAudio==0.3.2
 notebook==7.0.6
 notebook_shim==0.2.3
 numba==0.58.1
-numpy==1.26.2
+numpy==1.23.5
 overrides==7.4.0
 packaging==23.2
 pandas==2.1.3
