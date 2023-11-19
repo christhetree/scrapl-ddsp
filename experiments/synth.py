@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 log.setLevel(level=os.environ.get('LOGLEVEL', 'INFO'))
 
 
-class GranularSynth(nn.Module):
+class ChirpTextureSynth(nn.Module):
     def __init__(self,
                  sr: float,
                  n_samples: int,
@@ -40,10 +40,8 @@ class GranularSynth(nn.Module):
         self.grain_dur_s = grain_n_samples / sr
         support = tr.arange(self.grain_n_samples) / self.sr - (self.grain_dur_s / 2)
         self.grain_support = support.repeat(self.n_grains, 1)
-        if seed is None:
-            self.rand_gen = tr.default_generator
-        else:
-            self.rand_gen = tr.Generator()
+        self.rand_gen = tr.Generator()
+        if seed is not None:
             self.rand_gen.manual_seed(seed)
 
     def sample_onsets(self) -> T:
@@ -78,7 +76,13 @@ class GranularSynth(nn.Module):
         typical_slope = self.sr / (self.Q * self.hop_len)
         return tr.tan(theta_slope * np.pi / 2) * typical_slope / 4
 
-    def forward(self, theta_density: T, theta_slope: T) -> T:
+    def forward(self,
+                theta_density: T,
+                theta_slope: T,
+                seed: Optional[int] = None) -> T:
+        if seed is not None:
+            self.rand_gen.manual_seed(seed)
+
         # Create chirplet grains
         f0_freqs_hz = self.sample_f0_freqs()
         amplitudes = self.calc_amplitudes(theta_density)
@@ -121,11 +125,11 @@ if __name__ == "__main__":
     n_samples = int(duration * sr)
     grain_n_samples = int(grain_duration * sr)
 
-    synth = GranularSynth(sr=sr,
-                          n_samples=n_samples,
-                          n_grains=n_grains,
-                          grain_n_samples=grain_n_samples,
-                          f0_min_hz=f0_min_hz,
-                          f0_max_hz=f0_max_hz)
+    synth = ChirpTextureSynth(sr=sr,
+                              n_samples=n_samples,
+                              n_grains=n_grains,
+                              grain_n_samples=grain_n_samples,
+                              f0_min_hz=f0_min_hz,
+                              f0_max_hz=f0_max_hz)
 
     x = synth.forward(theta_density=tr.tensor(1.0), theta_slope=tr.tensor(0.5))
