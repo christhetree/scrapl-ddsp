@@ -38,9 +38,13 @@ class JTFSTLoss(nn.Module):
         )
 
     def forward(self, x: Tensor, x_target: Tensor) -> Tensor:
-        Sx = self.jtfs(x)[1:]
-        Sx_target = self.jtfs(x_target)[1:]
-        dist = tr.linalg.vector_norm(Sx_target - Sx, p=2, dim=1)
+        assert x.ndim == x_target.ndim == 3
+        assert x.size(1) == x_target.size(1) == 1
+        Sx = self.jtfs(x)
+        Sx = Sx[:, :, 1:, :].view(Sx.size(0), -1)
+        Sx_target = self.jtfs(x_target)
+        Sx_target = Sx_target[:, :, 1:, :].view(Sx.size(0), -1)
+        dist = tr.linalg.vector_norm(Sx_target - Sx, ord=2, dim=1)
         return dist
 
 
@@ -68,10 +72,14 @@ class SCRAPLLoss(nn.Module):
         self.scrapl_keys = [key for key in scrapl_meta["key"] if len(key) == 2]
 
     def forward(self, x: Tensor, x_target: Tensor) -> Tensor:
+        assert x.ndim == x_target.ndim == 3
+        assert x.size(1) == x_target.size(1) == 1
         n2, n_fr = SCRAPLLoss.choice(self.scrapl_keys)
         Sx = self.scrapl.scattering_singlepath(x, n2, n_fr)
+        Sx = Sx["coef"].view(-1, 1)
         Sx_target = self.scrapl.scattering_singlepath(x_target, n2, n_fr)
-        dist = tr.linalg.vector_norm(Sx_target - Sx, p=2, dim=1)
+        Sx_target = Sx_target["coef"].view(-1, 1)
+        dist = tr.linalg.vector_norm(Sx_target - Sx, ord=2, dim=1)
         return dist
 
     @staticmethod

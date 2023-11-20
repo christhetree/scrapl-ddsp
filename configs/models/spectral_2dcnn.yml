@@ -1,14 +1,10 @@
 class_path: experiments.models.Spectral2DCNN
 init_args:
-  in_ch: 2
-  n_fft: 1024
-  hop_len: 256
-  n_mels: 256
-  kernel_size: [5, 13]
-  out_channels: [64, 64, 64, 64, 64, 64]
-  temp_dilations: [1, 1, 2, 4, 8, 16]
-  pool_size: [2, 1]
-  latent_dim: 1
-  freq_mask_amount: 0.25
-  time_mask_amount: 0.25
+  n_bins: 60
+  n_frames: 129
+  in_ch: 1
+  kernel_size: [3, 3]
+  out_channels: [64, 64, 64, 64, 64]
+  pool_size: [2, 2]
+  latent_dim: 32
   use_ln: true
