@@ -18,21 +18,22 @@ class ChirpTextureDataset(Dataset):
     def __init__(self,
                  df: DataFrame,
                  synth: ChirpTextureSynth,
-                 J: int,
                  feature_type: str = "cqt",
+                 J_cqt: int = 5,
                  cqt_eps: float = 1e-3):
         super().__init__()
         self.df = df
         self.synth = synth
-        self.J = J
+        self.J_cqt = J_cqt
         self.feature_type = feature_type
         self.cqt_eps = cqt_eps
+
         cqt_params = {
             "sr": synth.sr,
             "bins_per_octave": synth.Q,
-            "n_bins": self.J * synth.Q,
+            "n_bins": J_cqt * synth.Q,
             "hop_length": synth.hop_len,
-            "fmin": (0.4 * synth.sr) / (2 ** J),
+            "fmin": (0.4 * synth.sr) / (2 ** J_cqt),
         }
         self.cqt = CQT(**cqt_params)
 
@@ -51,12 +52,12 @@ class ChirpTextureDataset(Dataset):
         theta_slope = tr.tensor(self.df.iloc[idx]["slope"], dtype=tr.float32)
         seed = self.df.iloc[idx]["seed"]
         x = self.synth(theta_density, theta_slope, seed)
-        u = self.calc_u(x)
-        return u, theta_density, theta_slope, seed
+        U = self.calc_u(x)
+        return U, theta_density, theta_slope, seed
 
     @staticmethod
     def calc_cqt(x: T, cqt: CQT, cqt_eps: float = 1e-3) -> T:
-        u = cqt(x)
-        u = u.abs()
-        u = tr.log1p(u / cqt_eps)
-        return u
+        U = cqt(x)
+        U = U.abs()
+        U = tr.log1p(U / cqt_eps)
+        return U
