@@ -24,8 +24,6 @@ class CustomLightningCLI(LightningCLI):
         "accelerator": "gpu",
         "callbacks": [
             LearningRateMonitor(logging_interval="step"),
-            LogSpecAndModSigCallback(n_examples=4, log_wet_hat=True),
-            LogAudioCallback(n_examples=4, log_dry_audio=True),
             ModelCheckpoint(
                 filename="epoch_{epoch}_step_{step}",  # Name is appended
                 auto_insert_metric_name=False,
@@ -138,9 +136,9 @@ class CustomLightningCLI(LightningCLI):
                 self.link_arguments_if_possible(src, dest, config)
 
             # TODO(cm): make generic
-            if "shared_args" in config.data.init_args or "shared_train_args" in config.data.init_args:
-                del config.data.init_args["train_num_examples_per_epoch"]
-                del config.data.init_args["val_num_examples_per_epoch"]
+            # if "shared_args" in config.data.init_args or "shared_train_args" in config.data.init_args:
+            #     del config.data.init_args["train_num_examples_per_epoch"]
+            #     del config.data.init_args["val_num_examples_per_epoch"]
 
     def before_fit(self) -> None:
         for cb in self.trainer.callbacks:
