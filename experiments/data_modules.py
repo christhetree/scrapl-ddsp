@@ -23,8 +23,8 @@ class ChirpTextureDataModule(pl.LightningDataModule):
                  n_seeds_per_fold: int,
                  n_folds: int,
                  synth: ChirpTextureSynth,
-                 J: int,
                  feature_type: str = "cqt",
+                 J_cqt: int = 5,
                  cqt_eps: float = 1e-3,
                  num_workers: int = 0):
         super().__init__()
@@ -37,8 +37,8 @@ class ChirpTextureDataModule(pl.LightningDataModule):
         self.n_seeds_per_fold = n_seeds_per_fold
         self.n_folds = n_folds
         self.synth = synth
-        self.J = J
         self.feature_type = feature_type
+        self.J_cqt = J_cqt
         self.cqt_eps = cqt_eps
         self.num_workers = num_workers
 
@@ -67,20 +67,20 @@ class ChirpTextureDataModule(pl.LightningDataModule):
         train_df = self.df[self.df["fold"] < (self.n_folds - 2)]
         self.train_ds = ChirpTextureDataset(train_df,
                                             self.synth,
-                                            self.J,
                                             self.feature_type,
+                                            self.J_cqt,
                                             self.cqt_eps)
         val_df = self.df[self.df["fold"] == (self.n_folds - 2)]
         self.val_ds = ChirpTextureDataset(val_df,
                                           self.synth,
-                                          self.J,
                                           self.feature_type,
+                                          self.J_cqt,
                                           self.cqt_eps)
         test_df = self.df[self.df["fold"] == (self.n_folds - 1)]
         self.test_ds = ChirpTextureDataset(test_df,
                                            self.synth,
-                                           self.J,
                                            self.feature_type,
+                                           self.J_cqt,
                                            self.cqt_eps)
 
     def train_dataloader(self) -> DataLoader:
