@@ -42,6 +42,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             "n_bins": J_cqt * synth.Q,
             "hop_length": synth.hop_len,
             "fmin": (0.4 * synth.sr) / (2 ** J_cqt),
+            "output_format": "Magnitude",
             "verbose": False,
         }
         self.cqt = CQT(**cqt_params)
@@ -77,8 +78,8 @@ class SCRAPLLightingModule(pl.LightningModule):
                                         seed[idx])
                 x.append(curr_x)
                 x_hat.append(curr_x_hat)
-            x = tr.stack(x, dim=0)
-            x_hat = tr.stack(x_hat, dim=0)
+            x = tr.stack(x, dim=0).unsqueeze(1)  # Unsqueeze channel dim
+            x_hat = tr.stack(x_hat, dim=0).unsqueeze(1)  # Unsqueeze channel dim
 
             if self.feature_type == "cqt":
                 U_hat = ChirpTextureDataset.calc_cqt(x_hat, self.cqt, self.cqt_eps)

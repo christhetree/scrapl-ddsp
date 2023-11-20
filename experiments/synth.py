@@ -80,9 +80,9 @@ class ChirpTextureSynth(nn.Module):
     def forward(self,
                 theta_density: T,
                 theta_slope: T,
-                seed: Optional[int] = None) -> T:
+                seed: Optional[T] = None) -> T:
         if seed is not None:
-            self.rand_gen.manual_seed(seed)
+            self.rand_gen.manual_seed(int(seed.item()))
 
         # Create chirplet grains
         f0_freqs_hz = self.sample_f0_freqs()

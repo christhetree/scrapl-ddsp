@@ -1,10 +1,10 @@
 class_path: experiments.losses.JTFSTLoss
 init_args:
   shape: 32768
-  J: 6
-  Q1: 24
+  J: 2
+  Q1: 2  # TODO
   Q2: 2
-  J_fr: 5
+  J_fr: 2
   Q_fr: 2
   T: global
   F: global

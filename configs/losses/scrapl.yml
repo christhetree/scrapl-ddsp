@@ -1,0 +1,10 @@
+class_path: experiments.losses.SCRAPLLoss
+init_args:
+  shape: 32768
+  J: 6
+  Q1: 24
+  Q2: 2
+  J_fr: 5
+  Q_fr: 2
+  T: global
+  F: global
