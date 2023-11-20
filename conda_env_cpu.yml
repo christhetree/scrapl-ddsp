@@ -1,0 +1,20 @@
+name: mod_ex
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - auraloss
+    - einops
+    - librosa
+    - matplotlib
+    - neutone-sdk
+    - pedalboard
+    - pip-chill
+    - pyloudnorm
+    - pytorch-lightning[extra]
+    - scipy
+    - torchaudio
+    - torchvision
+    - wandb
