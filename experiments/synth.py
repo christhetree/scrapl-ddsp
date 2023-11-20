@@ -4,7 +4,8 @@ from typing import Optional
 
 import numpy as np
 import torch as tr
-from torch import Tensor as T, nn
+import torch.nn as nn
+from torch import Tensor as T
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
