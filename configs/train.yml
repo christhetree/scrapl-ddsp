@@ -36,3 +36,5 @@ model:
     feature_type: cqt
     J_cqt: 5
     cqt_eps: 1e-3
+
+optimizer: ../configs/opt/adam_w.yml

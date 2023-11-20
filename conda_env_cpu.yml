@@ -17,4 +17,5 @@ dependencies:
     - pytorch-lightning
     - torchaudio
     - torchvision
+    - tensorboard
     - wandb

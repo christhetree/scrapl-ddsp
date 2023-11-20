@@ -99,10 +99,11 @@ class CustomLightningCLI(LightningCLI):
             curr_dest[dest_key] = src_val
 
     def update_config(self, config: Dict[str, Any]) -> None:
-        for link_args in self.cli_config["link_arguments_if_possible"]:
-            src = link_args["src"]
-            dest = link_args["dest"]
-            self.link_arguments_if_possible(src, dest, config)
+        if "link_arguments_if_possible" in self.cli_config:
+            for link_args in self.cli_config["link_arguments_if_possible"]:
+                src = link_args["src"]
+                dest = link_args["dest"]
+                self.link_arguments_if_possible(src, dest, config)
 
     def before_instantiate_classes(self) -> None:
         if self.subcommand is not None:
@@ -130,10 +131,11 @@ class CustomLightningCLI(LightningCLI):
             config.data.init_args.batch_size = config.custom.cpu_batch_size
             config.data.init_args.num_workers = 0
 
-            for link_args in self.cli_config["cpu_link_arguments_if_possible"]:
-                src = link_args["src"]
-                dest = link_args["dest"]
-                self.link_arguments_if_possible(src, dest, config)
+            if "cpu_link_arguments_if_possible" in self.cli_config:
+                for link_args in self.cli_config["cpu_link_arguments_if_possible"]:
+                    src = link_args["src"]
+                    dest = link_args["dest"]
+                    self.link_arguments_if_possible(src, dest, config)
 
             # TODO(cm): make generic
             # if "shared_args" in config.data.init_args or "shared_train_args" in config.data.init_args:

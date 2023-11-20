@@ -18,22 +18,23 @@ class JTFSTLoss(nn.Module):
     def __init__(self,
                  shape: int,
                  J: int,
-                 Q: Tuple[int, int],
+                 Q1: int,
+                 Q2: int,
                  J_fr: int,
                  Q_fr: int,
                  T: str = "global",
                  F: str = "global",
-                 format_: str = "time"):
+                 format: str = "time"):
         super().__init__()
         self.jtfs = TimeFrequencyScattering(
             shape=(shape,),
             J=J,
-            Q=Q,
+            Q=(Q1, Q2),
             Q_fr=Q_fr,
             J_fr=J_fr,
             T=T,
             F=F,
-            format=format_,
+            format=format,
         )
 
     def forward(self, x: Tensor, x_target: Tensor) -> Tensor:
@@ -47,7 +48,8 @@ class SCRAPLLoss(nn.Module):
     def __init__(self,
                  shape: int,
                  J: int,
-                 Q: Tuple[int, int],
+                 Q1: int,
+                 Q2: int,
                  J_fr: int,
                  Q_fr: int,
                  T: str = "global",
@@ -56,7 +58,7 @@ class SCRAPLLoss(nn.Module):
         self.scrapl = TimeFrequencyScrapl(
             shape=(shape,),
             J=J,
-            Q=Q,
+            Q=(Q1, Q2),
             Q_fr=Q_fr,
             J_fr=J_fr,
             T=T,
