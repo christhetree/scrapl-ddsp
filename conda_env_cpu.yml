@@ -1,4 +1,4 @@
-name: mod_ex
+name: scrapl
 channels:
   - defaults
 dependencies:
@@ -6,15 +6,15 @@ dependencies:
   - pip
   - pip:
     - auraloss
-    - einops
+    - black
+    - git+https://github.com/kymatio/kymatio.git
     - librosa
     - matplotlib
-    - neutone-sdk
-    - pedalboard
-    - pip-chill
-    - pyloudnorm
-    - pytorch-lightning[extra]
-    - scipy
+    - nnaudio
+    - numpy==1.23.5
+    - pandas
+    - pytorch=2.1.1
+    - pytorch-lightning
     - torchaudio
     - torchvision
     - wandb
