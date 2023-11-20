@@ -1,0 +1,38 @@
+seed_everything: 42
+
+custom:
+  project_name: scrapl
+  model_name: spectral_2dcnn
+  cpu_batch_size: 8
+
+trainer:
+  accelerator: gpu
+  benchmark: false
+  devices: [0]
+  max_epochs: 100
+  num_sanity_val_steps: 0
+
+data:
+  class_path: experiments.data_modules.ChirpTextureDataModule
+  init_args:
+    batch_size: 64
+    num_workers: 4
+    n_densities: 32
+    n_slopes: 32
+    n_seeds_per_fold: 1
+    n_folds: 8
+    synth: ../configs/synths/chirp_texture.yml
+    feature_type: cqt
+    J_cqt: 5
+    cqt_eps: 1e-3
+
+model:
+  class_path: experiments.lightning.SCRAPLLightingModule
+  init_args:
+    model: ../configs/models/spectral_2dcnn.yml
+    synth: ../configs/synths/chirp_texture.yml
+    loss_func: ../configs/losses/jtfst.yml
+    use_p_loss: false
+    feature_type: cqt
+    J_cqt: 5
+    cqt_eps: 1e-3

@@ -1,0 +1,23 @@
+additional_arguments:
+  - name: custom.project_name
+    default: local_project
+  - name: custom.model_name
+    default: local_model
+  - name: custom.dataset_name
+    default: local_dataset
+  - name: custom.use_wandb
+    default: true
+  - name: custom.cpu_batch_size
+    default: 5
+  - name: custom.cpu_train_num_examples_per_epoch
+    default: 10
+  - name: custom.cpu_val_num_examples_per_epoch
+    default: 5
+
+link_arguments:
+  - src: custom.project_name
+    dest: trainer.logger.init_args.name
+
+link_arguments_if_possible:
+
+cpu_link_arguments_if_possible:
