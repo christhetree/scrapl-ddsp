@@ -28,7 +28,7 @@ class ChirpTextureDataModule(pl.LightningDataModule):
                  cqt_eps: float = 1e-3,
                  num_workers: int = 0):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=["synth"])
         log.info(f"\n{self.hparams}")
 
         self.batch_size = batch_size

@@ -21,4 +21,5 @@ dependencies:
     - nvitop
     - pandas
     - pytorch-lightning
+    - tensorboard
     - wandb

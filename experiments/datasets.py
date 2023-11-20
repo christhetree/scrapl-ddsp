@@ -34,6 +34,7 @@ class ChirpTextureDataset(Dataset):
             "n_bins": J_cqt * synth.Q,
             "hop_length": synth.hop_len,
             "fmin": (0.4 * synth.sr) / (2 ** J_cqt),
+            "verbose": False,
         }
         self.cqt = CQT(**cqt_params)
 
@@ -50,7 +51,7 @@ class ChirpTextureDataset(Dataset):
     def __getitem__(self, idx: int) -> (T, T, T, int):
         theta_density = tr.tensor(self.df.iloc[idx]["density"], dtype=tr.float32)
         theta_slope = tr.tensor(self.df.iloc[idx]["slope"], dtype=tr.float32)
-        seed = self.df.iloc[idx]["seed"]
+        seed = int(self.df.iloc[idx]["seed"])
         x = self.synth(theta_density, theta_slope, seed)
         U = self.calc_u(x)
         return U, theta_density, theta_slope, seed

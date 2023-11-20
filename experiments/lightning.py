@@ -26,7 +26,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                  J_cqt: int = 5,
                  cqt_eps: float = 1e-3):
         super().__init__()
-        self.save_hyperparameters(ignore=["model"])
+        self.save_hyperparameters(ignore=["loss_func", "model", "synth"])
         log.info(f"\n{self.hparams}")
         self.model = model
         self.synth = synth
@@ -42,6 +42,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             "n_bins": J_cqt * synth.Q,
             "hop_length": synth.hop_len,
             "fmin": (0.4 * synth.sr) / (2 ** J_cqt),
+            "verbose": False,
         }
         self.cqt = CQT(**cqt_params)
         self.loss_name = self.loss_func.__class__.__name__

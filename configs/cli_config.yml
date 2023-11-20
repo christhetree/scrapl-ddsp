@@ -17,7 +17,3 @@ additional_arguments:
 link_arguments:
   - src: custom.project_name
     dest: trainer.logger.init_args.name
-
-link_arguments_if_possible:
-
-cpu_link_arguments_if_possible:
