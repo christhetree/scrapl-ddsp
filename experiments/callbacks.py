@@ -60,7 +60,7 @@ class LogScalogramCallback(Callback):
         theta_density_hat = data_dict["theta_density_hat"]
         theta_slope_hat = data_dict["theta_slope_hat"]
 
-        n_batches = U.size(0)
+        n_batches = theta_density.size(0)
         if batch_idx == 0:
             self.images = []
             for idx in range(self.n_examples):
@@ -142,7 +142,7 @@ class LogAudioCallback(Callback):
         theta_density_hat = data_dict["theta_density_hat"]
         theta_slope_hat = data_dict["theta_slope_hat"]
 
-        n_batches = x.size(0)
+        n_batches = theta_density.size(0)
         if batch_idx == 0:
             self.images = []
             self.x_audio = []
