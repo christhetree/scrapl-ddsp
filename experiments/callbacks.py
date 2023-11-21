@@ -49,14 +49,10 @@ class LogScalogramCallback(Callback):
         if outputs is None:
             return
         _, data_dict = outputs
-        if "U" not in data_dict or "U_hat" not in data_dict:
-            log.warning(f"data_dict doesn't contain the correct keys for logging "
-                        f"spectrograms: {data_dict.keys()}")
-            return
-        U = data_dict["U"]
-        U_hat = data_dict["U_hat"]
+        U = data_dict.get("U")
+        U_hat = data_dict.get("U_hat")
         if U is None and U_hat is None:
-            log.debug(f"U and U_hat are both None, cannot log spectrograms")
+            log.warning(f"U and U_hat are both None, cannot log spectrograms")
             return
 
         theta_density = data_dict["theta_density"]
@@ -135,14 +131,10 @@ class LogAudioCallback(Callback):
         if outputs is None:
             return
         _, data_dict = outputs
-        if "x" not in data_dict or "x_hat" not in data_dict:
-            log.warning(f"data_dict doesn't contain the correct keys for logging "
-                        f"audio: {data_dict.keys()}")
-            return
-        x = data_dict["x"]
-        x_hat = data_dict["x_hat"]
+        x = data_dict.get("x")
+        x_hat = data_dict.get("x_hat")
         if x is None and x_hat is None:
-            log.warning(f"x and x_hat are both None, cannot log audio")
+            log.debug(f"x and x_hat are both None, cannot log audio")
             return
 
         theta_density = data_dict["theta_density"]

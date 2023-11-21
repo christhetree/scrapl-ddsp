@@ -5,6 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
+import torch as tr
 from torch.utils.data import DataLoader
 
 from experiments.datasets import ChirpTextureDataset
@@ -57,6 +58,10 @@ class ChirpTextureDataModule(pl.LightningDataModule):
 
         folds = df["seed"] % n_folds
         df["fold"] = folds
+        # Shuffle such that batches in validation and test contain a variety of
+        # different values. This makes the visualization callbacks more representative.
+        df = df.sample(frac=1,
+                       random_state=tr.random.initial_seed()).reset_index(drop=True)
 
         self.df = df
         self.train_ds = None
