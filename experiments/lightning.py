@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Optional
+from typing import Dict
 
 import pytorch_lightning as pl
 import torch as tr
@@ -49,10 +49,10 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.loss_name = self.loss_func.__class__.__name__
         self.l1 = nn.L1Loss()
 
-    def step(self, batch: (T, T, T, T), stage: str) -> (T, T, Optional[T], ...):
+    def step(self, batch: (T, T, T, T), stage: str) -> (T, Dict[str, T]):
         U, theta_density, theta_slope, seed = batch
         U_hat = None
-        x = None,
+        x = None
         x_hat = None
 
         theta_density_hat, theta_slope_hat = self.model(U)
@@ -93,17 +93,28 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         self.log(f"{stage}/l1_d", density_mae, prog_bar=True, sync_dist=True)
         self.log(f"{stage}/l1_s", slope_mae, prog_bar=True, sync_dist=True)
+        self.log(f"{stage}/loss", loss, prog_bar=False, sync_dist=True)
 
-        return loss, U, U_hat, x, x_hat
+        data_dict = {
+            "U": U,
+            "U_hat": U_hat,
+            "x": x,
+            "x_hat": x_hat,
+            "theta_density": theta_density,
+            "theta_density_hat": theta_density_hat,
+            "theta_slope": theta_slope,
+            "theta_slope_hat": theta_slope_hat,
+        }
+        return loss, data_dict
 
     def training_step(self, batch: (T, T, T, T), batch_idx: int) -> T:
-        loss, _, _, _, _ = self.step(batch, stage="train")
+        loss, _ = self.step(batch, stage="train")
         return loss
 
-    def validation_step(self, batch: (T, T, T, T), stage: str) -> (T, T, Optional[T], ...):
+    def validation_step(self, batch: (T, T, T, T), stage: str) -> (T, Dict[str, T]):
         out = self.step(batch, stage="val")
         return out
 
-    def test_step(self, batch: (T, T, T, T), stage: str) -> (T, T, Optional[T], ...):
+    def test_step(self, batch: (T, T, T, T), stage: str) -> (T, Dict[str, T]):
         out = self.step(batch, stage="test")
         return out

@@ -15,7 +15,7 @@ dependencies:
     - black
     - git+https://github.com/kymatio/kymatio.git
     - librosa
-    - matplotlib
+    - matplotlib==3.7
     - nnaudio
     - numpy==1.23.5
     - nvitop
