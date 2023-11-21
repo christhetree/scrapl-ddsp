@@ -138,8 +138,9 @@ def plot_waveforms_stacked(waveforms: List[T],
         sharex="all",
         sharey="all",
         figsize=(7, 2 * len(waveforms)),
-        squeeze=True,
+        squeeze=False,
     )
+    axs = axs.squeeze(1)
 
     for idx, (ax, w, label) in enumerate(zip(axs, waveforms, waveform_labels)):
         assert 0 < w.ndim <= 2
