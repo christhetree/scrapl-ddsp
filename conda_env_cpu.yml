@@ -8,6 +8,7 @@ dependencies:
     - auraloss
     - black
     - git+https://github.com/kymatio/kymatio.git
+    - jsonargparse[signatures]
     - librosa
     - matplotlib==3.7
     - nnaudio

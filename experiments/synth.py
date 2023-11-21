@@ -39,20 +39,46 @@ class ChirpTextureSynth(nn.Module):
         self.log2_f0_max = tr.log2(tr.tensor(f0_max_hz))
         self.const_log2 = tr.log2(tr.tensor(2.0))
         self.grain_dur_s = grain_n_samples / sr
-        support = tr.arange(self.grain_n_samples) / self.sr - (self.grain_dur_s / 2)
-        self.grain_support = support.repeat(self.n_grains, 1)
-        self.rand_gen = tr.Generator()
-        if seed is not None:
-            self.rand_gen.manual_seed(seed)
+        support = tr.arange(grain_n_samples) / sr - (self.grain_dur_s / 2)
+        grain_support = support.repeat(n_grains, 1)
+        self.register_buffer("grain_support", grain_support)
+        grain_indices = tr.arange(n_grains)
+        self.register_buffer("grain_indices", grain_indices)
+        window = self.make_hann_window(grain_n_samples)
+        self.register_buffer("window", window)
+        log2_f0_freqs = tr.empty((self.n_grains,))
+        self.register_buffer("log2_f0_freqs", log2_f0_freqs)
+        onsets = tr.empty((self.n_grains,))
+        self.register_buffer("onsets", onsets)
+        paddings = tr.zeros((self.n_grains, self.n_samples - self.grain_n_samples))
+        self.register_buffer("paddings", paddings)
 
-    def sample_onsets(self) -> T:
+        # TODO(cm): use only one generator, seems to be a PyTorch limitation
+        self.rand_gen_cpu = tr.Generator(device="cpu")
+        self.rand_gen_gpu = None
+        if seed is not None:
+            self.rand_gen_cpu.manual_seed(seed)
+        if tr.cuda.is_available():
+            self.rand_gen_gpu = tr.Generator(device="cuda")
+            if seed is not None:
+                self.rand_gen_gpu.manual_seed(seed)
+
+    def get_rand_gen(self, device: str) -> tr.Generator:
+        if device == "cpu":
+            return self.rand_gen_cpu
+        else:
+            return self.rand_gen_gpu
+
+    def sample_onsets(self, rand_gen: tr.Generator) -> T:
         # TODO(cm): add support for edge padding
-        onsets = tr.rand(self.n_grains, generator=self.rand_gen) * (self.n_samples - self.grain_n_samples)
+        onsets = self.onsets.uniform_(generator=rand_gen)
+        onsets = onsets * (self.n_samples - self.grain_n_samples)
         onsets = onsets.long()
         return onsets
 
-    def sample_f0_freqs(self) -> T:
-        log2_f0_freqs = tr.rand(self.n_grains, generator=self.rand_gen) * (self.log2_f0_max - self.log2_f0_min) + self.log2_f0_min
+    def sample_f0_freqs(self, rand_gen: tr.Generator) -> T:
+        log2_f0_freqs = self.log2_f0_freqs.uniform_(generator=rand_gen)
+        log2_f0_freqs = log2_f0_freqs * (self.log2_f0_max - self.log2_f0_min) + self.log2_f0_min
         f0_freqs = tr.pow(2.0, log2_f0_freqs)
         f0_freqs = f0_freqs.view(-1, 1)
         return f0_freqs
@@ -60,8 +86,7 @@ class ChirpTextureSynth(nn.Module):
     def calc_amplitudes(self, theta_density: T) -> T:
         assert theta_density.ndim == 0
         offset = 0.25 * theta_density + 0.75 * theta_density ** 2
-        grain_indices = tr.arange(self.n_grains)
-        sigmoid_operand = (1 - theta_density) * self.n_grains * (grain_indices / self.n_grains - offset)
+        sigmoid_operand = (1 - theta_density) * self.n_grains * (self.grain_indices / self.n_grains - offset)
         amplitudes = 1 - tr.sigmoid(2 * sigmoid_operand)
         amplitudes = amplitudes / tr.max(amplitudes)
         amplitudes = amplitudes.view(-1, 1)
@@ -81,26 +106,25 @@ class ChirpTextureSynth(nn.Module):
                 theta_density: T,
                 theta_slope: T,
                 seed: Optional[T] = None) -> T:
+        rand_gen = self.get_rand_gen(device=self.grain_support.device.type)
         if seed is not None:
-            self.rand_gen.manual_seed(int(seed.item()))
+            rand_gen.manual_seed(int(seed.item()))
 
         # Create chirplet grains
-        f0_freqs_hz = self.sample_f0_freqs()
+        f0_freqs_hz = self.sample_f0_freqs(rand_gen)
         amplitudes = self.calc_amplitudes(theta_density)
-        window = self.make_hann_window(self.grain_n_samples)
 
         phase = self.grain_support
         gamma = self.calc_slope(theta_slope)  # TODO
         if gamma != 0:
             phase = tr.expm1(gamma * self.const_log2 * phase) / (gamma * self.const_log2)
-        grains = tr.sin(2 * tr.pi * f0_freqs_hz * phase) * amplitudes * window
+        grains = tr.sin(2 * tr.pi * f0_freqs_hz * phase) * amplitudes * self.window
         grains /= tr.sqrt(f0_freqs_hz)
 
         # Create audio
-        paddings = tr.zeros((self.n_grains, self.n_samples - self.grain_n_samples))
-        onsets = self.sample_onsets()
+        onsets = self.sample_onsets(rand_gen)
         x = []
-        for grain, padding, onset in zip(grains, paddings, onsets):
+        for grain, padding, onset in zip(grains, self.paddings, onsets):
             grain = tr.cat((grain, padding))
             x.append(tr.roll(grain, shifts=onset.item()))
         x = tr.stack(x, dim=0)
