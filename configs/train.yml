@@ -17,8 +17,10 @@ data:
   init_args:
     batch_size: 64
     num_workers: 4
-    n_densities: 32
-    n_slopes: 32
+#    n_densities: 32
+    n_densities: 5
+#    n_slopes: 32
+    n_slopes: 5
     n_seeds_per_fold: 1
     n_folds: 8
     synth: ../configs/synths/chirp_texture.yml
@@ -32,10 +34,12 @@ model:
     model: ../configs/models/spectral_2dcnn.yml
     synth: ../configs/synths/chirp_texture.yml
 #    loss_func: auraloss.freq.RandomResolutionSTFTLoss  # TODO
-    loss_func: auraloss.freq.MultiResolutionSTFTLoss
+#    loss_func: auraloss.freq.MultiResolutionSTFTLoss
 #    loss_func: ../configs/losses/jtfst.yml
 #    loss_func: ../configs/losses/scrapl.yml
     use_p_loss: false
+#    use_p_loss: true
+    loss_func: torch.nn.MSELoss
     feature_type: cqt
     J_cqt: 5
     cqt_eps: 1e-3

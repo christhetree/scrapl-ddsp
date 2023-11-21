@@ -45,6 +45,7 @@ class JTFSTLoss(nn.Module):
         Sx_target = self.jtfs(x_target)
         Sx_target = Sx_target[:, :, 1:, :].view(Sx.size(0), -1)
         dist = tr.linalg.vector_norm(Sx_target - Sx, ord=2, dim=1)
+        dist = tr.mean(dist)
         return dist
 
 
@@ -80,6 +81,7 @@ class SCRAPLLoss(nn.Module):
         Sx_target = self.scrapl.scattering_singlepath(x_target, n2, n_fr)
         Sx_target = Sx_target["coef"].view(-1, 1)
         dist = tr.linalg.vector_norm(Sx_target - Sx, ord=2, dim=1)
+        dist = tr.mean(dist)
         return dist
 
     @staticmethod

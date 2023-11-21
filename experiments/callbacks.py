@@ -11,7 +11,9 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch import Tensor as T
 
-from experiments.plotting import plot_spectrogram, plot_mod_sig_callback, fig2img, plot_waveforms_stacked
+from experiments.lightning import SCRAPLLightingModule
+from experiments.plotting import plot_spectrogram, plot_mod_sig_callback, fig2img, \
+    plot_waveforms_stacked
 from experiments.util import linear_interpolate_last_dim
 
 logging.basicConfig()
@@ -31,7 +33,7 @@ class ConsoleLRMonitor(LearningRateMonitor):
             latest_stat = self._extract_stats(trainer, interval)
             latest_stat_str = {k: f"{v:.8f}" for k, v in latest_stat.items()}
             if latest_stat:
-                log.info(f"Current LR: {latest_stat_str}")
+                log.info(f"\nCurrent LR: {latest_stat_str}")
 
 
 class LogSpecAndModSigCallback(Callback):
@@ -100,85 +102,97 @@ class LogSpecAndModSigCallback(Callback):
 
 
 class LogAudioCallback(Callback):
-    def __init__(self, n_examples: int = 5, log_dry_audio: bool = False) -> None:
+    def __init__(self, n_examples: int = 5) -> None:
         super().__init__()
         self.n_examples = n_examples
-        self.log_dry_audio = log_dry_audio
-        self.dry_audio = []
-        self.wet_audio = []
-        self.wet_hat_audio = []
+        self.x_audio = []
+        self.x_hat_audio = []
         self.images = []
 
     def on_validation_batch_end(self,
                                 trainer: Trainer,
-                                pl_module: LightningModule,
-                                outputs: (T, Dict[str, T], Dict[str, T]),
-                                batch: (T, T, T, Dict[str, T]),
+                                pl_module: SCRAPLLightingModule,
+                                outputs: (T, Dict[str, T]),
+                                batch: (T, T, T, T),
                                 batch_idx: int,
                                 dataloader_idx: int = 0) -> None:
         if outputs is None:
             return
-        _, data_dict, fx_params = outputs
-        if "dry" not in data_dict or "wet" not in data_dict or "wet_hat" not in data_dict:
-            log.warning(f"data_dict doesn't contain the correct keys for logging audio: {data_dict.keys()}")
+        _, data_dict = outputs
+        if "x" not in data_dict or "x_hat" not in data_dict:
+            log.warning(f"data_dict doesn't contain the correct keys for logging "
+                        f"audio: {data_dict.keys()}")
             return
-        dry = data_dict["dry"]
-        wet = data_dict["wet"]
-        wet_hat = data_dict["wet_hat"]
-        n_batches = dry.size(0)
+        x = data_dict["x"]
+        x_hat = data_dict["x_hat"]
+        if x is None and x_hat is None:
+            log.warning(f"x and x_hat are both None, cannot log audio")
+            return
+
+        theta_density = data_dict["theta_density"]
+        theta_slope = data_dict["theta_slope"]
+        theta_density_hat = data_dict["theta_density_hat"]
+        theta_slope_hat = data_dict["theta_slope_hat"]
+
+        n_batches = x.size(0)
         if batch_idx == 0:
             self.images = []
-            self.dry_audio = []
-            self.wet_audio = []
-            self.wet_hat_audio = []
+            self.x_audio = []
+            self.x_hat_audio = []
             for idx in range(self.n_examples):
                 if idx < n_batches:
-                    d = dry[idx]
-                    w = wet[idx]
-                    w_hat = wet_hat[idx]
-                    title = f"idx_{idx}"
-                    if fx_params is not None:
-                        params = {k: v[idx] if isinstance(v, T) else v for k, v in fx_params.items()}
-                        # TODO: refactor
-                        title = ", ".join([f"{k}: {v:.2f}" for k, v in params.items()
-                                           if k not in {"phase", "rate_hz", "shape", "exp", "min_delay_ms", "max_lfo_delay_ms"}])
-                        title = f"{idx}: {title}"
-                    if self.log_dry_audio:
-                        waveforms = [d, w, w_hat]
-                        labels = ["dry", "wet", "wet_hat"]
-                    else:
-                        waveforms = [w, w_hat]
-                        labels = ["wet", "wet_hat"]
+                    waveforms = []
+                    labels = []
+                    if x is not None:
+                        curr_x = x[idx]
+                        waveforms.append(curr_x)
+                        labels.append("x")
+                        self.x_audio.append(curr_x.swapaxes(0, 1).numpy())
+                    if x_hat is not None:
+                        curr_x_hat = x_hat[idx]
+                        waveforms.append(curr_x_hat)
+                        labels.append("x_hat")
+                        self.x_hat_audio.append(curr_x_hat.swapaxes(0, 1).numpy())
 
-                    fig = plot_waveforms_stacked(waveforms, pl_module.sr, title, labels)
+                    title = (f"idx_{idx}, "
+                             f"θd: {theta_density[idx]:.2f}, "
+                             f"θd_hat: {theta_density_hat[idx]:.2f}, "
+                             f"θs: {theta_slope[idx]:.2f}, "
+                             f"θs_hat: {theta_slope_hat[idx]:.2f}")
+
+                    fig = plot_waveforms_stacked(waveforms,
+                                                 pl_module.synth.sr,
+                                                 title,
+                                                 labels)
                     img = fig2img(fig)
                     self.images.append(img)
-                    self.dry_audio.append(d.swapaxes(0, 1).numpy())
-                    self.wet_audio.append(w.swapaxes(0, 1).numpy())
-                    self.wet_hat_audio.append(w_hat.swapaxes(0, 1).numpy())
 
-    def on_validation_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+    def on_validation_epoch_end(self,
+                                trainer: Trainer,
+                                pl_module: SCRAPLLightingModule) -> None:
         for logger in trainer.loggers:
             # TODO(cm): enable for tensorboard as well
             if isinstance(logger, WandbLogger):
-                # TODO(cm): combine into one table
-                logger.log_image(key="audio_plots",
+                logger.log_image(key="waveforms",
                                  images=self.images,
                                  step=trainer.global_step)
                 data = defaultdict(list)
                 columns = []
-                for idx, (d, w, w_hat) in enumerate(zip(self.dry_audio, self.wet_audio, self.wet_hat_audio)):
-                    columns.append(f"idx_{idx}")
-                    if self.log_dry_audio:
-                        data["dry"].append(wandb.Audio(d,
-                                                       caption=f"dry_{idx}",
-                                                       sample_rate=int(pl_module.sr)))
-                    data["wet"].append(wandb.Audio(w,
-                                                   caption=f"wet_{idx}",
-                                                   sample_rate=int(pl_module.sr)))
-                    data["wet_hat"].append(wandb.Audio(w_hat,
-                                                       caption=f"wet_hat_{idx}",
-                                                       sample_rate=int(pl_module.sr)))
-
+                for idx, curr_x_audio in enumerate(self.x_audio):
+                    columns.append(f"idx_{idx}")  # TODO(cm)
+                    data["x_audio"].append(
+                        wandb.Audio(curr_x_audio,
+                                    caption=f"x_{idx}",
+                                    sample_rate=int(pl_module.synth.sr))
+                    )
+                for idx, curr_x_hat_audio in enumerate(self.x_hat_audio):
+                    data["x_hat_audio"].append(
+                        wandb.Audio(curr_x_hat_audio,
+                                    caption=f"x_hat_{idx}",
+                                    sample_rate=int(pl_module.synth.sr))
+                    )
                 data = list(data.values())
-                logger.log_table(key="audio", columns=columns, data=data, step=trainer.global_step)
+                logger.log_table(key="audio",
+                                 columns=columns,
+                                 data=data,
+                                 step=trainer.global_step)

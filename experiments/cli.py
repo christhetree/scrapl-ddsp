@@ -10,7 +10,7 @@ from pytorch_lightning.cli import LightningCLI, LightningArgumentParser
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies import DDPStrategy
 
-from experiments.callbacks import LogSpecAndModSigCallback, LogAudioCallback
+from experiments.callbacks import LogAudioCallback
 from experiments.paths import CONFIGS_DIR
 
 logging.basicConfig()
@@ -24,6 +24,7 @@ class CustomLightningCLI(LightningCLI):
         "accelerator": "gpu",
         "callbacks": [
             LearningRateMonitor(logging_interval="step"),
+            # ConsoleLRMonitor(logging_interval="epoch"),
             ModelCheckpoint(
                 filename="epoch_{epoch}_step_{step}",  # Name is appended
                 auto_insert_metric_name=False,
@@ -33,6 +34,7 @@ class CustomLightningCLI(LightningCLI):
                 save_top_k=1,
                 verbose=False,
             ),
+            LogAudioCallback(),
         ],
         "logger": {
             "class_path": "pytorch_lightning.loggers.TensorBoardLogger",
