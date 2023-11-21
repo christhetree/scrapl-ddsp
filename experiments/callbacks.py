@@ -1,9 +1,8 @@
 import logging
 import os
 from collections import defaultdict
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-import torch as tr
 import wandb
 from matplotlib import pyplot as plt
 from pytorch_lightning import Trainer, Callback, LightningModule
@@ -12,9 +11,7 @@ from pytorch_lightning.loggers import WandbLogger
 from torch import Tensor as T
 
 from experiments.lightning import SCRAPLLightingModule
-from experiments.plotting import plot_spectrogram, plot_mod_sig_callback, fig2img, \
-    plot_waveforms_stacked
-from experiments.util import linear_interpolate_last_dim
+from experiments.plotting import fig2img, plot_waveforms_stacked, plot_scalogram
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -36,57 +33,76 @@ class ConsoleLRMonitor(LearningRateMonitor):
                 log.info(f"\nCurrent LR: {latest_stat_str}")
 
 
-class LogSpecAndModSigCallback(Callback):
-    def __init__(self, n_examples: int = 5, log_wet_hat: bool = False) -> None:
+class LogScalogramCallback(Callback):
+    def __init__(self, n_examples: int = 5) -> None:
         super().__init__()
         self.n_examples = n_examples
-        self.log_wet_hat = log_wet_hat
         self.images = []
 
     def on_validation_batch_end(self,
                                 trainer: Trainer,
                                 pl_module: LightningModule,
-                                outputs: (T, Dict[str, T], Optional[Dict[str, T]]),
-                                batch: (T, T, T, Dict[str, T]),
+                                outputs: (T, Dict[str, T]),
+                                batch: (T, T, T, T),
                                 batch_idx: int,
                                 dataloader_idx: int = 0) -> None:
         if outputs is None:
             return
-        _, data_dict, fx_params = outputs
-        wet = data_dict["wet"]
-        wet_hat = data_dict.get("wet_hat", None)
-        mod_sig_hat = data_dict["mod_sig_hat"]
-        mod_sig = data_dict.get("mod_sig", None)
-        if mod_sig is None:
-            mod_sig = tr.zeros_like(mod_sig_hat)  # TODO(cm)
-        n_batches = mod_sig.size(0)
+        _, data_dict = outputs
+        if "U" not in data_dict or "U_hat" not in data_dict:
+            log.warning(f"data_dict doesn't contain the correct keys for logging "
+                        f"spectrograms: {data_dict.keys()}")
+            return
+        U = data_dict["U"]
+        U_hat = data_dict["U_hat"]
+        if U is None and U_hat is None:
+            log.debug(f"U and U_hat are both None, cannot log spectrograms")
+            return
+
+        theta_density = data_dict["theta_density"]
+        theta_slope = data_dict["theta_slope"]
+        theta_density_hat = data_dict["theta_density_hat"]
+        theta_slope_hat = data_dict["theta_slope_hat"]
+
+        n_batches = U.size(0)
         if batch_idx == 0:
             self.images = []
             for idx in range(self.n_examples):
                 if idx < n_batches:
-                    if self.log_wet_hat and wet_hat is not  None:
-                        fig, ax = plt.subplots(nrows=3, figsize=(6, 15), sharex="all", squeeze=True)
-                        w_hat = wet_hat[idx]
-                        plot_spectrogram(w_hat, ax[1], sr=pl_module.sr)
-                    else:
-                        fig, ax = plt.subplots(nrows=2, figsize=(6, 10), sharex="all", squeeze=True)
-                    title = f"idx_{idx}"
-                    if fx_params is not None:
-                        params = {k: v if isinstance(v, float) else v[idx] for k, v in fx_params.items()}
-                        # TODO: refactor
-                        title = ", ".join([f"{k}: {v:.2f}" for k, v in params.items()
-                                           if k not in {"phase", "rate_hz", "shape", "exp", "min_delay_ms", "max_lfo_delay_ms"}])
-                        title = f"{idx}: {title}"
-                    w = wet[idx]
-                    spec = plot_spectrogram(w, ax[0], title, sr=pl_module.sr)
-                    n_frames = spec.size(-1)
-                    m_hat = mod_sig_hat[idx]
-                    if m_hat.size(-1) != n_frames:
-                        m_hat = linear_interpolate_last_dim(m_hat, n_frames)
-                    m = mod_sig[idx]
-                    if m.size(-1) != n_frames:
-                        m = linear_interpolate_last_dim(m, n_frames)
-                    plot_mod_sig_callback(ax[-1], m_hat, m)
+                    title = (f"idx_{idx}, "
+                             f"θd: {theta_density[idx]:.2f}, "
+                             f"θd_hat: {theta_density_hat[idx]:.2f}, "
+                             f"θs: {theta_slope[idx]:.2f}, "
+                             f"θs_hat: {theta_slope_hat[idx]:.2f}")
+
+                    fig, ax = plt.subplots(nrows=2,
+                                           figsize=(6, 10),
+                                           sharex="all",
+                                           squeeze=True)
+                    fig.suptitle(title, fontsize=14)
+                    curr_U = U[idx]
+                    y_coords = pl_module.cqt.frequencies
+                    hop_len = pl_module.cqt.hop_length
+                    sr = pl_module.synth.sr
+                    vmax = None
+                    if U_hat is not None:
+                        curr_U_hat = U_hat[idx]
+                        vmax = max(curr_U.max(), curr_U_hat.max())
+                        plot_scalogram(ax[1],
+                                       curr_U_hat,
+                                       sr,
+                                       y_coords,
+                                       title="U_hat",
+                                       hop_len=hop_len,
+                                       vmax=vmax)
+                    plot_scalogram(ax[0],
+                                   curr_U,
+                                   sr,
+                                   y_coords,
+                                   title="U",
+                                   hop_len=hop_len,
+                                   vmax=vmax)
+
                     fig.tight_layout()
                     img = fig2img(fig)
                     self.images.append(img)
@@ -96,7 +112,7 @@ class LogSpecAndModSigCallback(Callback):
             for logger in trainer.loggers:
                 # TODO(cm): enable for tensorboard as well
                 if isinstance(logger, WandbLogger):
-                    logger.log_image(key="mod_sig_plots",
+                    logger.log_image(key="spectrograms",
                                      images=self.images,
                                      step=trainer.global_step)
 

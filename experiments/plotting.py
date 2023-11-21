@@ -5,6 +5,7 @@ from typing import Optional, List
 
 import PIL
 import librosa
+import numpy as np
 import torch as tr
 import torchaudio
 from matplotlib import pyplot as plt
@@ -30,6 +31,60 @@ def fig2img(fig: Figure, format: str = "png", dpi: int = 120) -> T:
     image = ToTensor()(image)
     plt.close("all")
     return image
+
+
+def plot_scalogram(ax: Subplot,
+                   scalogram: T,
+                   sr: float,
+                   y_coords: List[float],
+                   title: Optional[str] = None,
+                   hop_len: int = 1,
+                   cmap: str = "magma",
+                   vmax: Optional[float] = None,
+                   x_label: str = "time (s)",
+                   y_label: str = "freq (Hz)",
+                   fontsize: int = 12) -> None:
+    """
+    Plots a scalogram of the provided data.
+
+    The scalogram is a visual representation of the wavelet transform of a signal over time.
+    This function uses matplotlib and librosa to create the plot.
+
+    Parameters:
+        ax (Subplot): The axis on which to plot the scalogram.
+        scalogram (T): The scalogram data to be plotted.
+        sr (float): The sample rate of the audio signal.
+        y_coords (List[float]): The y-coordinates for the scalogram plot.
+        title (str, optional): The title of the plot. Defaults to "scalogram".
+        hop_len (int, optional): The hop length for the time axis (or T). Defaults to 1.
+        cmap (str, optional): The colormap to use for the plot. Defaults to "magma".
+        vmax (Optional[float], optional): The maximum value for the colorbar. If None,
+            the colorbar scales with the data. Defaults to None.
+        x_label (str, optional): The label for the x-axis. Defaults to "Time (seconds)".
+        y_label (str, optional): The label for the y-axis. Defaults to "Frequency (Hz)".
+        fontsize (int, optional): The fontsize for the labels. Defaults to 16.
+    """
+    assert scalogram.ndim == 2
+    assert scalogram.size(0) == len(y_coords)
+    x_coords = librosa.times_like(scalogram.size(1), sr=sr, hop_length=hop_len)
+
+    librosa.display.specshow(ax=ax,
+                             data=scalogram.numpy(),
+                             sr=sr,
+                             x_axis="time",
+                             x_coords=x_coords,
+                             y_axis="cqt_hz",
+                             y_coords=np.array(y_coords),
+                             cmap=cmap,
+                             vmin=0.0,
+                             vmax=vmax)
+    ax.set_xlabel(x_label, fontsize=fontsize)
+    ax.set_ylabel(y_label, fontsize=fontsize)
+    if len(y_coords) < 12:
+        ax.set_yticks(y_coords)
+    ax.minorticks_off()
+    if title:
+        ax.set_title(title, fontsize=fontsize)
 
 
 def plot_spectrogram(audio: T,
@@ -66,48 +121,6 @@ def plot_spectrogram(audio: T,
         torchaudio.save(save_path, audio, sr)
 
     return spec
-
-
-def plot_mod_sig(mod_sig_hat: T,
-                 mod_sig: Optional[T] = None,
-                 mod_sig_hat_c: str = "orange",
-                 mod_sig_c: str = "black",
-                 linewidth: float = 3.0,
-                 save_name: Optional[str] = None,
-                 save_dir: str = OUT_DIR,
-                 l1_error_title: bool = True) -> None:
-    if mod_sig is not None:
-        plt.plot(mod_sig, c=mod_sig_c, linewidth=linewidth)
-    plt.plot(mod_sig_hat, c=mod_sig_hat_c, linewidth=linewidth)
-    ax = plt.gca()
-    ax.spines[['right', 'top']].set_visible(False)
-    ax.xaxis.set_tick_params(labelbottom=False)
-    ax.set_xticks([])
-    ax.set_yticks([0.0, 0.5, 1.0])
-    plt.yticks(fontsize=18)
-
-    if l1_error_title and mod_sig is not None:
-        assert mod_sig.shape == mod_sig_hat.shape
-        mae = tr.mean(tr.abs(mod_sig - mod_sig_hat))
-        plt.title(f"{mae * 100:.1f}% L1 Error", fontsize=28)
-
-    plt.tight_layout()
-    if save_name:
-        plt.savefig(os.path.join(save_dir, f"{save_name}.svg"))
-    plt.show()
-
-
-def plot_mod_sig_callback(ax: Subplot,
-                          mod_sig_hat: T,
-                          mod_sig: T,
-                          title: Optional[str] = None) -> None:
-    assert mod_sig_hat.ndim == mod_sig.ndim == 1
-    mod_sig_hat = mod_sig_hat.detach()
-    mod_sig = mod_sig.detach()
-    ax.plot(mod_sig)
-    ax.plot(mod_sig_hat)
-    if title is not None:
-        ax.set_title(title)
 
 
 def plot_waveforms_stacked(waveforms: List[T],
