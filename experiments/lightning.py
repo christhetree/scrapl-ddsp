@@ -113,6 +113,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             "theta_density_hat": theta_density_hat,
             "theta_slope": theta_slope,
             "theta_slope_hat": theta_slope_hat,
+            "seed": seed,
         }
         data_dict = {k: v.detach().float().cpu()
                      for k, v in data_dict.items() if v is not None}

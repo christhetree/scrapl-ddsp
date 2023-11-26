@@ -152,16 +152,18 @@ class CustomLightningCLI(LightningCLI):
                               f"{self.config.fit.custom.dataset_name}__{cb.filename}"
                 log.info(f"Setting checkpoint name to: {cb.filename}")
 
-        if tr.cuda.is_available():
-            if self.config.fit.custom.use_wandb:
-                wandb_logger = WandbLogger(save_dir="wandb_logs",
-                                           project=self.config.fit.custom.project_name,
-                                           name=f"{self.config.fit.custom.model_name}__"
-                                                f"{self.config.fit.custom.dataset_name}")
-                self.trainer.loggers.append(wandb_logger)
-            else:
-                log.info("wandb is disabled")
+        use_gpu = tr.cuda.is_available()
+        if ((use_gpu and self.config.fit.custom.use_wandb_gpu) or
+                (not use_gpu and self.config.fit.custom.use_wandb_cpu)):
+            wandb_logger = WandbLogger(save_dir="wandb_logs",
+                                       project=self.config.fit.custom.project_name,
+                                       name=f"{self.config.fit.custom.model_name}__"
+                                            f"{self.config.fit.custom.dataset_name}")
+            self.trainer.loggers.append(wandb_logger)
         else:
+            log.info("wandb is disabled")
+
+        if not use_gpu:
             log.info("================ Running on CPU ================ ")
 
         log.info(f"================ {self.config.fit.custom.project_name} "

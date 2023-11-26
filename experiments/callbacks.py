@@ -59,6 +59,7 @@ class LogScalogramCallback(Callback):
         theta_slope = data_dict["theta_slope"]
         theta_density_hat = data_dict["theta_density_hat"]
         theta_slope_hat = data_dict["theta_slope_hat"]
+        seed = data_dict["seed"]
 
         n_batches = theta_density.size(0)
         if batch_idx == 0:
@@ -69,7 +70,8 @@ class LogScalogramCallback(Callback):
                              f"θd: {theta_density[idx]:.2f}, "
                              f"θd_hat: {theta_density_hat[idx]:.2f}, "
                              f"θs: {theta_slope[idx]:.2f}, "
-                             f"θs_hat: {theta_slope_hat[idx]:.2f}")
+                             f"θs_hat: {theta_slope_hat[idx]:.2f}, "
+                             f"{int(seed[idx])}")
 
                     fig, ax = plt.subplots(nrows=2,
                                            figsize=(6, 10),
@@ -185,9 +187,8 @@ class LogAudioCallback(Callback):
                                  images=self.images,
                                  step=trainer.global_step)
                 data = defaultdict(list)
-                columns = []
+                columns = [f"idx_{idx}" for idx in range(len(self.images))]
                 for idx, curr_x_audio in enumerate(self.x_audio):
-                    columns.append(f"idx_{idx}")  # TODO(cm)
                     data["x_audio"].append(
                         wandb.Audio(curr_x_audio,
                                     caption=f"x_{idx}",
