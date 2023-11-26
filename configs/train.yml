@@ -8,6 +8,7 @@ custom:
 #  model_name: cnn__scrapl
   dataset_name: chirp_32_32
   cpu_batch_size: 8
+  use_wandb_cpu: true
 
 trainer:
   accelerator: gpu
@@ -21,10 +22,10 @@ data:
   init_args:
     batch_size: 64
     num_workers: 8
-    n_densities: 32
-#    n_densities: 5
-    n_slopes: 32
-#    n_slopes: 5
+#    n_densities: 32
+    n_densities: 4
+#    n_slopes: 32
+    n_slopes: 4
     n_seeds_per_fold: 1
     n_folds: 5
     synth: ../configs/synths/chirp_texture.yml

@@ -5,7 +5,9 @@ additional_arguments:
     default: local_model
   - name: custom.dataset_name
     default: local_dataset
-  - name: custom.use_wandb
+  - name: custom.use_wandb_cpu
+    default: false
+  - name: custom.use_wandb_gpu
     default: true
   - name: custom.cpu_batch_size
     default: 5
