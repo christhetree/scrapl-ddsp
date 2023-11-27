@@ -22,8 +22,8 @@ class JTFSTLoss(nn.Module):
                  Q2: int,
                  J_fr: int,
                  Q_fr: int,
-                 T: str = "global",
-                 F: str = "global",
+                 T: Union[str, int] = "global",
+                 F: Union[str, int] = "global",
                  format: str = "time"):
         super().__init__()
         self.jtfs = TimeFrequencyScattering(
@@ -41,10 +41,10 @@ class JTFSTLoss(nn.Module):
         assert x.ndim == x_target.ndim == 3
         assert x.size(1) == x_target.size(1) == 1
         Sx = self.jtfs(x)
-        Sx = Sx[:, :, 1:, :].view(Sx.size(0), -1)
+        Sx = Sx[:, :, 1:, :]
         Sx_target = self.jtfs(x_target)
-        Sx_target = Sx_target[:, :, 1:, :].view(Sx.size(0), -1)
-        dist = tr.linalg.vector_norm(Sx_target - Sx, ord=2, dim=1)
+        Sx_target = Sx_target[:, :, 1:, :]
+        dist = tr.linalg.vector_norm(Sx_target - Sx, ord=2, dim=(2, 3))
         dist = tr.mean(dist)
         return dist
 
@@ -57,8 +57,8 @@ class SCRAPLLoss(nn.Module):
                  Q2: int,
                  J_fr: int,
                  Q_fr: int,
-                 T: str = "global",
-                 F: str = "global"):
+                 T: Union[str, int] = "global",
+                 F: Union[str, int] = "global"):
         super().__init__()
         self.scrapl = TimeFrequencyScrapl(
             shape=(shape,),
@@ -77,10 +77,11 @@ class SCRAPLLoss(nn.Module):
         assert x.size(1) == x_target.size(1) == 1
         n2, n_fr = SCRAPLLoss.choice(self.scrapl_keys)
         Sx = self.scrapl.scattering_singlepath(x, n2, n_fr)
-        Sx = Sx["coef"].view(-1, 1)
+        Sx = Sx["coef"].squeeze(-1)
         Sx_target = self.scrapl.scattering_singlepath(x_target, n2, n_fr)
-        Sx_target = Sx_target["coef"].view(-1, 1)
-        dist = tr.linalg.vector_norm(Sx_target - Sx, ord=2, dim=1)
+        Sx_target = Sx_target["coef"].squeeze(-1)
+        diff = Sx_target - Sx
+        dist = tr.linalg.vector_norm(diff, ord=2, dim=(2, 3))
         dist = tr.mean(dist)
         return dist
 

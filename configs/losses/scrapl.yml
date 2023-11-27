@@ -6,5 +6,5 @@ init_args:
   Q2: 2
   J_fr: 5
   Q_fr: 2
-  T: global
-  F: global
+  T: 64
+  F: 32
