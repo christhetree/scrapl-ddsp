@@ -28,15 +28,16 @@ class TimeFrequencyScraplBase(TimeFrequencyScatteringBase):
             self.phi_f, self.log2_stride, self.average,
             self.filters_fr[0], self.log2_stride_fr, self.average_fr)
 
+        # TODO(cm): causing problems
         # Unpad.
-        if self.average != 'global':
-            res = max(path['j'][-1], 0)
-            path['coef'] = self.backend.unpad(
-                path['coef'], self.ind_start[res], self.ind_end[res])
+        # if self.average != 'global':
+        #     res = max(path['j'][-1], 0)
+        #     path['coef'] = self.backend.unpad(
+        #         path['coef'], self.ind_start[res], self.ind_end[res])
 
         # # Reshape path to batch shape.
-        path['coef'] = self.backend.reshape_output(path['coef'],
-            batch_shape, n_kept_dims=(1 + (self.format=='joint')))
+        # path['coef'] = self.backend.reshape_output(path['coef'],
+        #     batch_shape, n_kept_dims=(1 + (self.format=='joint')))
 
         return path
 
