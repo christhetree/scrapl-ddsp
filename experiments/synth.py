@@ -106,6 +106,7 @@ class ChirpTextureSynth(nn.Module):
                 theta_density: T,
                 theta_slope: T,
                 seed: Optional[T] = None) -> T:
+        assert theta_density.ndim == theta_slope.ndim == 0
         rand_gen = self.get_rand_gen(device=self.grain_support.device.type)
         if seed is not None:
             rand_gen.manual_seed(int(seed.item()))
