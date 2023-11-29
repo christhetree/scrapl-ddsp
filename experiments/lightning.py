@@ -84,10 +84,11 @@ class SCRAPLLightingModule(pl.LightningModule):
             x = self.make_x_from_theta(theta_density, theta_slope, seed)
             x_hat = self.make_x_from_theta(theta_density_hat, theta_slope_hat, seed)
             if self.feature_type == "cqt":
-                U_hat = ChirpTextureDataset.calc_cqt(x_hat, self.cqt, self.cqt_eps)
-                # TODO(cm): this fails on GPU since CPU generates random differently
-                # U_tmp = ChirpTextureDataset.calc_cqt(x, self.cqt, self.cqt_eps)
-                # assert tr.allclose(U, U_tmp, atol=1e-5)
+                with tr.no_grad():
+                    U_hat = ChirpTextureDataset.calc_cqt(x_hat, self.cqt, self.cqt_eps)
+                    # TODO(cm): this fails on GPU since CPU generates random differently
+                    # U_tmp = ChirpTextureDataset.calc_cqt(x, self.cqt, self.cqt_eps)
+                    # assert tr.allclose(U, U_tmp, atol=1e-5)
             loss = self.loss_func(x_hat, x)
             self.log(f"{stage}/{self.loss_name}",
                      loss,
@@ -98,11 +99,12 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.log(f"{stage}/l1_s", slope_mae, prog_bar=True, sync_dist=True)
         self.log(f"{stage}/loss", loss, prog_bar=False, sync_dist=True)
 
-        if x is None and self.log_x:
-            x = self.make_x_from_theta(theta_density, theta_slope, seed)
-        if x_hat is None and self.log_x_hat:
-            x_hat = self.make_x_from_theta(theta_density_hat, theta_slope_hat, seed)
-            U_hat = ChirpTextureDataset.calc_cqt(x_hat, self.cqt, self.cqt_eps)
+        with tr.no_grad():
+            if x is None and self.log_x:
+                x = self.make_x_from_theta(theta_density, theta_slope, seed)
+            if x_hat is None and self.log_x_hat:
+                x_hat = self.make_x_from_theta(theta_density_hat, theta_slope_hat, seed)
+                U_hat = ChirpTextureDataset.calc_cqt(x_hat, self.cqt, self.cqt_eps)
 
         data_dict = {
             "U": U,
