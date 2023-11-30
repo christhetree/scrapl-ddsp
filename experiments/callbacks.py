@@ -11,7 +11,8 @@ from pytorch_lightning.loggers import WandbLogger
 from torch import Tensor as T
 
 from experiments.lightning import SCRAPLLightingModule
-from experiments.plotting import fig2img, plot_waveforms_stacked, plot_scalogram
+from experiments.plotting import fig2img, plot_waveforms_stacked, plot_scalogram, \
+    plot_xy_points_and_grads
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -42,24 +43,23 @@ class LogScalogramCallback(Callback):
     def on_validation_batch_end(self,
                                 trainer: Trainer,
                                 pl_module: LightningModule,
-                                outputs: (T, Dict[str, T]),
+                                out_dict: Dict[str, T],
                                 batch: (T, T, T, T),
                                 batch_idx: int,
                                 dataloader_idx: int = 0) -> None:
-        if outputs is None:
-            return
-        _, data_dict = outputs
-        U = data_dict.get("U")
-        U_hat = data_dict.get("U_hat")
+        out_dict = {k: v.detach().cpu() for k, v in out_dict.items() if v is not None}
+
+        U = out_dict.get("U")
+        U_hat = out_dict.get("U_hat")
         if U is None and U_hat is None:
             log.warning(f"U and U_hat are both None, cannot log spectrograms")
             return
 
-        theta_density = data_dict["theta_density"]
-        theta_slope = data_dict["theta_slope"]
-        theta_density_hat = data_dict["theta_density_hat"]
-        theta_slope_hat = data_dict["theta_slope_hat"]
-        seed = data_dict["seed"]
+        theta_density = out_dict["theta_density"]
+        theta_slope = out_dict["theta_slope"]
+        theta_density_hat = out_dict["theta_density_hat"]
+        theta_slope_hat = out_dict["theta_slope_hat"]
+        seed = out_dict["seed"]
 
         n_batches = theta_density.size(0)
         if batch_idx == 0:
@@ -74,7 +74,7 @@ class LogScalogramCallback(Callback):
                              f"{int(seed[idx])}")
 
                     fig, ax = plt.subplots(nrows=2,
-                                           figsize=(6, 10),
+                                           figsize=(6, 12),
                                            sharex="all",
                                            squeeze=True)
                     fig.suptitle(title, fontsize=14)
@@ -126,23 +126,22 @@ class LogAudioCallback(Callback):
     def on_validation_batch_end(self,
                                 trainer: Trainer,
                                 pl_module: SCRAPLLightingModule,
-                                outputs: (T, Dict[str, T]),
+                                out_dict: Dict[str, T],
                                 batch: (T, T, T, T),
                                 batch_idx: int,
                                 dataloader_idx: int = 0) -> None:
-        if outputs is None:
-            return
-        _, data_dict = outputs
-        x = data_dict.get("x")
-        x_hat = data_dict.get("x_hat")
+        out_dict = {k: v.detach().cpu() for k, v in out_dict.items() if v is not None}
+
+        x = out_dict.get("x")
+        x_hat = out_dict.get("x_hat")
         if x is None and x_hat is None:
             log.debug(f"x and x_hat are both None, cannot log audio")
             return
 
-        theta_density = data_dict["theta_density"]
-        theta_slope = data_dict["theta_slope"]
-        theta_density_hat = data_dict["theta_density_hat"]
-        theta_slope_hat = data_dict["theta_slope_hat"]
+        theta_density = out_dict["theta_density"]
+        theta_slope = out_dict["theta_slope"]
+        theta_density_hat = out_dict["theta_density_hat"]
+        theta_slope_hat = out_dict["theta_slope_hat"]
 
         n_batches = theta_density.size(0)
         if batch_idx == 0:
@@ -205,3 +204,93 @@ class LogAudioCallback(Callback):
                                  columns=columns,
                                  data=data,
                                  step=trainer.global_step)
+
+
+class LogGradientCallback(Callback):
+    out_dict_keys = [
+        "theta_density", "theta_slope", "theta_density_hat", "theta_slope_hat"]
+
+    def __init__(self, n_examples: int = 5, max_n_points: int = 16) -> None:
+        super().__init__()
+        self.n_examples = n_examples
+        self.max_n_points = max_n_points
+        self.images = []
+        self.density_grads = {}
+        self.slope_grads = {}
+        self.train_out_dicts = {}
+
+    def on_train_batch_end(self,
+                           trainer: Trainer,
+                           pl_module: SCRAPLLightingModule,
+                           out_dict: Dict[str, T],
+                           batch: (T, T, T, T),
+                           batch_idx: int,
+                           dataloader_idx: int = 0) -> None:
+        density_grad = out_dict["theta_density_hat"].grad.detach().cpu()
+        slope_grad = out_dict["theta_slope_hat"].grad.detach().cpu()
+
+        self.density_grads[batch_idx] = density_grad
+        self.slope_grads[batch_idx] = slope_grad
+        if batch_idx < self.n_examples:
+            out_dict = {k: out_dict[k] for k in self.out_dict_keys if k in out_dict}
+            self.train_out_dicts[batch_idx] = out_dict
+
+    def on_validation_batch_end(self,
+                                trainer: Trainer,
+                                pl_module: SCRAPLLightingModule,
+                                val_out_dict: Dict[str, T],
+                                batch: (T, T, T, T),
+                                batch_idx: int,
+                                dataloader_idx: int = 0) -> None:
+        if not self.train_out_dicts:
+            log.warning("train_out_dicts is empty, cannot log gradients")
+
+        if batch_idx == 0:
+            self.images = []
+
+        if batch_idx < self.n_examples:
+            fig, ax = plt.subplots(nrows=2, figsize=(4, 8), squeeze=True)
+
+            train_out_dict = self.train_out_dicts.get(batch_idx)
+            if train_out_dict is not None:
+                out_dict = {k: v.detach().cpu()[:self.max_n_points]
+                            for k, v in train_out_dict.items() if v is not None}
+                density_grad = self.density_grads[batch_idx][:self.max_n_points]
+                slope_grad = self.slope_grads[batch_idx][:self.max_n_points]
+                max_grad = max(density_grad.abs().max(), slope_grad.abs().max())
+                density_grad /= max_grad
+                slope_grad /= max_grad
+                plot_xy_points_and_grads(ax[0],
+                                         out_dict["theta_slope"],
+                                         out_dict["theta_density"],
+                                         out_dict["theta_slope_hat"],
+                                         out_dict["theta_density_hat"],
+                                         slope_grad,
+                                         density_grad,
+                                         title=f"train_{batch_idx}")
+
+            if val_out_dict is not None:
+                out_dict = {k: val_out_dict[k]
+                            for k in self.out_dict_keys if k in val_out_dict}
+                out_dict = {k: v.detach().cpu()[:self.max_n_points]
+                            for k, v in out_dict.items() if v is not None}
+                plot_xy_points_and_grads(ax[1],
+                                         out_dict["theta_slope"],
+                                         out_dict["theta_density"],
+                                         out_dict["theta_slope_hat"],
+                                         out_dict["theta_density_hat"],
+                                         title=f"val_{batch_idx}")
+            fig.tight_layout()
+            img = fig2img(fig)
+            self.images.append(img)
+
+    def on_validation_epoch_end(self,
+                                trainer: Trainer,
+                                pl_module: LightningModule) -> None:
+        if self.images:
+            for logger in trainer.loggers:
+                # TODO(cm): enable for tensorboard as well
+                if isinstance(logger, WandbLogger):
+                    logger.log_image(key="xy_points_and_grads",
+                                     images=self.images,
+                                     step=trainer.global_step)
