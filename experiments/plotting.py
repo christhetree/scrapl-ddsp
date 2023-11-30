@@ -67,7 +67,7 @@ def plot_scalogram(ax: Subplot,
     assert scalogram.ndim == 2
     assert scalogram.size(0) == len(y_coords)
     x_coords = librosa.times_like(scalogram.size(1), sr=sr, hop_length=hop_len)
-
+    #
     librosa.display.specshow(ax=ax,
                              data=scalogram.numpy(),
                              sr=sr,
@@ -167,3 +167,36 @@ def plot_waveforms_stacked(waveforms: List[T],
     if show:
         fig.show()
     return fig
+
+
+def plot_xy_points_and_grads(ax: Subplot,
+                             x: T,
+                             y: T,
+                             x_hat: T,
+                             y_hat: T,
+                             x_grad: Optional[T] = None,
+                             y_grad: Optional[T] = None,
+                             title: str = "",
+                             x_label: str = "θ slope",
+                             y_label: str = "θ density",
+                             fontsize: int = 12):
+    for idx in range(len(x)):
+        ax.plot([x_hat[idx], x[idx]],
+                [y_hat[idx], y[idx]],
+                color="lightgrey",
+                linestyle="dashed",
+                linewidth=1,
+                zorder=0)
+    if x_grad is not None and y_grad is not None:
+        ax.quiver(x_hat.numpy(),
+                  y_hat.numpy(),
+                  -x_grad.numpy(),
+                  -y_grad.numpy(),
+                  color="red",
+                  angles="xy",
+                  zorder=1)
+    ax.scatter(x_hat, y_hat, color="black", marker="o", zorder=2)
+    ax.scatter(x, y, color="black", marker="x", zorder=2)
+    ax.set_title(title, fontsize=fontsize)
+    ax.set_xlabel(x_label, fontsize=fontsize)
+    ax.set_ylabel(y_label, fontsize=fontsize)

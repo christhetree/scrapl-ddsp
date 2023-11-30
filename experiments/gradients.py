@@ -69,8 +69,9 @@ def calc_distance_grad_matrix(dist_func: nn.Module,
     density_grad_matrix = tr.tensor(density_grad_rows)
     slope_grad_matrix = tr.tensor(slope_grad_rows)
     dist_matrix = dist_matrix / dist_matrix.abs().max()
-    density_grad_matrix = density_grad_matrix / density_grad_matrix.abs().max()
-    slope_grad_matrix = slope_grad_matrix / slope_grad_matrix.abs().max()
+    max_grad = max(density_grad_matrix.abs().max(), slope_grad_matrix.abs().max())
+    density_grad_matrix /= max_grad
+    slope_grad_matrix /= max_grad
 
     fontsize = 14
     ax = plt.gca()
@@ -114,9 +115,9 @@ if __name__ == "__main__":
 
     # dist_func = nn.L1Loss()
     # dist_func = nn.MSELoss()
-    dist_func = auraloss.freq.RandomResolutionSTFTLoss(max_fft_size=2 ** 14)
-    # dist_func = auraloss.freq.MultiResolutionSTFTLoss()
+    # dist_func = auraloss.freq.RandomResolutionSTFTLoss(max_fft_size=2 ** 14)
+    dist_func = auraloss.freq.MultiResolutionSTFTLoss()
     # dist_func = scrapl_loss
 
-    # calc_distance_grad_matrix(dist_func, synth, use_rand_seeds=False)
-    calc_distance_grad_matrix(dist_func, synth, use_rand_seeds=True)
+    calc_distance_grad_matrix(dist_func, synth, use_rand_seeds=False)
+    # calc_distance_grad_matrix(dist_func, synth, use_rand_seeds=True)

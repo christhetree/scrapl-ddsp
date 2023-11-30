@@ -9,6 +9,7 @@ from torch import Tensor as T
 from torch import nn
 
 from experiments.datasets import ChirpTextureDataset
+from experiments.losses import JTFSTLoss
 from experiments.synth import ChirpTextureSynth
 
 logging.basicConfig()
@@ -62,13 +63,17 @@ class SCRAPLLightingModule(pl.LightningModule):
         x = tr.stack(x, dim=0).unsqueeze(1)  # Unsqueeze channel dim
         return x
 
-    def step(self, batch: (T, T, T, T), stage: str) -> (T, Dict[str, T]):
+    def step(self, batch: (T, T, T, T), stage: str) -> Dict[str, T]:
         U, theta_density, theta_slope, seed = batch
         U_hat = None
         x = None
         x_hat = None
 
         theta_density_hat, theta_slope_hat = self.model(U)
+        if stage == "train":
+            theta_density_hat.retain_grad()
+            theta_slope_hat.retain_grad()
+
         density_mae = self.l1(theta_density_hat, theta_density)
         slope_mae = self.l1(theta_slope_hat, theta_slope)
 
@@ -106,7 +111,8 @@ class SCRAPLLightingModule(pl.LightningModule):
                 x_hat = self.make_x_from_theta(theta_density_hat, theta_slope_hat, seed)
                 U_hat = ChirpTextureDataset.calc_cqt(x_hat, self.cqt, self.cqt_eps)
 
-        data_dict = {
+        out_dict = {
+            "loss": loss,
             "U": U,
             "U_hat": U_hat,
             "x": x,
@@ -117,18 +123,15 @@ class SCRAPLLightingModule(pl.LightningModule):
             "theta_slope_hat": theta_slope_hat,
             "seed": seed,
         }
-        data_dict = {k: v.detach().float().cpu()
-                     for k, v in data_dict.items() if v is not None}
-        return loss, data_dict
+        return out_dict
 
-    def training_step(self, batch: (T, T, T, T), batch_idx: int) -> T:
-        loss, _ = self.step(batch, stage="train")
-        return loss
+    def training_step(self, batch: (T, T, T, T), batch_idx: int) -> Dict[str, T]:
+        if not isinstance(self.loss_func, JTFSTLoss):
+            assert self.trainer.accumulate_grad_batches == 1
+        return self.step(batch, stage="train")
 
-    def validation_step(self, batch: (T, T, T, T), stage: str) -> (T, Dict[str, T]):
-        out = self.step(batch, stage="val")
-        return out
+    def validation_step(self, batch: (T, T, T, T), stage: str) -> Dict[str, T]:
+        return self.step(batch, stage="val")
 
-    def test_step(self, batch: (T, T, T, T), stage: str) -> (T, Dict[str, T]):
-        out = self.step(batch, stage="test")
-        return out
+    def test_step(self, batch: (T, T, T, T), stage: str) -> Dict[str, T]:
+        return self.step(batch, stage="test")

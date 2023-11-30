@@ -1,33 +1,33 @@
-seed_everything: 42
+#seed_everything: 42
 
 custom:
   project_name: scrapl
 #  model_name: cnn__ploss
-  model_name: cnn__mss__bs512
+  model_name: cnn__mss
 #  model_name: cnn__jtfst
 #  model_name: cnn__scrapl
   dataset_name: chirp_32_32
-  cpu_batch_size: 3
+  cpu_batch_size: 20
   use_wandb_cpu: false
   use_wandb_gpu: true
 
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [7]
+  devices: [0]
   max_epochs: 100
   num_sanity_val_steps: 0
-  accumulate_grad_batches: 8
+  accumulate_grad_batches: 1
 
 data:
   class_path: experiments.data_modules.ChirpTextureDataModule
   init_args:
-    batch_size: 512
+    batch_size: 128
     num_workers: 8
     n_densities: 32
-#    n_densities: 4
+#    n_densities: 5
     n_slopes: 32
-#    n_slopes: 4
+#    n_slopes: 5
     n_seeds_per_fold: 1
     n_folds: 5
     synth: ../configs/synths/chirp_texture.yml
