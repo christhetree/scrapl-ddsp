@@ -9,7 +9,6 @@ import torch as tr
 from torch.utils.data import DataLoader
 
 from experiments.datasets import ChirpTextureDataset
-from experiments.synth import ChirpTextureSynth
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -23,13 +22,9 @@ class ChirpTextureDataModule(pl.LightningDataModule):
                  n_slopes: int,
                  n_seeds_per_fold: int,
                  n_folds: int,
-                 synth: ChirpTextureSynth,
-                 feature_type: str = "cqt",
-                 J_cqt: int = 5,
-                 cqt_eps: float = 1e-3,
                  num_workers: int = 0):
         super().__init__()
-        self.save_hyperparameters(ignore=["synth"])
+        self.save_hyperparameters()
         log.info(f"\n{self.hparams}")
 
         self.batch_size = batch_size
@@ -37,10 +32,6 @@ class ChirpTextureDataModule(pl.LightningDataModule):
         self.n_slopes = n_slopes
         self.n_seeds_per_fold = n_seeds_per_fold
         self.n_folds = n_folds
-        self.synth = synth
-        self.feature_type = feature_type
-        self.J_cqt = J_cqt
-        self.cqt_eps = cqt_eps
         self.num_workers = num_workers
 
         slope_idx = np.arange(n_slopes)
@@ -59,7 +50,7 @@ class ChirpTextureDataModule(pl.LightningDataModule):
         folds = df["seed"] % n_folds
         df["fold"] = folds
         # Shuffle such that batches in validation and test contain a variety of
-        # different values. This makes the visualization callbacks more representative.
+        # different theta values. This makes the visualization callbacks more diverse.
         df = df.sample(frac=1,
                        random_state=tr.random.initial_seed()).reset_index(drop=True)
 
@@ -70,23 +61,11 @@ class ChirpTextureDataModule(pl.LightningDataModule):
 
     def setup(self, stage: str) -> None:
         train_df = self.df[self.df["fold"] < (self.n_folds - 2)]
-        self.train_ds = ChirpTextureDataset(train_df,
-                                            self.synth,
-                                            self.feature_type,
-                                            self.J_cqt,
-                                            self.cqt_eps)
+        self.train_ds = ChirpTextureDataset(train_df)
         val_df = self.df[self.df["fold"] == (self.n_folds - 2)]
-        self.val_ds = ChirpTextureDataset(val_df,
-                                          self.synth,
-                                          self.feature_type,
-                                          self.J_cqt,
-                                          self.cqt_eps)
+        self.val_ds = ChirpTextureDataset(val_df)
         test_df = self.df[self.df["fold"] == (self.n_folds - 1)]
-        self.test_ds = ChirpTextureDataset(test_df,
-                                           self.synth,
-                                           self.feature_type,
-                                           self.J_cqt,
-                                           self.cqt_eps)
+        self.test_ds = ChirpTextureDataset(test_df)
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(

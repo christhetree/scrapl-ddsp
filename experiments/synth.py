@@ -5,6 +5,7 @@ from typing import Optional
 import numpy as np
 import torch as tr
 import torch.nn as nn
+from nnAudio.features import CQT
 from torch import Tensor as T
 
 logging.basicConfig()
