@@ -1,4 +1,4 @@
-#seed_everything: 42
+seed_everything: 42
 
 custom:
   project_name: scrapl
@@ -6,7 +6,8 @@ custom:
   model_name: cnn__mss
 #  model_name: cnn__jtfst
 #  model_name: cnn__scrapl
-  dataset_name: chirp_32_32
+  dataset_name: chirp_32_32_micro
+#  dataset_name: chirp_32_32_meso
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: true
@@ -22,12 +23,12 @@ trainer:
 data:
   class_path: experiments.data_modules.ChirpTextureDataModule
   init_args:
-    batch_size: 128  # 5962 MB 36 seconds vs 5970 MB 33 seconds
+    batch_size: 16
     num_workers: 8
-#    n_densities: 32
-    n_densities: 5
-#    n_slopes: 32
-    n_slopes: 5
+    n_densities: 32
+#    n_densities: 5
+    n_slopes: 32
+#    n_slopes: 5
     n_seeds_per_fold: 1
     n_folds: 5
 
@@ -43,6 +44,8 @@ model:
     use_p_loss: false
 #    use_p_loss: true
 #    loss_func: torch.nn.MSELoss
+    use_rand_seed_hat: false
+#    use_rand_seed_hat: true
     feature_type: cqt
     J_cqt: 5
     cqt_eps: 1e-3

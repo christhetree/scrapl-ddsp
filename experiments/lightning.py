@@ -22,6 +22,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                  synth: ChirpTextureSynth,
                  loss_func: nn.Module,
                  use_p_loss: bool = False,
+                 use_rand_seed_hat: bool = False,
                  feature_type: str = "cqt",
                  J_cqt: int = 5,
                  cqt_eps: float = 1e-3,
@@ -34,6 +35,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.synth = synth
         self.loss_func = loss_func
         self.use_p_loss = use_p_loss
+        self.use_rand_seed_hat = use_rand_seed_hat
         self.J_cqt = J_cqt
         self.feature_type = feature_type
         self.cqt_eps = cqt_eps
@@ -52,6 +54,10 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.cqt = CQT(**cqt_params)
         self.loss_name = self.loss_func.__class__.__name__
         self.l1 = nn.L1Loss()
+        self.global_n = 0
+
+    def on_train_start(self) -> None:
+        self.global_n = 0
 
     def calc_U(self, x: T) -> T:
         if self.feature_type == "cqt":
@@ -70,9 +76,18 @@ class SCRAPLLightingModule(pl.LightningModule):
 
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         theta_density, theta_slope, seed = batch
+        batch_size = theta_density.size(0)
+        if stage == "train":
+            self.global_n = self.global_step * batch_size
+        self.log(f"global_n", self.global_n, sync_dist=True)
+
         with tr.no_grad():
             x = self.make_x_from_theta(theta_density, theta_slope, seed)
             U = self.calc_U(x)
+        seed_hat = seed
+        if self.use_rand_seed_hat:
+            max_seed = seed.max()
+            seed_hat = tr.randint_like(seed, low=max_seed + 1, high=max_seed + 999999)
 
         U_hat = None
         x_hat = None
@@ -94,7 +109,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                      prog_bar=True,
                      sync_dist=True)
         else:
-            x_hat = self.make_x_from_theta(theta_density_hat, theta_slope_hat, seed)
+            x_hat = self.make_x_from_theta(theta_density_hat, theta_slope_hat, seed_hat)
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
             loss = self.loss_func(x_hat, x)
@@ -111,7 +126,9 @@ class SCRAPLLightingModule(pl.LightningModule):
             if x is None and self.log_x:
                 x = self.make_x_from_theta(theta_density, theta_slope, seed)
             if x_hat is None and self.log_x_hat:
-                x_hat = self.make_x_from_theta(theta_density_hat, theta_slope_hat, seed)
+                x_hat = self.make_x_from_theta(theta_density_hat,
+                                               theta_slope_hat,
+                                               seed_hat)
                 U_hat = self.calc_U(x_hat)
 
         out_dict = {
@@ -125,6 +142,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             "theta_slope": theta_slope,
             "theta_slope_hat": theta_slope_hat,
             "seed": seed,
+            "seed_hat": seed_hat,
         }
         return out_dict
 

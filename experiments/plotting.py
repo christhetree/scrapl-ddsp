@@ -194,6 +194,8 @@ def plot_xy_points_and_grads(ax: Subplot,
                   -y_grad.numpy(),
                   color="red",
                   angles="xy",
+                  scale=5.0,
+                  scale_units="width",
                   zorder=1)
     ax.scatter(x_hat, y_hat, color="black", marker="o", zorder=2)
     ax.scatter(x, y, color="black", marker="x", zorder=2)
