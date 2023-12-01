@@ -7,7 +7,7 @@ custom:
 #  model_name: cnn__jtfst
 #  model_name: cnn__scrapl
   dataset_name: chirp_32_32
-  cpu_batch_size: 20
+  cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: true
 
@@ -22,18 +22,14 @@ trainer:
 data:
   class_path: experiments.data_modules.ChirpTextureDataModule
   init_args:
-    batch_size: 128
+    batch_size: 128  # 5962 MB 36 seconds vs 5970 MB 33 seconds
     num_workers: 8
-    n_densities: 32
-#    n_densities: 5
-    n_slopes: 32
-#    n_slopes: 5
+#    n_densities: 32
+    n_densities: 5
+#    n_slopes: 32
+    n_slopes: 5
     n_seeds_per_fold: 1
     n_folds: 5
-    synth: ../configs/synths/chirp_texture.yml
-    feature_type: cqt
-    J_cqt: 5
-    cqt_eps: 1e-3
 
 model:
   class_path: experiments.lightning.SCRAPLLightingModule

@@ -8,7 +8,6 @@ from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
 
-from experiments.datasets import ChirpTextureDataset
 from experiments.losses import JTFSTLoss
 from experiments.synth import ChirpTextureSynth
 
@@ -54,6 +53,12 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.loss_name = self.loss_func.__class__.__name__
         self.l1 = nn.L1Loss()
 
+    def calc_U(self, x: T) -> T:
+        if self.feature_type == "cqt":
+            return SCRAPLLightingModule.calc_cqt(x, self.cqt, self.cqt_eps)
+        else:
+            raise NotImplementedError
+
     def make_x_from_theta(self, theta_density: T, theta_slope: T, seed: T) -> T:
         # TODO(cm): add batch support to synth
         x = []
@@ -63,10 +68,13 @@ class SCRAPLLightingModule(pl.LightningModule):
         x = tr.stack(x, dim=0).unsqueeze(1)  # Unsqueeze channel dim
         return x
 
-    def step(self, batch: (T, T, T, T), stage: str) -> Dict[str, T]:
-        U, theta_density, theta_slope, seed = batch
+    def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
+        theta_density, theta_slope, seed = batch
+        with tr.no_grad():
+            x = self.make_x_from_theta(theta_density, theta_slope, seed)
+            U = self.calc_U(x)
+
         U_hat = None
-        x = None
         x_hat = None
 
         theta_density_hat, theta_slope_hat = self.model(U)
@@ -86,14 +94,9 @@ class SCRAPLLightingModule(pl.LightningModule):
                      prog_bar=True,
                      sync_dist=True)
         else:
-            x = self.make_x_from_theta(theta_density, theta_slope, seed)
             x_hat = self.make_x_from_theta(theta_density_hat, theta_slope_hat, seed)
-            if self.feature_type == "cqt":
-                with tr.no_grad():
-                    U_hat = ChirpTextureDataset.calc_cqt(x_hat, self.cqt, self.cqt_eps)
-                    # TODO(cm): this fails on GPU since CPU generates random differently
-                    # U_tmp = ChirpTextureDataset.calc_cqt(x, self.cqt, self.cqt_eps)
-                    # assert tr.allclose(U, U_tmp, atol=1e-5)
+            with tr.no_grad():
+                U_hat = self.calc_U(x_hat)
             loss = self.loss_func(x_hat, x)
             self.log(f"{stage}/{self.loss_name}",
                      loss,
@@ -109,7 +112,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                 x = self.make_x_from_theta(theta_density, theta_slope, seed)
             if x_hat is None and self.log_x_hat:
                 x_hat = self.make_x_from_theta(theta_density_hat, theta_slope_hat, seed)
-                U_hat = ChirpTextureDataset.calc_cqt(x_hat, self.cqt, self.cqt_eps)
+                U_hat = self.calc_U(x_hat)
 
         out_dict = {
             "loss": loss,
@@ -125,13 +128,19 @@ class SCRAPLLightingModule(pl.LightningModule):
         }
         return out_dict
 
-    def training_step(self, batch: (T, T, T, T), batch_idx: int) -> Dict[str, T]:
+    def training_step(self, batch: (T, T, T), batch_idx: int) -> Dict[str, T]:
         if not isinstance(self.loss_func, JTFSTLoss):
             assert self.trainer.accumulate_grad_batches == 1
         return self.step(batch, stage="train")
 
-    def validation_step(self, batch: (T, T, T, T), stage: str) -> Dict[str, T]:
+    def validation_step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         return self.step(batch, stage="val")
 
-    def test_step(self, batch: (T, T, T, T), stage: str) -> Dict[str, T]:
+    def test_step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         return self.step(batch, stage="test")
+
+    @staticmethod
+    def calc_cqt(x: T, cqt: CQT, cqt_eps: float = 1e-3) -> T:
+        U = cqt(x)
+        U = tr.log1p(U / cqt_eps)
+        return U
