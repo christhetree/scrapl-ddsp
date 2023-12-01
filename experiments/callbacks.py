@@ -60,18 +60,18 @@ class LogScalogramCallback(Callback):
         theta_density_hat = out_dict["theta_density_hat"]
         theta_slope_hat = out_dict["theta_slope_hat"]
         seed = out_dict["seed"]
+        seed_hat = out_dict["seed_hat"]
 
         n_batches = theta_density.size(0)
         if batch_idx == 0:
             self.images = []
             for idx in range(self.n_examples):
                 if idx < n_batches:
-                    title = (f"idx_{idx}, "
-                             f"θd: {theta_density[idx]:.2f}, "
-                             f"θd_hat: {theta_density_hat[idx]:.2f}, "
-                             f"θs: {theta_slope[idx]:.2f}, "
-                             f"θs_hat: {theta_slope_hat[idx]:.2f}, "
-                             f"{int(seed[idx])}")
+                    title = (f"batch_idx_{idx}, "
+                             f"θd: {theta_density[idx]:.2f} -> "
+                             f"{theta_density_hat[idx]:.2f}, "
+                             f"θs: {theta_slope[idx]:.2f} -> "
+                             f"{theta_slope_hat[idx]:.2f}")
 
                     fig, ax = plt.subplots(nrows=2,
                                            figsize=(6, 12),
@@ -90,14 +90,14 @@ class LogScalogramCallback(Callback):
                                        curr_U_hat,
                                        sr,
                                        y_coords,
-                                       title="U_hat",
+                                       title=f"U_hat, seed: {int(seed_hat[idx])}",
                                        hop_len=hop_len,
                                        vmax=vmax)
                     plot_scalogram(ax[0],
                                    curr_U,
                                    sr,
                                    y_coords,
-                                   title="U",
+                                   title=f"U, seed: {int(seed[idx])}",
                                    hop_len=hop_len,
                                    vmax=vmax)
 
@@ -105,7 +105,9 @@ class LogScalogramCallback(Callback):
                     img = fig2img(fig)
                     self.images.append(img)
 
-    def on_validation_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+    def on_validation_epoch_end(self,
+                                trainer: Trainer,
+                                pl_module: LightningModule) -> None:
         if self.images:
             for logger in trainer.loggers:
                 # TODO(cm): enable for tensorboard as well
@@ -163,11 +165,11 @@ class LogAudioCallback(Callback):
                         labels.append("x_hat")
                         self.x_hat_audio.append(curr_x_hat.swapaxes(0, 1).numpy())
 
-                    title = (f"idx_{idx}, "
-                             f"θd: {theta_density[idx]:.2f}, "
-                             f"θd_hat: {theta_density_hat[idx]:.2f}, "
-                             f"θs: {theta_slope[idx]:.2f}, "
-                             f"θs_hat: {theta_slope_hat[idx]:.2f}")
+                    title = (f"batch_idx_{idx}, "
+                             f"θd: {theta_density[idx]:.2f} -> "
+                             f"{theta_density_hat[idx]:.2f}, "
+                             f"θs: {theta_slope[idx]:.2f} -> "
+                             f"{theta_slope_hat[idx]:.2f}")
 
                     fig = plot_waveforms_stacked(waveforms,
                                                  pl_module.synth.sr,
@@ -250,6 +252,7 @@ class LogGradientCallback(Callback):
 
         if batch_idx < self.n_examples:
             fig, ax = plt.subplots(nrows=2, figsize=(4, 8), squeeze=True)
+            title_suffix = "meso" if pl_module.use_rand_seed_hat else "micro"
 
             train_out_dict = self.train_out_dicts.get(batch_idx)
             if train_out_dict is not None:
@@ -267,7 +270,7 @@ class LogGradientCallback(Callback):
                                          out_dict["theta_density_hat"],
                                          slope_grad,
                                          density_grad,
-                                         title=f"train_{batch_idx}")
+                                         title=f"train_{batch_idx}_{title_suffix}")
 
             if val_out_dict is not None:
                 out_dict = {k: val_out_dict[k]
@@ -279,7 +282,7 @@ class LogGradientCallback(Callback):
                                          out_dict["theta_density"],
                                          out_dict["theta_slope_hat"],
                                          out_dict["theta_density_hat"],
-                                         title=f"val_{batch_idx}")
+                                         title=f"val_{batch_idx}_{title_suffix}")
             fig.tight_layout()
             img = fig2img(fig)
             self.images.append(img)
