@@ -22,6 +22,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                  synth: ChirpTextureSynth,
                  loss_func: nn.Module,
                  use_p_loss: bool = False,
+                 use_rand_seed: bool = False,
                  use_rand_seed_hat: bool = False,
                  feature_type: str = "cqt",
                  J_cqt: int = 5,
@@ -35,6 +36,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.synth = synth
         self.loss_func = loss_func
         self.use_p_loss = use_p_loss
+        self.use_rand_seed = use_rand_seed
         self.use_rand_seed_hat = use_rand_seed_hat
         self.J_cqt = J_cqt
         self.feature_type = feature_type
@@ -79,15 +81,21 @@ class SCRAPLLightingModule(pl.LightningModule):
         batch_size = theta_density.size(0)
         if stage == "train":
             self.global_n = self.global_step * batch_size
-        self.log(f"global_n", self.global_n, sync_dist=True)
+        # TODO(cm): check if this works for DDP
+        self.log(f"global_n", float(self.global_n), sync_dist=True)
 
         with tr.no_grad():
             x = self.make_x_from_theta(theta_density, theta_slope, seed)
             U = self.calc_U(x)
+        seed_range = 9999999
+        if self.use_rand_seed:
+            seed = tr.randint_like(seed, low=0, high=seed_range)
         seed_hat = seed
         if self.use_rand_seed_hat:
-            max_seed = seed.max()
-            seed_hat = tr.randint_like(seed, low=max_seed + 1, high=max_seed + 999999)
+            max_seed = max(seed_range, seed.max())
+            seed_hat = tr.randint_like(seed,
+                                       low=max_seed + 1,
+                                       high=max_seed + seed_range)
 
         U_hat = None
         x_hat = None

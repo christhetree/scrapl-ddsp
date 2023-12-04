@@ -5,8 +5,9 @@ from typing import Optional
 import numpy as np
 import torch as tr
 import torch.nn as nn
-from nnAudio.features import CQT
 from torch import Tensor as T
+
+from experiments.paths import OUT_DIR
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class ChirpTextureSynth(nn.Module):
                  hop_len: int,
                  seed: Optional[int] = None):
         super().__init__()
-        assert n_samples > grain_n_samples
+        assert n_samples >= grain_n_samples
         assert f0_max_hz > f0_min_hz
         self.sr = sr
         self.n_samples = n_samples
@@ -38,7 +39,6 @@ class ChirpTextureSynth(nn.Module):
 
         self.log2_f0_min = tr.log2(tr.tensor(f0_min_hz))
         self.log2_f0_max = tr.log2(tr.tensor(f0_max_hz))
-        self.const_log2 = tr.log2(tr.tensor(2.0))
         self.grain_dur_s = grain_n_samples / sr
         support = tr.arange(grain_n_samples) / sr - (self.grain_dur_s / 2)
         grain_support = support.repeat(n_grains, 1)
@@ -115,12 +115,11 @@ class ChirpTextureSynth(nn.Module):
         # Create chirplet grains
         f0_freqs_hz = self.sample_f0_freqs(rand_gen)
         amplitudes = self.calc_amplitudes(theta_density)
+        gamma = self.calc_slope(theta_slope)
 
-        phase = self.grain_support
-        gamma = self.calc_slope(theta_slope)  # TODO
-        if gamma != 0:
-            phase = tr.expm1(gamma * self.const_log2 * phase) / (gamma * self.const_log2)
-        grains = tr.sin(2 * tr.pi * f0_freqs_hz * phase) * amplitudes * self.window
+        inst_freq = f0_freqs_hz * (2 ** (gamma * self.grain_support)) / self.sr
+        phase = 2 * tr.pi * tr.cumsum(inst_freq, dim=1)
+        grains = tr.sin(phase) * amplitudes * self.window
         grains /= tr.sqrt(f0_freqs_hz)
 
         # Create audio
@@ -144,8 +143,8 @@ class ChirpTextureSynth(nn.Module):
 if __name__ == "__main__":
     sr = 2 ** 13
     duration = 2 ** 2
-    grain_duration = 2 ** -1
-    n_grains = 2 ** 2
+    grain_duration = 2 ** 2
+    n_grains = 2 ** 0
     f0_min_hz = 2 ** 8
     f0_max_hz = 2 ** 11
 
@@ -157,6 +156,12 @@ if __name__ == "__main__":
                               n_grains=n_grains,
                               grain_n_samples=grain_n_samples,
                               f0_min_hz=f0_min_hz,
-                              f0_max_hz=f0_max_hz)
+                              f0_max_hz=f0_max_hz,
+                              Q=12,
+                              hop_len=256)
 
     x = synth.forward(theta_density=tr.tensor(1.0), theta_slope=tr.tensor(0.5))
+
+    save_path = "chirp_texture.wav"
+    import soundfile as sf
+    sf.write(os.path.join(OUT_DIR, save_path), x.numpy(), samplerate=sr)
