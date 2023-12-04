@@ -1,0 +1,3 @@
+class_path: auraloss.freq.RandomResolutionSTFTLoss
+init_args:
+  max_fft_size: 32767
