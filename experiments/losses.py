@@ -4,6 +4,7 @@ from typing import Union, List, Any
 
 import torch as tr
 import torch.nn as nn
+import torchnmf
 from kymatio.torch import TimeFrequencyScattering
 from torch import Tensor as Tensor
 
@@ -38,12 +39,28 @@ class JTFSTLoss(nn.Module):
         )
 
     def forward(self, x: Tensor, x_target: Tensor) -> Tensor:
+        # a = tr.tensor([1, 2, 3], dtype=tr.float32).unsqueeze(0)
+        # b = tr.tensor([4, 5, 6], dtype=tr.float32).unsqueeze(0)
+        # norm_manual = tr.sqrt(tr.sum((a - b) ** 2))
+        # norm_linalg = tr.linalg.vector_norm(a - b, ord=2, dim=1)
+        # norm_nmf = torchnmf.metrics.euclidean(a, b)
+
         assert x.ndim == x_target.ndim == 3
         assert x.size(1) == x_target.size(1) == 1
         Sx = self.jtfs(x)
         Sx = Sx[:, :, 1:, :]
         Sx_target = self.jtfs(x_target)
         Sx_target = Sx_target[:, :, 1:, :]
+        # log_Sx = tr.log(Sx)
+        # log_Sx_target = tr.log(Sx_target)
+        # dist_l1 = tr.linalg.vector_norm(Sx_target - Sx, ord=1, dim=(2, 3))
+        # dist_l1_log = tr.linalg.vector_norm(log_Sx_target - log_Sx, ord=1, dim=(2, 3))
+        # dist = dist_l1 + dist_l1_log
+        # dist = tr.mean(dist)
+        # Sx = Sx / Sx.sum()
+        # Sx_target = Sx_target / Sx_target.sum()
+        # dist = torchnmf.metrics.kl_div(Sx, Sx_target)
+        # dist = torchnmf.metrics.euclidean(Sx, Sx_target)
         dist = tr.linalg.vector_norm(Sx_target - Sx, ord=2, dim=(2, 3))
         dist = tr.mean(dist)
         return dist

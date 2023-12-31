@@ -80,7 +80,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         theta_density, theta_slope, seed = batch
         batch_size = theta_density.size(0)
         if stage == "train":
-            self.global_n = self.global_step * batch_size
+            self.global_n = (self.global_step *
+                             self.trainer.accumulate_grad_batches *
+                             batch_size)
         # TODO(cm): check if this works for DDP
         self.log(f"global_n", float(self.global_n), sync_dist=True)
 

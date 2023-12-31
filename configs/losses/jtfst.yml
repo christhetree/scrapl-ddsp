@@ -7,5 +7,7 @@ init_args:
   J_fr: 5
   Q_fr: 2
   T: 64
+#  T: global
   F: 32
+#  F: global
   format: time

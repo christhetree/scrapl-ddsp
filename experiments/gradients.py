@@ -93,6 +93,7 @@ def calc_distance_grad_matrix(dist_func: nn.Module,
     fontsize = 14
     ax = plt.gca()
     ax.imshow(dist_matrix.numpy(), cmap='gray_r')
+    # ax.imshow(tr.log1p(dist_matrix).numpy(), cmap='gray_r')
     x_labels = [f"{theta_slope_hat:.2f}" for theta_slope_hat in theta_slope_hats]
     ax.set_xticks(theta_slope_indices)
     ax.set_xticklabels(x_labels)
@@ -132,7 +133,7 @@ if __name__ == "__main__":
     np.random.seed(seed)
     random.seed(seed)
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
     if tr.cuda.is_available():
         log.info("Using GPU")
@@ -169,10 +170,12 @@ if __name__ == "__main__":
     use_rand_seeds = False
     # use_rand_seeds = True
 
+    suffix = "global_euclidean"
+
     if use_rand_seeds:
-        save_name = f"dist__{dist_func.__class__.__name__}__meso.png"
+        save_name = f"dist__{dist_func.__class__.__name__}__meso__{suffix}.png"
     else:
-        save_name = f"dist__{dist_func.__class__.__name__}__micro.png"
+        save_name = f"dist__{dist_func.__class__.__name__}__micro__{suffix}.png"
 
     save_path = os.path.join(OUT_DIR, save_name)
     calc_distance_grad_matrix(dist_func,
