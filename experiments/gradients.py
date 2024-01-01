@@ -29,6 +29,7 @@ def calc_distance_grad_matrix(dist_func: nn.Module,
                               n_slope: int = 9,
                               use_rand_seeds: bool = False,
                               save_path: Optional[str] = None,
+                              grad_clip_val: Optional[float] = None,
                               seed: int = 42) -> None:
     # TODO(cm): control seed, separate plotting
 
@@ -71,24 +72,31 @@ def calc_distance_grad_matrix(dist_func: nn.Module,
 
     dist_matrix = tr.tensor(dist_rows)
     dgm = tr.tensor(density_grad_rows)
-    dgm_mu = dgm.mean()
-    dgm_std = dgm.std()
-    log.info(f"dgm_mu={dgm_mu:.4f}, dgm_std={dgm_std:.4f}, max dgm={dgm.abs().max():.4f}")
-    dgm = (dgm - dgm_mu) / dgm_std
-    dgm = tr.clip(dgm, -3, 3)
+    # dgm_mu = dgm.mean()
+    # dgm_std = dgm.std()
+    # log.info(f"dgm_mu={dgm_mu:.4f}, dgm_std={dgm_std:.4f}, max dgm={dgm.abs().max():.4f}")
+    # dgm = (dgm - dgm_mu) / dgm_std
+    # dgm = tr.clip(dgm, -3, 3)
     sgm = tr.tensor(slope_grad_rows)
-    sgm_mu = sgm.mean()
-    sgm_std = sgm.std()
-    log.info(f"sgm_mu={sgm_mu:.4f}, sgm_std={sgm_std:.4f}, max sgm={sgm.abs().max():.4f}")
-    sgm = (sgm - sgm_mu) / sgm_std
-    sgm = tr.clip(sgm, -3, 3)
+    # sgm_mu = sgm.mean()
+    # sgm_std = sgm.std()
+    # log.info(f"sgm_mu={sgm_mu:.4f}, sgm_std={sgm_std:.4f}, max sgm={sgm.abs().max():.4f}")
+    # sgm = (sgm - sgm_mu) / sgm_std
+    # sgm = tr.clip(sgm, -3, 3)
     # log.info(f"dgm=\n{dgm}")
     # log.info(f"sgm=\n{sgm}")
-    dist_matrix = dist_matrix / dist_matrix.abs().max()
+    if grad_clip_val is not None:
+        dgm = tr.clip(dgm, -grad_clip_val, grad_clip_val)
+        sgm = tr.clip(sgm, -grad_clip_val, grad_clip_val)
+    else:
+        grad_clip_val = 3.0
     max_grad = max(dgm.abs().max(), sgm.abs().max())
+    log.info(f"grad_clip_val={grad_clip_val:.4f}")
     log.info(f"max_grad={max_grad:.4f}")
     dgm /= max_grad
     sgm /= max_grad
+
+    dist_matrix = dist_matrix / dist_matrix.abs().max()
 
     fontsize = 14
     ax = plt.gca()
@@ -133,7 +141,7 @@ if __name__ == "__main__":
     np.random.seed(seed)
     random.seed(seed)
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
     if tr.cuda.is_available():
         log.info("Using GPU")
@@ -170,20 +178,31 @@ if __name__ == "__main__":
     use_rand_seeds = False
     # use_rand_seeds = True
 
-    suffix = "global_euclidean"
+    n_density = 9
+    n_slope = 9
+    suffix = (f"d{n_density}s{n_slope}__J{jtfst_loss.jtfs.J}"
+              f"_Q{jtfst_loss.jtfs.Q[0]}"
+              f"_QQ{jtfst_loss.jtfs.Q[1]}"
+              f"_Jfr{jtfst_loss.jtfs.J_fr}"
+              f"_Qfr{jtfst_loss.jtfs.Q_fr[0]}"
+              f"_T{jtfst_loss.jtfs.T}"
+              f"_F{jtfst_loss.jtfs.F}")
 
     if use_rand_seeds:
         save_name = f"dist__{dist_func.__class__.__name__}__meso__{suffix}.png"
     else:
         save_name = f"dist__{dist_func.__class__.__name__}__micro__{suffix}.png"
 
+    log.info(f"save_name={save_name}")
+
     save_path = os.path.join(OUT_DIR, save_name)
     calc_distance_grad_matrix(dist_func,
                               synth,
                               theta_density=tr.tensor(0.6),
                               theta_slope=tr.tensor(0.4),
-                              n_density=9,
-                              n_slope=9,
+                              n_density=n_density,
+                              n_slope=n_slope,
                               use_rand_seeds=use_rand_seeds,
                               save_path=save_path,
+                              grad_clip_val=0.5,
                               seed=seed)

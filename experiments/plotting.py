@@ -67,17 +67,25 @@ def plot_scalogram(ax: Subplot,
     assert scalogram.ndim == 2
     assert scalogram.size(0) == len(y_coords)
     x_coords = librosa.times_like(scalogram.size(1), sr=sr, hop_length=hop_len)
-    #
-    librosa.display.specshow(ax=ax,
-                             data=scalogram.numpy(),
-                             sr=sr,
-                             x_axis="time",
-                             x_coords=x_coords,
-                             y_axis="cqt_hz",
-                             y_coords=np.array(y_coords),
-                             cmap=cmap,
-                             vmin=0.0,
-                             vmax=vmax)
+    # This is supposed to prevent an IndexError when vmin == vmax == 0.0
+    if vmax is not None and vmax <= 0.0:
+        vmax = None
+
+    try:
+        librosa.display.specshow(ax=ax,
+                                 data=scalogram.numpy(),
+                                 sr=sr,
+                                 x_axis="time",
+                                 x_coords=x_coords,
+                                 y_axis="cqt_hz",
+                                 y_coords=np.array(y_coords),
+                                 cmap=cmap,
+                                 vmin=0.0,
+                                 vmax=vmax)
+    except IndexError as e:
+        # TODO(cm): fix this
+        log.warning(f"IndexError: {e}")
+
     ax.set_xlabel(x_label, fontsize=fontsize)
     ax.set_ylabel(y_label, fontsize=fontsize)
     if len(y_coords) < 12:

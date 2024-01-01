@@ -4,7 +4,10 @@ init_args:
   n_frames: 129
   in_ch: 1
   kernel_size: [3, 3]
-  out_channels: [64, 64, 64, 64, 64]
+#  out_channels: [64, 64, 64, 64, 64]
+  out_channels: [128, 128, 128, 128, 128]
   pool_size: [2, 2]
-  latent_dim: 32
+#  latent_dim: 32
+  latent_dim: 64
   use_ln: true
+  dropout_prob: 0.5

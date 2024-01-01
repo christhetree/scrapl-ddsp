@@ -22,7 +22,8 @@ class Spectral2DCNN(nn.Module):
                  temp_dilations: Optional[List[int]] = None,
                  pool_size: Tuple[int, int] = (2, 2),
                  latent_dim: int = 32,
-                 use_ln: bool = True) -> None:
+                 use_ln: bool = True,
+                 dropout_prob: float = 0.25) -> None:
         super().__init__()
         self.n_bins = n_bins
         self.n_frames = n_frames
@@ -31,6 +32,7 @@ class Spectral2DCNN(nn.Module):
         self.pool_size = pool_size
         self.latent_dim = latent_dim
         self.use_ln = use_ln
+        self.dropout_prob = dropout_prob
 
         if out_channels is None:
             out_channels = [64] * 5
@@ -49,16 +51,23 @@ class Spectral2DCNN(nn.Module):
                 layers.append(nn.LayerNorm([n_bins, n_frames], elementwise_affine=False))
             layers.append(nn.Conv2d(in_ch, out_ch, kernel_size, stride=(1, 1), dilation=(b_dil, t_dil), padding="same"))
             layers.append(nn.MaxPool2d(kernel_size=pool_size))
-            layers.append(nn.PReLU(num_parameters=out_ch))
+            layers.append(nn.PReLU())
             in_ch = out_ch
             n_bins = n_bins // pool_size[0]
             n_frames = n_frames // pool_size[1]
         self.cnn = nn.Sequential(*layers)
 
         self.fc = nn.Linear(out_channels[-1], latent_dim)
-        self.fc_prelu = nn.PReLU(num_parameters=latent_dim)
-        self.out_density = nn.Linear(latent_dim, 1)
-        self.out_slope = nn.Linear(latent_dim, 1)
+        self.fc_act = nn.PReLU()
+        self.do = nn.Dropout(p=dropout_prob)
+
+        self.fc_density = nn.Linear(latent_dim, latent_dim // 2)
+        self.fc_density_act = nn.PReLU()
+        self.out_density = nn.Linear(latent_dim // 2, 1)
+
+        self.fc_slope = nn.Linear(latent_dim, latent_dim // 2)
+        self.fc_slope_act = nn.PReLU()
+        self.out_slope = nn.Linear(latent_dim // 2, 1)
 
     def forward(self, x: T) -> (T, T):
         assert x.ndim == 3
@@ -66,11 +75,19 @@ class Spectral2DCNN(nn.Module):
         x = self.cnn(x)
         x = tr.mean(x, dim=(2, 3))
         x = self.fc(x)
-        x = self.fc_prelu(x)
+        x = self.fc_act(x)
+        x = self.do(x)
         latent = x
 
-        density_hat = self.out_density(latent)
+        x = self.fc_density(latent)
+        x = self.fc_density_act(x)
+        x = self.do(x)
+        density_hat = self.out_density(x)
         density_hat = tr.sigmoid(density_hat).squeeze(1)
-        slope_hat = self.out_slope(latent)
+
+        x = self.fc_slope(latent)
+        x = self.fc_slope_act(x)
+        x = self.do(x)
+        slope_hat = self.out_slope(x)
         slope_hat = tr.tanh(slope_hat).squeeze(1)
         return density_hat, slope_hat

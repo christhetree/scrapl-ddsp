@@ -2,10 +2,10 @@ seed_everything: 42
 
 custom:
   project_name: scrapl
-#  model_name: cnn__ploss_gc
-#  model_name: cnn__mss__gc
+#  model_name: cnn__ploss
+  model_name: cnn__mss_new_cnn_double_rand
 #  model_name: cnn__rand_mss
-  model_name: cnn__jtfst
+#  model_name: cnn__jtfst
 #  model_name: cnn__scrapl
 #  dataset_name: chirp_32_32
   dataset_name: chirp_32_32_micro
@@ -18,18 +18,18 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [2]
+  devices: [3]
   max_epochs: 40
   num_sanity_val_steps: 0
-#  accumulate_grad_batches: 1
-  accumulate_grad_batches: 128
-#  gradient_clip_val: 0.5
+  accumulate_grad_batches: 1
+#  accumulate_grad_batches: 128
+  gradient_clip_val: 0.5
 
 data:
   class_path: experiments.data_modules.ChirpTextureDataModule
   init_args:
-#    batch_size: 128
-    batch_size: 1
+    batch_size: 128
+#    batch_size: 1
     num_workers: 4
     n_densities: 32
 #    n_densities: 5
@@ -43,15 +43,16 @@ model:
   init_args:
     model: ../configs/models/spectral_2dcnn.yml
     synth: ../configs/synths/chirp_texture.yml
-#    loss_func: auraloss.freq.MultiResolutionSTFTLoss
+    loss_func: auraloss.freq.MultiResolutionSTFTLoss
 #    loss_func: ../configs/losses/rand_mss.yml
-    loss_func: ../configs/losses/jtfst.yml
+#    loss_func: ../configs/losses/jtfst.yml
+#    loss_func: ../configs/losses/jtfst2.yml
 #    loss_func: ../configs/losses/scrapl.yml
     use_p_loss: false
 #    use_p_loss: true
 #    loss_func: torch.nn.MSELoss
-    use_rand_seed: false
-#    use_rand_seed: true
+#    use_rand_seed: false
+    use_rand_seed: true
     use_rand_seed_hat: false
 #    use_rand_seed_hat: true
     feature_type: cqt

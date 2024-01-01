@@ -86,9 +86,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         # TODO(cm): check if this works for DDP
         self.log(f"global_n", float(self.global_n), sync_dist=True)
 
-        with tr.no_grad():
-            x = self.make_x_from_theta(theta_density, theta_slope, seed)
-            U = self.calc_U(x)
         seed_range = 9999999
         if self.use_rand_seed:
             seed = tr.randint_like(seed, low=0, high=seed_range)
@@ -98,6 +95,10 @@ class SCRAPLLightingModule(pl.LightningModule):
             seed_hat = tr.randint_like(seed,
                                        low=max_seed + 1,
                                        high=max_seed + seed_range)
+
+        with tr.no_grad():
+            x = self.make_x_from_theta(theta_density, theta_slope, seed)
+            U = self.calc_U(x)
 
         U_hat = None
         x_hat = None
