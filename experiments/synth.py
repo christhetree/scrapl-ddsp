@@ -24,6 +24,7 @@ class ChirpTextureSynth(nn.Module):
                  f0_max_hz: float,
                  Q: int,
                  hop_len: int,
+                 max_theta_slope: float = 0.95,
                  seed: Optional[int] = None):
         super().__init__()
         assert n_samples >= grain_n_samples
@@ -36,6 +37,7 @@ class ChirpTextureSynth(nn.Module):
         self.f0_max_hz = f0_max_hz
         self.Q = Q
         self.hop_len = hop_len
+        self.max_theta_slope = max_theta_slope  # This prevents instabilities near +/-1
 
         self.log2_f0_min = tr.log2(tr.tensor(f0_min_hz))
         self.log2_f0_max = tr.log2(tr.tensor(f0_max_hz))
@@ -100,8 +102,11 @@ class ChirpTextureSynth(nn.Module):
         The output is measured in octaves per second.
         """
         assert theta_slope.ndim == 0
+        # theta_slope = self.max_theta_slope * theta_slope
         typical_slope = self.sr / (self.Q * self.hop_len)
-        return tr.tan(theta_slope * np.pi / 2) * typical_slope / 4
+        slope = tr.tan(
+            self.max_theta_slope * theta_slope * np.pi / 2) * typical_slope / 4
+        return slope
 
     def forward(self,
                 theta_density: T,

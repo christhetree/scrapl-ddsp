@@ -8,3 +8,4 @@ init_args:
   f0_max_hz: 2048
   Q: 12
   hop_len: 256
+  max_theta_slope: 0.95

@@ -260,7 +260,11 @@ class LogGradientCallback(Callback):
                             for k, v in train_out_dict.items() if v is not None}
                 density_grad = self.density_grads[batch_idx][:self.max_n_points]
                 slope_grad = self.slope_grads[batch_idx][:self.max_n_points]
-                max_grad = max(density_grad.abs().max(), slope_grad.abs().max())
+                max_density_grad = density_grad.abs().max()
+                max_slope_grad = slope_grad.abs().max()
+                avg_density_grad = density_grad.abs().mean()
+                avg_slope_grad = slope_grad.abs().mean()
+                max_grad = max(max_density_grad, max_slope_grad)
                 density_grad /= max_grad
                 slope_grad /= max_grad
                 plot_xy_points_and_grads(ax[0],
@@ -270,7 +274,11 @@ class LogGradientCallback(Callback):
                                          out_dict["theta_density_hat"],
                                          slope_grad,
                                          density_grad,
-                                         title=f"train_{batch_idx}_{title_suffix}")
+                                         title=f"train_{batch_idx}_{title_suffix}"
+                                               f"\nmax_d∇: {max_density_grad:.2f}"
+                                               f" max_s∇: {max_slope_grad:.2f}"
+                                               f"\navg_d∇: {avg_density_grad:.2f}"
+                                               f" avg_s∇: {avg_slope_grad:.2f}")
 
             if val_out_dict is not None:
                 out_dict = {k: val_out_dict[k]

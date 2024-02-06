@@ -3,14 +3,15 @@ seed_everything: 42
 custom:
   project_name: scrapl
 #  model_name: cnn__ploss
-  model_name: cnn__mss_new_cnn_double_rand
-#  model_name: cnn__rand_mss
+  model_name: cnn__mss
 #  model_name: cnn__jtfst
 #  model_name: cnn__scrapl
+#  model_name: cnn__rand_mss
 #  dataset_name: chirp_32_32
-  dataset_name: chirp_32_32_micro
+#  dataset_name: chirp_32_32_micro
+  dataset_name: chirp_32_32_micro_rand
 #  dataset_name: chirp_32_32_meso
-#  dataset_name: chirp_32_32_rand
+#  dataset_name: chirp_32_32_meso_rand
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: true
