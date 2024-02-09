@@ -157,7 +157,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         }
         return out_dict
 
-    def training_step(self, batch: (T, T, T), batch_idx: int) -> Dict[str, T]:
+    def training_step(self, batch: (T, T, T), batch_idx: int) -> Dict[str, T]:  #
         if not isinstance(self.loss_func, JTFSTLoss):
             assert self.trainer.accumulate_grad_batches == 1
         return self.step(batch, stage="train")

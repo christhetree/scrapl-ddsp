@@ -3,6 +3,7 @@ import os
 from collections import defaultdict
 from typing import Any, Dict
 
+import torch as tr
 import wandb
 from matplotlib import pyplot as plt
 from pytorch_lightning import Trainer, Callback, LightningModule
@@ -44,7 +45,7 @@ class LogScalogramCallback(Callback):
                                 trainer: Trainer,
                                 pl_module: LightningModule,
                                 out_dict: Dict[str, T],
-                                batch: (T, T, T, T),
+                                batch: (T, T, T),
                                 batch_idx: int,
                                 dataloader_idx: int = 0) -> None:
         out_dict = {k: v.detach().cpu() for k, v in out_dict.items() if v is not None}
@@ -129,7 +130,7 @@ class LogAudioCallback(Callback):
                                 trainer: Trainer,
                                 pl_module: SCRAPLLightingModule,
                                 out_dict: Dict[str, T],
-                                batch: (T, T, T, T),
+                                batch: (T, T, T),
                                 batch_idx: int,
                                 dataloader_idx: int = 0) -> None:
         out_dict = {k: v.detach().cpu() for k, v in out_dict.items() if v is not None}
@@ -225,15 +226,20 @@ class LogGradientCallback(Callback):
                            trainer: Trainer,
                            pl_module: SCRAPLLightingModule,
                            out_dict: Dict[str, T],
-                           batch: (T, T, T, T),
+                           batch: (T, T, T),
                            batch_idx: int,
                            dataloader_idx: int = 0) -> None:
         density_grad = out_dict["theta_density_hat"].grad.detach().cpu()
         slope_grad = out_dict["theta_slope_hat"].grad.detach().cpu()
 
+        # log.info(f"max  dg cb={density_grad.abs().max():.4f}")
+        # log.info(f"mean dg cb={density_grad.abs().mean():.4f}")
+        # log.info(f"max  sg cb={slope_grad.abs().max():.4f}")
+        # log.info(f"mean sg cb={slope_grad.abs().mean():.4f}")
+
         self.density_grads[batch_idx] = density_grad
         self.slope_grads[batch_idx] = slope_grad
-        if batch_idx < self.n_examples:
+        if batch_idx < self.n_examples * trainer.accumulate_grad_batches:
             out_dict = {k: out_dict[k] for k in self.out_dict_keys if k in out_dict}
             self.train_out_dicts[batch_idx] = out_dict
 
@@ -241,7 +247,7 @@ class LogGradientCallback(Callback):
                                 trainer: Trainer,
                                 pl_module: SCRAPLLightingModule,
                                 val_out_dict: Dict[str, T],
-                                batch: (T, T, T, T),
+                                batch: (T, T, T),
                                 batch_idx: int,
                                 dataloader_idx: int = 0) -> None:
         if not self.train_out_dicts:
@@ -250,16 +256,42 @@ class LogGradientCallback(Callback):
         if batch_idx == 0:
             self.images = []
 
+        # TODO(cm): this is nasty, needs to be cleaned up
+        # This is needed to handle batch accumulation
+        batch_size = batch[0].size(0)
+        n_batches_per_img = 1
+        if batch_size < self.max_n_points:
+            n_batches_per_img = min(self.max_n_points // batch_size,
+                                    trainer.accumulate_grad_batches)
+
         if batch_idx < self.n_examples:
+            # This is needed to handle batch accumulation
+            offset_batch_idx = batch_idx * trainer.accumulate_grad_batches
+
             fig, ax = plt.subplots(nrows=2, figsize=(4, 8), squeeze=True)
             title_suffix = "meso" if pl_module.use_rand_seed_hat else "micro"
 
-            train_out_dict = self.train_out_dicts.get(batch_idx)
+            train_out_dict = self.train_out_dicts.get(offset_batch_idx)
             if train_out_dict is not None:
                 out_dict = {k: v.detach().cpu()[:self.max_n_points]
                             for k, v in train_out_dict.items() if v is not None}
-                density_grad = self.density_grads[batch_idx][:self.max_n_points]
-                slope_grad = self.slope_grads[batch_idx][:self.max_n_points]
+                density_grad = self.density_grads[offset_batch_idx][:self.max_n_points]
+                slope_grad = self.slope_grads[offset_batch_idx][:self.max_n_points]
+
+                # This is needed to handle batch accumulation
+                for idx in range(1, n_batches_per_img):
+                    extra_train_out_dict = self.train_out_dicts.get(offset_batch_idx + idx)
+                    if train_out_dict is not None:
+                        extra_out_dict = {k: v.detach().cpu()[:self.max_n_points]
+                                          for k, v in extra_train_out_dict.items()
+                                          if v is not None}
+                        for k, v in extra_out_dict.items():
+                            out_dict[k] = tr.cat([out_dict[k], v])
+                        density_grad = tr.cat([density_grad,
+                                               self.density_grads[offset_batch_idx + idx][:self.max_n_points]])
+                        slope_grad = tr.cat([slope_grad,
+                                             self.slope_grads[offset_batch_idx + idx][:self.max_n_points]])
+
                 max_density_grad = density_grad.abs().max()
                 max_slope_grad = slope_grad.abs().max()
                 avg_density_grad = density_grad.abs().mean()
@@ -275,10 +307,10 @@ class LogGradientCallback(Callback):
                                          slope_grad,
                                          density_grad,
                                          title=f"train_{batch_idx}_{title_suffix}"
-                                               f"\nmax_d∇: {max_density_grad:.2f}"
-                                               f" max_s∇: {max_slope_grad:.2f}"
-                                               f"\navg_d∇: {avg_density_grad:.2f}"
-                                               f" avg_s∇: {avg_slope_grad:.2f}")
+                                               f"\nmax_d∇: {max_density_grad:.4f}"
+                                               f" max_s∇: {max_slope_grad:.4f}"
+                                               f"\navg_d∇: {avg_density_grad:.4f}"
+                                               f" avg_s∇: {avg_slope_grad:.4f}")
 
             if val_out_dict is not None:
                 out_dict = {k: val_out_dict[k]

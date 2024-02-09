@@ -52,15 +52,15 @@ def calc_distance_grad_matrix(dist_func: nn.Module,
         slope_grad_row = []
         for theta_slope_hat in tqdm(theta_slope_hats):
             if use_rand_seeds:
+                # TODO(cm): make cleaner
                 seed = tr.randint(seed.item(), seed.item() + 999999, (1,))
             x_hat = synth(theta_density_hat, theta_slope_hat, seed)
             dist = dist_func(x_hat.view(1, 1, -1), x.view(1, 1, -1))
             dist = dist.squeeze()
             dist_row.append(dist.item())
 
-            density_grad, slope_grad = tr.autograd.grad(dist,
-                                                        [theta_density_hat, theta_slope_hat],
-                                                        allow_unused=True)  # TODO(cm)
+            density_grad, slope_grad = tr.autograd.grad(
+                dist, [theta_density_hat, theta_slope_hat])
             density_grad_row.append(density_grad.item())
             if slope_grad is None:
                 slope_grad_row.append(0.0)
@@ -85,13 +85,18 @@ def calc_distance_grad_matrix(dist_func: nn.Module,
     # sgm = tr.clip(sgm, -3, 3)
     # log.info(f"dgm=\n{dgm}")
     # log.info(f"sgm=\n{sgm}")
+
+    log.info(f"max  dgm={dgm.abs().max():.4f}")
+    log.info(f"mean dgm={dgm.abs().mean():.4f}")
+    log.info(f"max  sgm={sgm.abs().max():.4f}")
+    log.info(f"mean sgm={sgm.abs().mean():.4f}")
+
     if grad_clip_val is not None:
+        log.info(f"grad_clip_val={grad_clip_val:.2f}")
         dgm = tr.clip(dgm, -grad_clip_val, grad_clip_val)
         sgm = tr.clip(sgm, -grad_clip_val, grad_clip_val)
-    else:
-        grad_clip_val = 3.0
+
     max_grad = max(dgm.abs().max(), sgm.abs().max())
-    log.info(f"grad_clip_val={grad_clip_val:.4f}")
     log.info(f"max_grad={max_grad:.4f}")
     dgm /= max_grad
     sgm /= max_grad
@@ -141,7 +146,7 @@ if __name__ == "__main__":
     np.random.seed(seed)
     random.seed(seed)
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     if tr.cuda.is_available():
         log.info("Using GPU")
@@ -160,7 +165,7 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
     scrapl_loss = SCRAPLLoss(**config["init_args"])
 
-    config_path = os.path.join(CONFIGS_DIR, "losses/jtfst.yml")
+    config_path = os.path.join(CONFIGS_DIR, "losses/jtfst2.yml")
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     jtfst_loss = JTFSTLoss(**config["init_args"])
@@ -168,9 +173,9 @@ if __name__ == "__main__":
     # dist_func = nn.L1Loss()
     # dist_func = nn.MSELoss()
     # dist_func = auraloss.freq.RandomResolutionSTFTLoss(max_fft_size=16384 * 2 - 1)
-    # dist_func = auraloss.freq.MultiResolutionSTFTLoss()
+    dist_func = auraloss.freq.MultiResolutionSTFTLoss()
     # dist_func = scrapl_loss
-    dist_func = jtfst_loss
+    # dist_func = jtfst_loss
 
     synth = synth.to(device)
     dist_func = dist_func.to(device)
@@ -199,10 +204,11 @@ if __name__ == "__main__":
     calc_distance_grad_matrix(dist_func,
                               synth,
                               theta_density=tr.tensor(0.6),
-                              theta_slope=tr.tensor(0.4),
+                              theta_slope=tr.tensor(0.0),
                               n_density=n_density,
                               n_slope=n_slope,
                               use_rand_seeds=use_rand_seeds,
                               save_path=save_path,
-                              grad_clip_val=0.5,
+                              # grad_clip_val=0.5,
+                              grad_clip_val=None,
                               seed=seed)

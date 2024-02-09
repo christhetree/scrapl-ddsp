@@ -187,6 +187,10 @@ def plot_xy_points_and_grads(ax: Subplot,
                              title: str = "",
                              x_label: str = "θ slope",
                              y_label: str = "θ density",
+                             x_min: float = -1.0,
+                             x_max: float = 1.0,
+                             y_min: float = 0.0,
+                             y_max: float = 1.0,
                              fontsize: int = 12):
     for idx in range(len(x)):
         ax.plot([x_hat[idx], x[idx]],
@@ -205,8 +209,10 @@ def plot_xy_points_and_grads(ax: Subplot,
                   scale=5.0,
                   scale_units="width",
                   zorder=1)
-    ax.scatter(x_hat, y_hat, color="black", marker="o", zorder=2)
+    ax.scatter(x_hat, y_hat, color="black", marker="o", facecolors='none', zorder=2)
     ax.scatter(x, y, color="black", marker="x", zorder=2)
+    ax.set_xlim(xmin=x_min, xmax=x_max)
+    ax.set_ylim(ymin=y_min, ymax=y_max)
     ax.set_title(title, fontsize=fontsize)
     ax.set_xlabel(x_label, fontsize=fontsize)
     ax.set_ylabel(y_label, fontsize=fontsize)
