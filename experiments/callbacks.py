@@ -210,17 +210,17 @@ class LogAudioCallback(Callback):
 
 
 class LogGradientCallback(Callback):
-    out_dict_keys = [
-        "theta_density", "theta_slope", "theta_density_hat", "theta_slope_hat"]
+    REQUIRED_OUT_DICT_KEYS = {
+        "theta_density", "theta_slope", "theta_density_hat", "theta_slope_hat"}
 
     def __init__(self, n_examples: int = 5, max_n_points: int = 16) -> None:
         super().__init__()
         self.n_examples = n_examples
         self.max_n_points = max_n_points
-        self.images = []
-        self.density_grads = {}
-        self.slope_grads = {}
-        self.train_out_dicts = {}
+        self.density_grads = defaultdict(list)
+        self.slope_grads = defaultdict(list)
+        self.train_out_dicts = defaultdict(lambda: defaultdict(list))
+        self.val_out_dicts = defaultdict(lambda: defaultdict(list))
 
     def on_train_batch_end(self,
                            trainer: Trainer,
@@ -229,69 +229,62 @@ class LogGradientCallback(Callback):
                            batch: (T, T, T),
                            batch_idx: int,
                            dataloader_idx: int = 0) -> None:
-        density_grad = out_dict["theta_density_hat"].grad.detach().cpu()
-        slope_grad = out_dict["theta_slope_hat"].grad.detach().cpu()
+        if batch_idx == 0:
+            self.density_grads.clear()
+            self.slope_grads.clear()
+            self.train_out_dicts.clear()
 
-        # log.info(f"max  dg cb={density_grad.abs().max():.4f}")
-        # log.info(f"mean dg cb={density_grad.abs().mean():.4f}")
-        # log.info(f"max  sg cb={slope_grad.abs().max():.4f}")
-        # log.info(f"mean sg cb={slope_grad.abs().mean():.4f}")
+        example_idx = batch_idx // trainer.accumulate_grad_batches
+        batch_size = batch[0].size(0)
 
-        self.density_grads[batch_idx] = density_grad
-        self.slope_grads[batch_idx] = slope_grad
-        if batch_idx < self.n_examples * trainer.accumulate_grad_batches:
-            out_dict = {k: out_dict[k] for k in self.out_dict_keys if k in out_dict}
-            self.train_out_dicts[batch_idx] = out_dict
+        if example_idx < self.n_examples:
+            density_grad = out_dict["theta_density_hat"].grad.detach().cpu()
+            slope_grad = out_dict["theta_slope_hat"].grad.detach().cpu()
+            self.density_grads[example_idx].append(density_grad)
+            self.slope_grads[example_idx].append(slope_grad)
+
+            train_out_dict = self.train_out_dicts[example_idx]
+            for k, v in out_dict.items():
+                if k in self.REQUIRED_OUT_DICT_KEYS and v is not None:
+                    if len(train_out_dict[k]) * batch_size < self.max_n_points:
+                        train_out_dict[k].append(v.detach().cpu())
 
     def on_validation_batch_end(self,
                                 trainer: Trainer,
                                 pl_module: SCRAPLLightingModule,
-                                val_out_dict: Dict[str, T],
+                                out_dict: Dict[str, T],
                                 batch: (T, T, T),
                                 batch_idx: int,
                                 dataloader_idx: int = 0) -> None:
-        if not self.train_out_dicts:
-            log.warning("train_out_dicts is empty, cannot log gradients")
-
         if batch_idx == 0:
-            self.images = []
+            self.val_out_dicts.clear()
 
-        # TODO(cm): this is nasty, needs to be cleaned up
-        # This is needed to handle batch accumulation
+        example_idx = batch_idx // trainer.accumulate_grad_batches
         batch_size = batch[0].size(0)
-        n_batches_per_img = 1
-        if batch_size < self.max_n_points:
-            n_batches_per_img = min(self.max_n_points // batch_size,
-                                    trainer.accumulate_grad_batches)
 
-        if batch_idx < self.n_examples:
-            # This is needed to handle batch accumulation
-            offset_batch_idx = batch_idx * trainer.accumulate_grad_batches
+        if example_idx < self.n_examples:
+            val_out_dict = self.val_out_dicts[example_idx]
+            for k, v in out_dict.items():
+                if k in self.REQUIRED_OUT_DICT_KEYS and v is not None:
+                    if len(val_out_dict[k]) * batch_size < self.max_n_points:
+                        val_out_dict[k].append(v.detach().cpu())
 
+    def on_validation_epoch_end(self,
+                                trainer: Trainer,
+                                pl_module: LightningModule) -> None:
+        images = []
+        for example_idx in range(self.n_examples):
             fig, ax = plt.subplots(nrows=2, figsize=(4, 8), squeeze=True)
             title_suffix = "meso" if pl_module.use_rand_seed_hat else "micro"
 
-            train_out_dict = self.train_out_dicts.get(offset_batch_idx)
-            if train_out_dict is not None:
-                out_dict = {k: v.detach().cpu()[:self.max_n_points]
-                            for k, v in train_out_dict.items() if v is not None}
-                density_grad = self.density_grads[offset_batch_idx][:self.max_n_points]
-                slope_grad = self.slope_grads[offset_batch_idx][:self.max_n_points]
-
-                # This is needed to handle batch accumulation
-                for idx in range(1, n_batches_per_img):
-                    extra_train_out_dict = self.train_out_dicts.get(offset_batch_idx + idx)
-                    if train_out_dict is not None:
-                        extra_out_dict = {k: v.detach().cpu()[:self.max_n_points]
-                                          for k, v in extra_train_out_dict.items()
-                                          if v is not None}
-                        for k, v in extra_out_dict.items():
-                            out_dict[k] = tr.cat([out_dict[k], v])
-                        density_grad = tr.cat([density_grad,
-                                               self.density_grads[offset_batch_idx + idx][:self.max_n_points]])
-                        slope_grad = tr.cat([slope_grad,
-                                             self.slope_grads[offset_batch_idx + idx][:self.max_n_points]])
-
+            train_out_dict = self.train_out_dicts[example_idx]
+            train_out_dict = {k: tr.cat(v, dim=0)[:self.max_n_points]
+                              for k, v in train_out_dict.items()}
+            if train_out_dict:
+                density_grad = self.density_grads[example_idx]
+                slope_grad = self.slope_grads[example_idx]
+                density_grad = tr.cat(density_grad, dim=0)[:self.max_n_points]
+                slope_grad = tr.cat(slope_grad, dim=0)[:self.max_n_points]
                 max_density_grad = density_grad.abs().max()
                 max_slope_grad = slope_grad.abs().max()
                 avg_density_grad = density_grad.abs().mean()
@@ -299,41 +292,43 @@ class LogGradientCallback(Callback):
                 max_grad = max(max_density_grad, max_slope_grad)
                 density_grad /= max_grad
                 slope_grad /= max_grad
+
                 plot_xy_points_and_grads(ax[0],
-                                         out_dict["theta_slope"],
-                                         out_dict["theta_density"],
-                                         out_dict["theta_slope_hat"],
-                                         out_dict["theta_density_hat"],
+                                         train_out_dict["theta_slope"],
+                                         train_out_dict["theta_density"],
+                                         train_out_dict["theta_slope_hat"],
+                                         train_out_dict["theta_density_hat"],
                                          slope_grad,
                                          density_grad,
-                                         title=f"train_{batch_idx}_{title_suffix}"
+                                         title=f"train_{example_idx}_{title_suffix}"
                                                f"\nmax_d∇: {max_density_grad:.4f}"
                                                f" max_s∇: {max_slope_grad:.4f}"
                                                f"\navg_d∇: {avg_density_grad:.4f}"
                                                f" avg_s∇: {avg_slope_grad:.4f}")
+            else:
+                log.warning(f"train_out_dict for example_idx={example_idx} is empty")
 
-            if val_out_dict is not None:
-                out_dict = {k: val_out_dict[k]
-                            for k in self.out_dict_keys if k in val_out_dict}
-                out_dict = {k: v.detach().cpu()[:self.max_n_points]
-                            for k, v in out_dict.items() if v is not None}
+            val_out_dict = self.val_out_dicts[example_idx]
+            val_out_dict = {k: tr.cat(v, dim=0)[:self.max_n_points]
+                            for k, v in val_out_dict.items()}
+            if val_out_dict:
                 plot_xy_points_and_grads(ax[1],
-                                         out_dict["theta_slope"],
-                                         out_dict["theta_density"],
-                                         out_dict["theta_slope_hat"],
-                                         out_dict["theta_density_hat"],
-                                         title=f"val_{batch_idx}_{title_suffix}")
+                                         val_out_dict["theta_slope"],
+                                         val_out_dict["theta_density"],
+                                         val_out_dict["theta_slope_hat"],
+                                         val_out_dict["theta_density_hat"],
+                                         title=f"val_{example_idx}_{title_suffix}")
+            else:
+                log.warning(f"val_out_dict for example_idx={example_idx} is empty")
+
             fig.tight_layout()
             img = fig2img(fig)
-            self.images.append(img)
+            images.append(img)
 
-    def on_validation_epoch_end(self,
-                                trainer: Trainer,
-                                pl_module: LightningModule) -> None:
-        if self.images:
+        if images:
             for logger in trainer.loggers:
                 # TODO(cm): enable for tensorboard as well
                 if isinstance(logger, WandbLogger):
                     logger.log_image(key="xy_points_and_grads",
-                                     images=self.images,
+                                     images=images,
                                      step=trainer.global_step)
