@@ -39,7 +39,7 @@ class LogScalogramCallback(Callback):
     def __init__(self, n_examples: int = 5) -> None:
         super().__init__()
         self.n_examples = n_examples
-        self.images = []
+        self.out_dicts = {}
 
     def on_validation_batch_end(self,
                                 trainer: Trainer,
@@ -48,74 +48,82 @@ class LogScalogramCallback(Callback):
                                 batch: (T, T, T),
                                 batch_idx: int,
                                 dataloader_idx: int = 0) -> None:
-        out_dict = {k: v.detach().cpu() for k, v in out_dict.items() if v is not None}
-
-        U = out_dict.get("U")
-        U_hat = out_dict.get("U_hat")
-        if U is None and U_hat is None:
-            log.warning(f"U and U_hat are both None, cannot log spectrograms")
-            return
-
-        theta_density = out_dict["theta_density"]
-        theta_slope = out_dict["theta_slope"]
-        theta_density_hat = out_dict["theta_density_hat"]
-        theta_slope_hat = out_dict["theta_slope_hat"]
-        seed = out_dict["seed"]
-        seed_hat = out_dict["seed_hat"]
-
-        n_batches = theta_density.size(0)
-        if batch_idx == 0:
-            self.images = []
-            for idx in range(self.n_examples):
-                if idx < n_batches:
-                    title = (f"batch_idx_{idx}, "
-                             f"θd: {theta_density[idx]:.2f} -> "
-                             f"{theta_density_hat[idx]:.2f}, "
-                             f"θs: {theta_slope[idx]:.2f} -> "
-                             f"{theta_slope_hat[idx]:.2f}")
-
-                    fig, ax = plt.subplots(nrows=2,
-                                           figsize=(6, 12),
-                                           sharex="all",
-                                           squeeze=True)
-                    fig.suptitle(title, fontsize=14)
-                    curr_U = U[idx]
-                    y_coords = pl_module.cqt.frequencies
-                    hop_len = pl_module.cqt.hop_length
-                    sr = pl_module.synth.sr
-                    vmax = None
-                    if U_hat is not None:
-                        curr_U_hat = U_hat[idx]
-                        vmax = max(curr_U.max(), curr_U_hat.max())
-                        plot_scalogram(ax[1],
-                                       curr_U_hat,
-                                       sr,
-                                       y_coords,
-                                       title=f"U_hat, seed: {int(seed_hat[idx])}",
-                                       hop_len=hop_len,
-                                       vmax=vmax)
-                    plot_scalogram(ax[0],
-                                   curr_U,
-                                   sr,
-                                   y_coords,
-                                   title=f"U, seed: {int(seed[idx])}",
-                                   hop_len=hop_len,
-                                   vmax=vmax)
-
-                    fig.tight_layout()
-                    img = fig2img(fig)
-                    self.images.append(img)
+        example_idx = batch_idx // trainer.accumulate_grad_batches
+        if example_idx < self.n_examples:
+            if example_idx not in self.out_dicts:
+                out_dict = {k: v.detach().cpu()
+                            for k, v in out_dict.items() if v is not None}
+                self.out_dicts[example_idx] = out_dict
 
     def on_validation_epoch_end(self,
                                 trainer: Trainer,
                                 pl_module: LightningModule) -> None:
-        if self.images:
+        images = []
+        for example_idx in range(self.n_examples):
+            if example_idx not in self.out_dicts:
+                log.warning(f"example_idx={example_idx} not in out_dicts")
+                continue
+
+            out_dict = self.out_dicts[example_idx]
+            U = out_dict.get("U")
+            U_hat = out_dict.get("U_hat")
+
+            if U is None and U_hat is None:
+                log.warning(f"U and U_hat are both None for example_idx={example_idx}")
+                continue
+
+            U = U[0]
+            theta_density = out_dict["theta_density"][0]
+            theta_slope = out_dict["theta_slope"][0]
+            theta_density_hat = out_dict["theta_density_hat"][0]
+            theta_slope_hat = out_dict["theta_slope_hat"][0]
+            seed = out_dict["seed"][0]
+            seed_hat = out_dict["seed_hat"][0]
+
+            title = (f"batch_idx_{example_idx}, "
+                     f"θd: {theta_density:.2f} -> {theta_density_hat:.2f}, "
+                     f"θs: {theta_slope:.2f} -> {theta_slope_hat:.2f}")
+
+            fig, ax = plt.subplots(nrows=2,
+                                   figsize=(6, 12),
+                                   sharex="all",
+                                   squeeze=True)
+            fig.suptitle(title, fontsize=14)
+            y_coords = pl_module.cqt.frequencies
+            hop_len = pl_module.cqt.hop_length
+            sr = pl_module.synth.sr
+            vmax = None
+            if U_hat is not None:
+                U_hat = U_hat[0]
+                vmax = max(U.max(), U_hat.max())
+                plot_scalogram(ax[1],
+                               U_hat,
+                               sr,
+                               y_coords,
+                               title=f"U_hat, seed: {int(seed_hat)}",
+                               hop_len=hop_len,
+                               vmax=vmax)
+            plot_scalogram(ax[0],
+                           U,
+                           sr,
+                           y_coords,
+                           title=f"U, seed: {int(seed)}",
+                           hop_len=hop_len,
+                           vmax=vmax)
+
+            fig.tight_layout()
+            img = fig2img(fig)
+            images.append(img)
+
+        if images:
             for logger in trainer.loggers:
                 # TODO(cm): enable for tensorboard as well
                 if isinstance(logger, WandbLogger):
                     logger.log_image(key="spectrograms",
-                                     images=self.images,
+                                     images=images,
                                      step=trainer.global_step)
+
+        self.out_dicts.clear()
 
 
 class LogAudioCallback(Callback):
@@ -229,11 +237,6 @@ class LogGradientCallback(Callback):
                            batch: (T, T, T),
                            batch_idx: int,
                            dataloader_idx: int = 0) -> None:
-        if batch_idx == 0:
-            self.density_grads.clear()
-            self.slope_grads.clear()
-            self.train_out_dicts.clear()
-
         example_idx = batch_idx // trainer.accumulate_grad_batches
         batch_size = batch[0].size(0)
 
@@ -256,9 +259,6 @@ class LogGradientCallback(Callback):
                                 batch: (T, T, T),
                                 batch_idx: int,
                                 dataloader_idx: int = 0) -> None:
-        if batch_idx == 0:
-            self.val_out_dicts.clear()
-
         example_idx = batch_idx // trainer.accumulate_grad_batches
         batch_size = batch[0].size(0)
 
@@ -332,3 +332,8 @@ class LogGradientCallback(Callback):
                     logger.log_image(key="xy_points_and_grads",
                                      images=images,
                                      step=trainer.global_step)
+
+        self.density_grads.clear()
+        self.slope_grads.clear()
+        self.train_out_dicts.clear()
+        self.val_out_dicts.clear()
