@@ -225,9 +225,11 @@ class LogGradientCallback(Callback):
         super().__init__()
         self.n_examples = n_examples
         self.max_n_points = max_n_points
-        self.density_grads = defaultdict(list)
-        self.slope_grads = defaultdict(list)
+        self.train_density_grads = defaultdict(list)
+        self.train_slope_grads = defaultdict(list)
         self.train_out_dicts = defaultdict(lambda: defaultdict(list))
+        self.val_density_grads = defaultdict(list)
+        self.val_slope_grads = defaultdict(list)
         self.val_out_dicts = defaultdict(lambda: defaultdict(list))
 
     def on_train_batch_end(self,
@@ -243,8 +245,8 @@ class LogGradientCallback(Callback):
         if example_idx < self.n_examples:
             density_grad = out_dict["theta_density_hat"].grad.detach().cpu()
             slope_grad = out_dict["theta_slope_hat"].grad.detach().cpu()
-            self.density_grads[example_idx].append(density_grad)
-            self.slope_grads[example_idx].append(slope_grad)
+            self.train_density_grads[example_idx].append(density_grad)
+            self.train_slope_grads[example_idx].append(slope_grad)
 
             train_out_dict = self.train_out_dicts[example_idx]
             for k, v in out_dict.items():
@@ -263,6 +265,19 @@ class LogGradientCallback(Callback):
         batch_size = batch[0].size(0)
 
         if example_idx < self.n_examples:
+            if pl_module.log_val_grads:
+                theta_density_hat = out_dict["theta_density_hat"]
+                theta_slope_hat = out_dict["theta_slope_hat"]
+                dist = out_dict["loss"]
+                density_grad, slope_grad = tr.autograd.grad(
+                    dist, [theta_density_hat, theta_slope_hat])
+                density_grad = density_grad.detach().cpu()
+                slope_grad = slope_grad.detach().cpu()
+                density_grad /= trainer.accumulate_grad_batches
+                slope_grad /= trainer.accumulate_grad_batches
+                self.val_density_grads[example_idx].append(density_grad)
+                self.val_slope_grads[example_idx].append(slope_grad)
+
             val_out_dict = self.val_out_dicts[example_idx]
             for k, v in out_dict.items():
                 if k in self.REQUIRED_OUT_DICT_KEYS and v is not None:
@@ -281,8 +296,9 @@ class LogGradientCallback(Callback):
             train_out_dict = {k: tr.cat(v, dim=0)[:self.max_n_points]
                               for k, v in train_out_dict.items()}
             if train_out_dict:
-                density_grad = self.density_grads[example_idx]
-                slope_grad = self.slope_grads[example_idx]
+                # TODO(cm): remove duplicate code
+                density_grad = self.train_density_grads[example_idx]
+                slope_grad = self.train_slope_grads[example_idx]
                 density_grad = tr.cat(density_grad, dim=0)[:self.max_n_points]
                 slope_grad = tr.cat(slope_grad, dim=0)[:self.max_n_points]
                 max_density_grad = density_grad.abs().max()
@@ -312,12 +328,36 @@ class LogGradientCallback(Callback):
             val_out_dict = {k: tr.cat(v, dim=0)[:self.max_n_points]
                             for k, v in val_out_dict.items()}
             if val_out_dict:
+                density_grad = None
+                slope_grad = None
+                if pl_module.log_val_grads:
+                    density_grad = self.val_density_grads[example_idx]
+                    slope_grad = self.val_slope_grads[example_idx]
+                    density_grad = tr.cat(density_grad, dim=0)[:self.max_n_points]
+                    slope_grad = tr.cat(slope_grad, dim=0)[:self.max_n_points]
+                    max_density_grad = density_grad.abs().max()
+                    max_slope_grad = slope_grad.abs().max()
+                    avg_density_grad = density_grad.abs().mean()
+                    avg_slope_grad = slope_grad.abs().mean()
+                    max_grad = max(max_density_grad, max_slope_grad)
+                    density_grad /= max_grad
+                    slope_grad /= max_grad
+                    title = f"val_{example_idx}_{title_suffix}" \
+                            f"\nmax_d∇: {max_density_grad:.4f}" \
+                            f" max_s∇: {max_slope_grad:.4f}" \
+                            f"\navg_d∇: {avg_density_grad:.4f}" \
+                            f" avg_s∇: {avg_slope_grad:.4f}"
+                else:
+                    title = f"val_{example_idx}_{title_suffix}"
+
                 plot_xy_points_and_grads(ax[1],
                                          val_out_dict["theta_slope"],
                                          val_out_dict["theta_density"],
                                          val_out_dict["theta_slope_hat"],
                                          val_out_dict["theta_density_hat"],
-                                         title=f"val_{example_idx}_{title_suffix}")
+                                         slope_grad,
+                                         density_grad,
+                                         title=title)
             else:
                 log.warning(f"val_out_dict for example_idx={example_idx} is empty")
 
@@ -333,7 +373,9 @@ class LogGradientCallback(Callback):
                                      images=images,
                                      step=trainer.global_step)
 
-        self.density_grads.clear()
-        self.slope_grads.clear()
+        self.train_density_grads.clear()
+        self.train_slope_grads.clear()
         self.train_out_dicts.clear()
+        self.val_density_grads.clear()
+        self.val_slope_grads.clear()
         self.val_out_dicts.clear()

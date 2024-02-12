@@ -28,7 +28,8 @@ class SCRAPLLightingModule(pl.LightningModule):
                  J_cqt: int = 5,
                  cqt_eps: float = 1e-3,
                  log_x: bool = False,
-                 log_x_hat: bool = False):
+                 log_x_hat: bool = False,
+                 log_val_grads: bool = False):
         super().__init__()
         self.save_hyperparameters(ignore=["loss_func", "model", "synth"])
         log.info(f"\n{self.hparams}")
@@ -43,6 +44,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.cqt_eps = cqt_eps
         self.log_x = log_x
         self.log_x_hat = log_x_hat
+        self.log_val_grads = log_val_grads
 
         cqt_params = {
             "sr": synth.sr,
@@ -163,6 +165,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         return self.step(batch, stage="train")
 
     def validation_step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
+        if self.log_val_grads:
+            tr.set_grad_enabled(True)
         return self.step(batch, stage="val")
 
     def test_step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:

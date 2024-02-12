@@ -63,5 +63,6 @@ model:
     cqt_eps: 1e-3
     log_x: true
     log_x_hat: true
+    log_val_grads: true
 
 optimizer: ../configs/opt/adam_w.yml
