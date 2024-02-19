@@ -1,0 +1,11 @@
+class_path: experiments.synth.ChirpTextureSynth
+init_args:
+  sr: 4096
+  n_samples: 16384
+  n_grains: 64
+  grain_n_samples: 2048
+  f0_min_hz: 256
+  f0_max_hz: 1024
+  Q: 12
+  hop_len: 128
+  max_theta_slope: 0.95

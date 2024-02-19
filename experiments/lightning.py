@@ -51,6 +51,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             "bins_per_octave": synth.Q,
             "n_bins": J_cqt * synth.Q,
             "hop_length": synth.hop_len,
+            # TODO(cm): check this
             "fmin": (0.4 * synth.sr) / (2 ** J_cqt),
             "output_format": "Magnitude",
             "verbose": False,

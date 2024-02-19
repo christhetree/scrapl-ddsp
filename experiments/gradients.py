@@ -141,7 +141,7 @@ if __name__ == "__main__":
     np.random.seed(seed)
     random.seed(seed)
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
     if tr.cuda.is_available():
         log.info("Using GPU")
@@ -150,7 +150,7 @@ if __name__ == "__main__":
         log.info("Using CPU")
         device = tr.device("cpu")
 
-    config_path = os.path.join(CONFIGS_DIR, "synths/chirp_texture.yml")
+    config_path = os.path.join(CONFIGS_DIR, "synths/chirp_texture_2khz.yml")
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     synth = ChirpTextureSynth(**config["init_args"])
@@ -161,27 +161,49 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
     scrapl_loss = SCRAPLLoss(**config["init_args"])
 
-    config_path = os.path.join(CONFIGS_DIR, "losses/jtfst2.yml")
+    config_path = os.path.join(CONFIGS_DIR, "losses/jtfst3.yml")
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     jtfst_loss = JTFSTLoss(**config["init_args"])
 
+    psi1_freqs = [f["xi"] * synth.sr for f in jtfst_loss.jtfs.psi1_f]
+    psi1_max_freq = max(psi1_freqs)
+    psi1_min_freq = min(psi1_freqs)
+
+    log.info(f"f0_min_hz={synth.f0_min_hz:.2f}, f0_max_hz={synth.f0_max_hz:.2f}")
+    log.info(f"n_psi1 = {len(psi1_freqs)}, "
+             f"psi1_min_freq={psi1_min_freq:.2f}, "
+             f"psi1_max_freq={psi1_max_freq:.2f}")
+    log.info(f"psi1_freqs={[round(f) for f in psi1_freqs]}")
+    assert psi1_min_freq < synth.f0_min_hz
+
+    psi2_freqs = [f["xi"] * synth.sr for f in jtfst_loss.jtfs.psi2_f]
+    psi2_max_freq = max(psi2_freqs)
+    psi2_min_freq = min(psi2_freqs)
+    log.info(f"n_psi2 = {len(psi2_freqs)}, "
+             f"psi2_min_freq={psi2_min_freq:.2f}, "
+             f"psi2_max_freq={psi2_max_freq:.2f}")
+    log.info(f"psi2_freqs={[round(f) for f in psi2_freqs]}")
+
+    log.info(f"n_psi_fr = {len(jtfst_loss.jtfs.filters_fr[1])}")
+    # exit()
+
     # dist_func = nn.L1Loss()
     # dist_func = nn.MSELoss()
     # dist_func = auraloss.freq.RandomResolutionSTFTLoss(max_fft_size=16384 * 2 - 1)
-    dist_func = auraloss.freq.MultiResolutionSTFTLoss()
+    # dist_func = auraloss.freq.MultiResolutionSTFTLoss()
     # dist_func = scrapl_loss
-    # dist_func = jtfst_loss
+    dist_func = jtfst_loss
 
     dist_func = dist_func.to(device)
 
     use_rand_seeds = False  # Micro
     # use_rand_seeds = True  # Meso
     theta_density = tr.tensor(0.5)
-    theta_slope = tr.tensor(0.5)
+    theta_slope = tr.tensor(0.4)
     n_density = 3
-    n_slope = 7
-    n_trials = 2
+    n_slope = 9
+    n_trials = 10
 
     if dist_func == jtfst_loss:
         suffix = (f"d{n_density}s{n_slope}t{n_trials}__J{jtfst_loss.jtfs.J}"
