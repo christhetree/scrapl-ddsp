@@ -3,8 +3,8 @@ init_args:
   shape: 32768
   J: 6
   Q1: 24
-  Q2: 2
-  J_fr: 5
-  Q_fr: 2
-  T: 64
-  F: 32
+  Q2: 1
+  J_fr: 4
+  Q_fr: 12
+  T: 128
+  F: 16

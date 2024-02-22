@@ -4,7 +4,6 @@ from typing import Union, List, Any
 
 import torch as tr
 import torch.nn as nn
-import torchnmf
 from kymatio.torch import TimeFrequencyScattering
 from torch import Tensor as Tensor
 
@@ -23,8 +22,8 @@ class JTFSTLoss(nn.Module):
                  Q2: int,
                  J_fr: int,
                  Q_fr: int,
-                 T: Union[str, int] = "global",
-                 F: Union[str, int] = "global",
+                 T: Union[str, int],
+                 F: Union[str, int],
                  format: str = "time"):
         super().__init__()
         self.jtfs = TimeFrequencyScattering(
@@ -74,10 +73,10 @@ class SCRAPLLoss(nn.Module):
                  Q2: int,
                  J_fr: int,
                  Q_fr: int,
-                 T: Union[str, int] = "global",
-                 F: Union[str, int] = "global"):
+                 T: Union[str, int],
+                 F: Union[str, int]):
         super().__init__()
-        self.scrapl = TimeFrequencyScrapl(
+        self.jtfs = TimeFrequencyScrapl(
             shape=(shape,),
             J=J,
             Q=(Q1, Q2),
@@ -86,16 +85,17 @@ class SCRAPLLoss(nn.Module):
             T=T,
             F=F,
         )
-        scrapl_meta = self.scrapl.meta()
+        scrapl_meta = self.jtfs.meta()
         self.scrapl_keys = [key for key in scrapl_meta["key"] if len(key) == 2]
+        log.info(f"number of SCRAPL keys = {len(self.scrapl_keys)}")
 
     def forward(self, x: Tensor, x_target: Tensor) -> Tensor:
         assert x.ndim == x_target.ndim == 3
         assert x.size(1) == x_target.size(1) == 1
         n2, n_fr = SCRAPLLoss.choice(self.scrapl_keys)
-        Sx = self.scrapl.scattering_singlepath(x, n2, n_fr)
+        Sx = self.jtfs.scattering_singlepath(x, n2, n_fr)
         Sx = Sx["coef"].squeeze(-1)
-        Sx_target = self.scrapl.scattering_singlepath(x_target, n2, n_fr)
+        Sx_target = self.jtfs.scattering_singlepath(x_target, n2, n_fr)
         Sx_target = Sx_target["coef"].squeeze(-1)
         diff = Sx_target - Sx
         dist = tr.linalg.vector_norm(diff, ord=2, dim=(2, 3))
