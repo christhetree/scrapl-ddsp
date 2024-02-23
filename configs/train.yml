@@ -2,19 +2,19 @@ seed_everything: 42
 
 custom:
   project_name: scrapl
-#  model_name: testing
+  model_name: testing
 #  model_name: cnn__ploss
 #  model_name: cnn__mss
 #  model_name: cnn__jtfst
 #  model_name: cnn__jtfst2_200x_no_gc
-  model_name: cnn__scrapl2
+#  model_name: cnn__scrapl2
 #  model_name: cnn__rand_mss
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
   dataset_name: chirp_32_32_micro_rand
 #  dataset_name: chirp_32_32_meso
 #  dataset_name: chirp_32_32_meso_rand
-  cpu_batch_size: 3
+  cpu_batch_size: 1
   use_wandb_cpu: false
   use_wandb_gpu: true
 
@@ -22,9 +22,9 @@ trainer:
   accelerator: gpu
   benchmark: false
   devices: [1]
-  max_epochs: 80
+  max_epochs: 40
   num_sanity_val_steps: 0
-  accumulate_grad_batches: 8
+  accumulate_grad_batches: 1
 #  accumulate_grad_batches: 128
 #  gradient_clip_val: 0.5
 
@@ -50,7 +50,8 @@ model:
 #    loss_func: ../configs/losses/rand_mss.yml
 #    loss_func: ../configs/losses/jtfst.yml
 #    loss_func: ../configs/losses/jtfst2.yml
-    loss_func: ../configs/losses/scrapl.yml
+    loss_func: ../configs/losses/jtfst2_mine_2d.yml
+#    loss_func: ../configs/losses/scrapl.yml
     use_p_loss: false
 #    use_p_loss: true
 #    loss_func: torch.nn.MSELoss

@@ -12,7 +12,7 @@ from torch import Tensor as T
 from torch import nn
 from tqdm import tqdm
 
-from experiments.losses import SCRAPLLoss, JTFSTLoss
+from experiments.losses import SCRAPLLoss, JTFSTLoss, MyJTFST2DLoss
 from experiments.paths import CONFIGS_DIR, OUT_DIR
 from experiments.synth import ChirpTextureSynth
 
@@ -35,7 +35,7 @@ def calc_distance_grad_matrices(dist_func: nn.Module,
     seed = tr.tensor(seed)
     x = synth(theta_density, theta_slope, seed)
 
-    theta_density_hats = tr.linspace(0.0, 1.0, n_density + 2, requires_grad=True)[1:-1]
+    theta_density_hats = tr.linspace(0.4, 0.6, n_density + 2, requires_grad=True)[1:-1]
     theta_slope_hats = tr.linspace(-1.0, 1.0, n_slope + 2, requires_grad=True)[1:-1]
     dist_rows = []
     density_grad_rows = []
@@ -136,12 +136,12 @@ def plot_gradients(theta_density: T,
 
 
 if __name__ == "__main__":
-    seed = 42
+    seed = 43
     tr.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
     if tr.cuda.is_available():
         log.info("Using GPU")
@@ -166,13 +166,18 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
     jtfst_loss = JTFSTLoss(**config["init_args"])
 
+    config_path = os.path.join(CONFIGS_DIR, "losses/jtfst2_mine_2d.yml")
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    jtfst_mine_2d_loss = MyJTFST2DLoss(**config["init_args"])
 
     # dist_func = nn.L1Loss()
     # dist_func = nn.MSELoss()
     # dist_func = auraloss.freq.RandomResolutionSTFTLoss(max_fft_size=16384 * 2 - 1)
     # dist_func = auraloss.freq.MultiResolutionSTFTLoss()
-    dist_func = scrapl_loss
-    # dist_func = jtfst_loss
+    # dist_func = scrapl_loss
+    dist_func = jtfst_loss
+    # dist_func = jtfst_mine_2d_loss
 
     dist_func = dist_func.to(device)
 
@@ -213,6 +218,14 @@ if __name__ == "__main__":
                   f"_Qfr{dist_func.jtfs.Q_fr[0]}"
                   f"_T{dist_func.jtfs.T}"
                   f"_F{dist_func.jtfs.F}")
+    elif dist_func == jtfst_mine_2d_loss:
+        suffix = (f"d{n_density}s{n_slope}t{n_trials}__J{dist_func.jtfs.J_1}"
+                  f"_Q{dist_func.jtfs.Q_1}"
+                  f"_QQ{dist_func.jtfs.Q_2_t}"
+                  f"_Jfr{dist_func.jtfs.J_2_f}"
+                  f"_Qfr{dist_func.jtfs.Q_2_f}"
+                  f"_T{dist_func.jtfs.avg_win_t}"
+                  f"_F{dist_func.jtfs.avg_win_f}")
     else:
         suffix = f"d{n_density}s{n_slope}t{n_trials}"
     # exit()
