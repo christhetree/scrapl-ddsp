@@ -28,7 +28,7 @@ class ChirpTextureSynth(nn.Module):
                  seed: Optional[int] = None):
         super().__init__()
         assert n_samples >= grain_n_samples
-        assert f0_max_hz > f0_min_hz
+        assert f0_max_hz >= f0_min_hz
         self.sr = sr
         self.n_samples = n_samples
         self.n_grains = n_grains

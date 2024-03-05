@@ -8,12 +8,15 @@ import numpy as np
 import torch as tr
 import yaml
 from matplotlib import pyplot as plt
+from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
 from tqdm import tqdm
 
+from experiments.lightning import SCRAPLLightingModule
 from experiments.losses import SCRAPLLoss, JTFSTLoss, MyJTFST2DLoss
 from experiments.paths import CONFIGS_DIR, OUT_DIR
+from experiments.plotting import plot_scalogram
 from experiments.synth import ChirpTextureSynth
 
 logging.basicConfig()
@@ -34,7 +37,27 @@ def calc_distance_grad_matrices(dist_func: nn.Module,
     # TODO(cm): control meso seed
     seed = tr.tensor(seed)
     x = synth(theta_density, theta_slope, seed)
+    # J_cqt = 5
+    # cqt_params = {
+    #     "sr": synth.sr,
+    #     "bins_per_octave": synth.Q,
+    #     "n_bins": J_cqt * synth.Q,
+    #     "hop_length": synth.hop_len,
+    #     # TODO(cm): check this
+    #     "fmin": (0.4 * synth.sr) / (2 ** J_cqt),
+    #     "output_format": "Magnitude",
+    #     "verbose": False,
+    # }
+    # cqt = CQT(**cqt_params)
+    # y_coords = cqt.frequencies.tolist()
+    # with tr.no_grad():
+    #     U = SCRAPLLightingModule.calc_cqt(x, cqt).squeeze()
+    #     fig, ax = plt.subplots(1, 1)
+    #     plot_scalogram(ax, U, synth.sr, y_coords, hop_len=synth.hop_len, title="U")
+    #     fig.show()
+    # exit()
 
+    # TODO(cm)
     theta_density_hats = tr.linspace(0.4, 0.6, n_density + 2, requires_grad=True)[1:-1]
     theta_slope_hats = tr.linspace(-1.0, 1.0, n_slope + 2, requires_grad=True)[1:-1]
     dist_rows = []
@@ -51,6 +74,13 @@ def calc_distance_grad_matrices(dist_func: nn.Module,
                 # TODO(cm): make cleaner
                 seed_hat = tr.randint(seed.item(), seed.item() + 999999, (1,))
             x_hat = synth(theta_density_hat, theta_slope_hat, seed_hat)
+
+            # with tr.no_grad():
+            #     U = SCRAPLLightingModule.calc_cqt(x_hat, cqt).squeeze()
+            #     fig, ax = plt.subplots(1, 1)
+            #     plot_scalogram(ax, U, synth.sr, y_coords, hop_len=synth.hop_len, title=f"U S={theta_slope_hat:.2f}")
+            #     fig.show()
+
             dist = dist_func(x_hat.view(1, 1, -1), x.view(1, 1, -1))
             dist = dist.squeeze()
             dist_row.append(dist.item())
@@ -150,7 +180,7 @@ if __name__ == "__main__":
         log.info("Using CPU")
         device = tr.device("cpu")
 
-    config_path = os.path.join(CONFIGS_DIR, "synths/chirp_texture_4khz.yml")
+    config_path = os.path.join(CONFIGS_DIR, "synths/chirp_8khz.yml")
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     synth = ChirpTextureSynth(**config["init_args"])
@@ -174,9 +204,9 @@ if __name__ == "__main__":
     # dist_func = nn.L1Loss()
     # dist_func = nn.MSELoss()
     # dist_func = auraloss.freq.RandomResolutionSTFTLoss(max_fft_size=16384 * 2 - 1)
-    # dist_func = auraloss.freq.MultiResolutionSTFTLoss()
+    dist_func = auraloss.freq.MultiResolutionSTFTLoss()
     # dist_func = scrapl_loss
-    dist_func = jtfst_loss
+    # dist_func = jtfst_loss
     # dist_func = jtfst_mine_2d_loss
 
     dist_func = dist_func.to(device)
@@ -184,10 +214,10 @@ if __name__ == "__main__":
     use_rand_seeds = False  # Micro
     # use_rand_seeds = True  # Meso
     theta_density = tr.tensor(0.5)
-    theta_slope = tr.tensor(0.4)
-    n_density = 3
-    n_slope = 9
-    n_trials = 10
+    theta_slope = tr.tensor(-0.5)
+    n_density = 1
+    n_slope = 11
+    n_trials = 1
 
     if dist_func == jtfst_loss or dist_func == scrapl_loss:
         psi1_freqs = [f["xi"] * synth.sr for f in dist_func.jtfs.psi1_f]

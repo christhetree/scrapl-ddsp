@@ -27,6 +27,7 @@ class JTFSTLoss(nn.Module):
                  F: Union[str, int],
                  format: str = "time"):
         super().__init__()
+        # TODO(cm): try with joint format and just mae distance
         self.jtfs = TimeFrequencyScattering(
             shape=(shape,),
             J=J,
@@ -35,7 +36,7 @@ class JTFSTLoss(nn.Module):
             J_fr=J_fr,
             T=T,
             F=F,
-            format=format,
+            format="time",
         )
 
     def forward(self, x: Tensor, x_target: Tensor) -> Tensor:
