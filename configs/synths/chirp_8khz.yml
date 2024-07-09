@@ -4,8 +4,8 @@ init_args:
   n_samples: 32768
   n_grains: 1
   grain_n_samples: 8192
-  f0_min_hz: 256
-  f0_max_hz: 256
+  f0_min_hz: 1240
+  f0_max_hz: 1240
   Q: 12
   hop_len: 256
   max_theta_slope: 0.95

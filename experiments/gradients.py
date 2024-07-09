@@ -3,20 +3,16 @@ import os
 import random
 from typing import Optional
 
-import auraloss
 import numpy as np
 import torch as tr
 import yaml
 from matplotlib import pyplot as plt
-from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
 from tqdm import tqdm
 
-from experiments.lightning import SCRAPLLightingModule
-from experiments.losses import SCRAPLLoss, JTFSTLoss, MyJTFST2DLoss
+from experiments.losses import SCRAPLLoss, JTFSTLoss, WaveletLoss
 from experiments.paths import CONFIGS_DIR, OUT_DIR
-from experiments.plotting import plot_scalogram
 from experiments.synth import ChirpTextureSynth
 
 logging.basicConfig()
@@ -196,27 +192,31 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
     jtfst_loss = JTFSTLoss(**config["init_args"])
 
-    config_path = os.path.join(CONFIGS_DIR, "losses/jtfst2_mine_2d.yml")
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    jtfst_mine_2d_loss = MyJTFST2DLoss(**config["init_args"])
+    # config_path = os.path.join(CONFIGS_DIR, "losses/jtfst2_mine_2d.yml")
+    # with open(config_path, 'r') as f:
+    #     config = yaml.safe_load(f)
+    # jtfst_mine_2d_loss = MyJTFST2DLoss(**config["init_args"])
 
     # dist_func = nn.L1Loss()
     # dist_func = nn.MSELoss()
     # dist_func = auraloss.freq.RandomResolutionSTFTLoss(max_fft_size=16384 * 2 - 1)
-    dist_func = auraloss.freq.MultiResolutionSTFTLoss()
+    # dist_func = auraloss.freq.MultiResolutionSTFTLoss()
     # dist_func = scrapl_loss
     # dist_func = jtfst_loss
     # dist_func = jtfst_mine_2d_loss
+    dist_func = WaveletLoss(sr=synth.sr,
+                            n_samples=synth.n_samples,
+                            J=6,
+                            Q1=24)
 
     dist_func = dist_func.to(device)
 
     use_rand_seeds = False  # Micro
     # use_rand_seeds = True  # Meso
     theta_density = tr.tensor(0.5)
-    theta_slope = tr.tensor(-0.5)
+    theta_slope = tr.tensor(0.4)
     n_density = 1
-    n_slope = 11
+    n_slope = 9
     n_trials = 1
 
     if dist_func == jtfst_loss or dist_func == scrapl_loss:
@@ -248,14 +248,14 @@ if __name__ == "__main__":
                   f"_Qfr{dist_func.jtfs.Q_fr[0]}"
                   f"_T{dist_func.jtfs.T}"
                   f"_F{dist_func.jtfs.F}")
-    elif dist_func == jtfst_mine_2d_loss:
-        suffix = (f"d{n_density}s{n_slope}t{n_trials}__J{dist_func.jtfs.J_1}"
-                  f"_Q{dist_func.jtfs.Q_1}"
-                  f"_QQ{dist_func.jtfs.Q_2_t}"
-                  f"_Jfr{dist_func.jtfs.J_2_f}"
-                  f"_Qfr{dist_func.jtfs.Q_2_f}"
-                  f"_T{dist_func.jtfs.avg_win_t}"
-                  f"_F{dist_func.jtfs.avg_win_f}")
+    # elif dist_func == jtfst_mine_2d_loss:
+    #     suffix = (f"d{n_density}s{n_slope}t{n_trials}__J{dist_func.jtfs.J_1}"
+    #               f"_Q{dist_func.jtfs.Q_1}"
+    #               f"_QQ{dist_func.jtfs.Q_2_t}"
+    #               f"_Jfr{dist_func.jtfs.J_2_f}"
+    #               f"_Qfr{dist_func.jtfs.Q_2_f}"
+    #               f"_T{dist_func.jtfs.avg_win_t}"
+    #               f"_F{dist_func.jtfs.avg_win_f}")
     else:
         suffix = f"d{n_density}s{n_slope}t{n_trials}"
     # exit()

@@ -75,6 +75,7 @@ class ChirpTextureSynth(nn.Module):
     def sample_onsets(self, rand_gen: tr.Generator) -> T:
         # TODO(cm): add support for edge padding
         onsets = self.onsets.uniform_(generator=rand_gen)
+        onsets.fill_(0.5)  # TODO(cm): tmp
         onsets = onsets * (self.n_samples - self.grain_n_samples)
         onsets = onsets.long()
         return onsets

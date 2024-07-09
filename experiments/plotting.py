@@ -221,3 +221,40 @@ def plot_xy_points_and_grads(ax: Subplot,
     ax.set_title(title, fontsize=fontsize)
     ax.set_xlabel(x_label, fontsize=fontsize)
     ax.set_ylabel(y_label, fontsize=fontsize)
+
+
+def plot_wavelet_2d(psi_2d: T, title: str = "wavelet 2D (time domain)", cmap: str = "inferno", plot_3d: bool = True) -> None:
+    """
+    :param psi_2d: complex tensor of wavelet coefficients in the time domain
+    :param title: title of the plot
+    :param cmap: colormap to use
+    :param plot_3d: whether to plot the wavelet in 3D or not
+    """
+    plt.figure(figsize=(7, 7))
+    plt.imshow(psi_2d.real, cmap=cmap, interpolation='none', origin="lower", aspect=1)
+    plt.xlabel("time", fontsize=18)
+    ax = plt.gca()
+    ax.xaxis.set_tick_params(labelbottom=False)
+    ax.set_xticks([])
+    plt.ylabel("frequency", fontsize=18)
+    ax = plt.gca()
+    ax.yaxis.set_tick_params(labelleft=False)
+    ax.set_yticks([])
+    plt.title(title, fontsize=18)
+    plt.show()
+    if plot_3d:
+        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw={"projection": "3d"})
+        t_y, t_x = tr.meshgrid(tr.arange(psi_2d.size(0)), tr.arange(psi_2d.size(1)))
+        ax.plot_surface(t_x, t_y, psi_2d.real, cmap=cmap, antialiased=True, linewidth=0)
+        ax.view_init(20, -80, 0)
+        ax.set_xlabel("time", fontsize=18)
+        ax.xaxis.set_tick_params(labelbottom=False)
+        ax.set_xticks([])
+        ax.set_ylabel("frequency", fontsize=18)
+        ax.yaxis.set_tick_params(labelbottom=False)
+        ax.set_yticks([])
+        ax.set_zlabel("amplitude", fontsize=18)
+        ax.zaxis.set_tick_params(labelbottom=False)
+        ax.set_zticks([])
+        plt.title(title, fontsize=18)
+        plt.show()
