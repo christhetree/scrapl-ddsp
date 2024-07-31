@@ -7,16 +7,22 @@ dependencies:
   - pip:
     - auraloss
     - black
-    - git+https://github.com/kymatio/kymatio.git
-    - jsonargparse[signatures]
+    - jsonargparse[signatures]>=4.27.7
     - librosa
-    - matplotlib==3.7
+    - lightning
+    - matplotlib
     - nnaudio
-    - numpy==1.23.5
+    - numpy<2.0.0
+    - nvitop
     - pandas
-    - pytorch=2.1.1
-    - pytorch-lightning
+    - pip-chill
+    - scipy
+    - torch
     - torchaudio
     - torchvision
     - tensorboard
+    - uv
     - wandb
+    - git+https://github.com/kymatio/kymatio.git
+
+# uv pip install torch lightning numba torchaudio torchvision auraloss black hypy_utils 'jsonargparse[signatures]>=4.27.7' librosa matplotlib 'numpy<2.0.0' nvitop pandas resampy schedulefree scipy tensorboard wandb pip-chill nnaudio git+https://github.com/kymatio/kymatio.git

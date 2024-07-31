@@ -68,7 +68,7 @@ class JTFSTLoss(nn.Module):
         # Sx_target = Sx_target / Sx_target.sum()
         # dist = torchnmf.metrics.kl_div(Sx, Sx_target)
         # dist = torchnmf.metrics.euclidean(Sx, Sx_target)
-        dist = tr.linalg.vector_norm(Sx_target - Sx, ord=2, dim=(2, 3))
+        dist = tr.linalg.norm(Sx_target - Sx, ord=2, dim=(2, 3))
         dist = tr.mean(dist)
         return dist
 

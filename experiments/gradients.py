@@ -3,17 +3,22 @@ import os
 import random
 from typing import Optional
 
+import auraloss
 import numpy as np
 import torch as tr
 import yaml
 from matplotlib import pyplot as plt
+from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
 from tqdm import tqdm
 
+from experiments.lightning import SCRAPLLightingModule
 from experiments.losses import SCRAPLLoss, JTFSTLoss, WaveletLoss
+from experiments.losses_dtfa import TimeFrequencyScatteringLoss, MultiScaleSpectralLoss
 from experiments.paths import CONFIGS_DIR, OUT_DIR
 from experiments.synth import ChirpTextureSynth
+from plotting import plot_scalogram
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -162,7 +167,7 @@ def plot_gradients(theta_density: T,
 
 
 if __name__ == "__main__":
-    seed = 43
+    seed = 42
     tr.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
@@ -176,7 +181,8 @@ if __name__ == "__main__":
         log.info("Using CPU")
         device = tr.device("cpu")
 
-    config_path = os.path.join(CONFIGS_DIR, "synths/chirp_8khz.yml")
+    # config_path = os.path.join(CONFIGS_DIR, "synths/chirp_8khz.yml")
+    config_path = os.path.join(CONFIGS_DIR, "synths/chirp_texture_8khz.yml")
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     synth = ChirpTextureSynth(**config["init_args"])
@@ -187,7 +193,8 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
     scrapl_loss = SCRAPLLoss(**config["init_args"])
 
-    config_path = os.path.join(CONFIGS_DIR, "losses/jtfst2.yml")
+    # config_path = os.path.join(CONFIGS_DIR, "losses/jtfst2.yml")
+    config_path = os.path.join(CONFIGS_DIR, "losses/jtfst_dtfa.yml")
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     jtfst_loss = JTFSTLoss(**config["init_args"])
@@ -200,14 +207,16 @@ if __name__ == "__main__":
     # dist_func = nn.L1Loss()
     # dist_func = nn.MSELoss()
     # dist_func = auraloss.freq.RandomResolutionSTFTLoss(max_fft_size=16384 * 2 - 1)
-    # dist_func = auraloss.freq.MultiResolutionSTFTLoss()
+    dist_func = auraloss.freq.MultiResolutionSTFTLoss()
     # dist_func = scrapl_loss
     # dist_func = jtfst_loss
     # dist_func = jtfst_mine_2d_loss
-    dist_func = WaveletLoss(sr=synth.sr,
-                            n_samples=synth.n_samples,
-                            J=6,
-                            Q1=24)
+    # dist_func = WaveletLoss(sr=synth.sr,
+    #                         n_samples=synth.n_samples,
+    #                         J=6,
+    #                         Q1=24)
+    # dist_func = TimeFrequencyScatteringLoss(shape=(synth.n_samples,), J=6)
+    # dist_func = MultiScaleSpectralLoss()
 
     dist_func = dist_func.to(device)
 

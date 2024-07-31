@@ -84,7 +84,7 @@ class TimeFrequencyScatteringLoss(DistanceLoss):
             T=self.T,
             F=self.F,
             format=self.format,
-        ).cuda()
+        )
         self.ops = [S]
 
 
@@ -144,6 +144,7 @@ class MagnitudeSTFT(nn.Module):
         self.hop_length = hop_length
 
     def forward(self, x):
+        x = x.squeeze(1)
         return torch.stft(
             x,
             n_fft=self.n_fft,
