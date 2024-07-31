@@ -24,9 +24,6 @@ class ChirpTextureDataModule(pl.LightningDataModule):
                  n_folds: int,
                  num_workers: int = 0):
         super().__init__()
-        self.save_hyperparameters()
-        log.info(f"\n{self.hparams}")
-
         self.batch_size = batch_size
         self.n_densities = n_densities
         self.n_slopes = n_slopes

@@ -31,8 +31,6 @@ class SCRAPLLightingModule(pl.LightningModule):
                  log_x_hat: bool = False,
                  log_val_grads: bool = False):
         super().__init__()
-        self.save_hyperparameters(ignore=["loss_func", "model", "synth"])
-        log.info(f"\n{self.hparams}")
         self.model = model
         self.synth = synth
         self.loss_func = loss_func

@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Union, List, Any
+from typing import Union, List, Any, Optional
 
 import torch as tr
 import torch.nn as nn
@@ -26,8 +26,8 @@ class JTFSTLoss(nn.Module):
                  Q2: int,
                  J_fr: int,
                  Q_fr: int,
-                 T: Union[str, int],
-                 F: Union[str, int],
+                 T: Optional[Union[str, int]] = None,
+                 F: Optional[Union[str, int]] = None,
                  format_: str = "time",
                  p: int = 2):
         super().__init__()
@@ -109,8 +109,8 @@ class SCRAPLLoss(nn.Module):
                  Q2: int,
                  J_fr: int,
                  Q_fr: int,
-                 T: Union[str, int],
-                 F: Union[str, int],
+                 T: Optional[Union[str, int]] = None,
+                 F: Optional[Union[str, int]] = None,
                  p: int = 2):
         super().__init__()
         self.p = p
@@ -124,6 +124,7 @@ class SCRAPLLoss(nn.Module):
             F=F,
         )
         scrapl_meta = self.jtfs.meta()
+        # TODO(cm): check if this is correct
         self.scrapl_keys = [key for key in scrapl_meta["key"] if len(key) == 2]
         log.info(f"number of SCRAPL keys = {len(self.scrapl_keys)}")
 

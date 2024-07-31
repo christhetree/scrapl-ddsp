@@ -2,18 +2,16 @@ seed_everything: 42
 
 custom:
   project_name: scrapl
-  model_name: testing
+#  model_name: testing
 #  model_name: cnn__ploss
-#  model_name: cnn__mss
-#  model_name: cnn__jtfst
-#  model_name: cnn__jtfst2_200x_no_gc
-#  model_name: cnn__scrapl2
-#  model_name: cnn__rand_mss
+  model_name: cnn__mss
+#  model_name: cnn__jtfst_dtfa_p1
+#  model_name: cnn__scrapl_dtfa_p1
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
-  dataset_name: chirp_32_32_micro_rand
+#  dataset_name: chirp_32_32_micro_rand
 #  dataset_name: chirp_32_32_meso
-#  dataset_name: chirp_32_32_meso_rand
+  dataset_name: chirp_32_32_meso_rand
   cpu_batch_size: 1
   use_wandb_cpu: false
   use_wandb_gpu: true
@@ -21,18 +19,21 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [1]
+  devices: [4]
   max_epochs: 40
+#  max_epochs: 4000
   num_sanity_val_steps: 0
   accumulate_grad_batches: 1
-#  accumulate_grad_batches: 128
+#  accumulate_grad_batches: 16
+#  accumulate_grad_batches: 8
 #  gradient_clip_val: 0.5
 
 data:
   class_path: experiments.data_modules.ChirpTextureDataModule
   init_args:
-    batch_size: 16
-#    batch_size: 1
+    batch_size: 64
+#    batch_size: 4
+#    batch_size: 8
     num_workers: 4
     n_densities: 32
 #    n_densities: 5
@@ -45,20 +46,20 @@ model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
     model: ../configs/models/spectral_2dcnn.yml
-    synth: ../configs/synths/chirp_texture_4khz.yml
-#    loss_func: auraloss.freq.MultiResolutionSTFTLoss
+    synth: ../configs/synths/chirp_texture_8khz.yml
+
+    loss_func: auraloss.freq.MultiResolutionSTFTLoss
+#    loss_func: ../configs/losses/jtfst_dtfa.yml
+#    loss_func: ../configs/losses/scrapl_dtfa.yml
 #    loss_func: ../configs/losses/rand_mss.yml
-#    loss_func: ../configs/losses/jtfst.yml
-#    loss_func: ../configs/losses/jtfst2.yml
-    loss_func: ../configs/losses/jtfst2_mine_2d.yml
-#    loss_func: ../configs/losses/scrapl.yml
     use_p_loss: false
 #    use_p_loss: true
 #    loss_func: torch.nn.MSELoss
+
 #    use_rand_seed: false
     use_rand_seed: true
-    use_rand_seed_hat: false
-#    use_rand_seed_hat: true
+#    use_rand_seed_hat: false
+    use_rand_seed_hat: true
     feature_type: cqt
     J_cqt: 5
     cqt_eps: 1e-3

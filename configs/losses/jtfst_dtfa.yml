@@ -10,4 +10,4 @@ init_args:
   F: null
 #  format_: time
   format_: joint
-  p: 2
+  p: 1

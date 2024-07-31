@@ -16,6 +16,7 @@ dependencies:
     - nvitop
     - pandas
     - pip-chill
+    - schedulefree
     - scipy
     - torch
     - torchaudio
