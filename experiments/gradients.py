@@ -58,8 +58,7 @@ def calc_distance_grad_matrices(dist_func: nn.Module,
     #     fig.show()
     # exit()
 
-    # TODO(cm)
-    theta_density_hats = tr.linspace(0.4, 0.6, n_density + 2, requires_grad=True)[1:-1]
+    theta_density_hats = tr.linspace(0.0, 1.0, n_density + 2, requires_grad=True)[1:-1]
     theta_slope_hats = tr.linspace(-1.0, 1.0, n_slope + 2, requires_grad=True)[1:-1]
     dist_rows = []
     density_grad_rows = []
@@ -172,7 +171,7 @@ if __name__ == "__main__":
     np.random.seed(seed)
     random.seed(seed)
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
     if tr.cuda.is_available():
         log.info("Using GPU")
@@ -188,12 +187,11 @@ if __name__ == "__main__":
     synth = ChirpTextureSynth(**config["init_args"])
     synth = synth.to(device)
 
-    config_path = os.path.join(CONFIGS_DIR, "losses/scrapl.yml")
+    config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_dtfa.yml")
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     scrapl_loss = SCRAPLLoss(**config["init_args"])
 
-    # config_path = os.path.join(CONFIGS_DIR, "losses/jtfst2.yml")
     config_path = os.path.join(CONFIGS_DIR, "losses/jtfst_dtfa.yml")
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
@@ -207,9 +205,9 @@ if __name__ == "__main__":
     # dist_func = nn.L1Loss()
     # dist_func = nn.MSELoss()
     # dist_func = auraloss.freq.RandomResolutionSTFTLoss(max_fft_size=16384 * 2 - 1)
-    dist_func = auraloss.freq.MultiResolutionSTFTLoss()
+    # dist_func = auraloss.freq.MultiResolutionSTFTLoss()
+    dist_func = jtfst_loss
     # dist_func = scrapl_loss
-    # dist_func = jtfst_loss
     # dist_func = jtfst_mine_2d_loss
     # dist_func = WaveletLoss(sr=synth.sr,
     #                         n_samples=synth.n_samples,
@@ -220,13 +218,14 @@ if __name__ == "__main__":
 
     dist_func = dist_func.to(device)
 
-    use_rand_seeds = False  # Micro
-    # use_rand_seeds = True  # Meso
+    # use_rand_seeds = False  # Micro
+    use_rand_seeds = True  # Meso
     theta_density = tr.tensor(0.5)
+    # theta_slope = tr.tensor(0.25)
     theta_slope = tr.tensor(0.4)
-    n_density = 1
+    n_density = 9
     n_slope = 9
-    n_trials = 1
+    n_trials = 20
 
     if dist_func == jtfst_loss or dist_func == scrapl_loss:
         psi1_freqs = [f["xi"] * synth.sr for f in dist_func.jtfs.psi1_f]
@@ -315,16 +314,16 @@ if __name__ == "__main__":
         dist_avg_var = dist_matrix.var(dim=0).mean()
         dgm_avg_var = dgm.var(dim=0).mean()
         sgm_avg_var = sgm.var(dim=0).mean()
-        log.info(f"dist_avg_var={dist_avg_var:.4f}, "
-                 f" dgm_avg_var={dgm_avg_var:.4f}, "
-                 f" sgm_avg_var={sgm_avg_var:.4f}")
+        log.info(f"dist_avg_var={dist_avg_var:.6f}, "
+                 f" dgm_avg_var={dgm_avg_var:.6f}, "
+                 f" sgm_avg_var={sgm_avg_var:.6f}")
     dist_matrix = dist_matrix.mean(dim=0)
     dgm = dgm.mean(dim=0)
     sgm = sgm.mean(dim=0)
 
     dist_matrix = dist_matrix / dist_matrix.abs().max()
     max_grad = max(dgm.abs().max(), sgm.abs().max())
-    log.info(f"max_grad={max_grad:.4f}")
+    log.info(f"max_grad={max_grad:.6f}")
     dgm /= max_grad
     sgm /= max_grad
 

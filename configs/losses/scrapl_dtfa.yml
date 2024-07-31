@@ -1,4 +1,4 @@
-class_path: experiments.losses.JTFSTLoss
+class_path: experiments.losses.SCRAPLLoss
 init_args:
   shape: 32768
   J: 12
@@ -8,6 +8,4 @@ init_args:
   Q_fr: 2
   T: null
   F: null
-#  format_: time
-  format_: joint
   p: 2

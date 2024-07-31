@@ -1,4 +1,3 @@
-import itertools
 import logging
 import os
 from typing import Union, List, Any
@@ -6,9 +5,7 @@ from typing import Union, List, Any
 import torch as tr
 import torch.nn as nn
 from kymatio.torch import Scattering1D, TimeFrequencyScattering
-from matplotlib import pyplot as plt
 from torch import Tensor as Tensor
-from tqdm import tqdm
 
 from dwt import dwt_2d
 from experiments import util
@@ -31,9 +28,12 @@ class JTFSTLoss(nn.Module):
                  Q_fr: int,
                  T: Union[str, int],
                  F: Union[str, int],
-                 format: str = "time"):
+                 format_: str = "time",
+                 p: int = 2):
         super().__init__()
-        # TODO(cm): try with joint format and just mae distance
+        assert format_ in ["time", "joint"]
+        self.format = format_
+        self.p = p
         self.jtfs = TimeFrequencyScattering(
             shape=(shape,),
             J=J,
@@ -42,33 +42,20 @@ class JTFSTLoss(nn.Module):
             J_fr=J_fr,
             T=T,
             F=F,
-            format="time",
+            format=format_,
         )
 
     def forward(self, x: Tensor, x_target: Tensor) -> Tensor:
-        # a = tr.tensor([1, 2, 3], dtype=tr.float32).unsqueeze(0)
-        # b = tr.tensor([4, 5, 6], dtype=tr.float32).unsqueeze(0)
-        # norm_manual = tr.sqrt(tr.sum((a - b) ** 2))
-        # norm_linalg = tr.linalg.vector_norm(a - b, ord=2, dim=1)
-        # norm_nmf = torchnmf.metrics.euclidean(a, b)
-
         assert x.ndim == x_target.ndim == 3
         assert x.size(1) == x_target.size(1) == 1
         Sx = self.jtfs(x)
-        Sx = Sx[:, :, 1:, :]
         Sx_target = self.jtfs(x_target)
-        Sx_target = Sx_target[:, :, 1:, :]
-        # log_Sx = tr.log(Sx)
-        # log_Sx_target = tr.log(Sx_target)
-        # dist_l1 = tr.linalg.vector_norm(Sx_target - Sx, ord=1, dim=(2, 3))
-        # dist_l1_log = tr.linalg.vector_norm(log_Sx_target - log_Sx, ord=1, dim=(2, 3))
-        # dist = dist_l1 + dist_l1_log
-        # dist = tr.mean(dist)
-        # Sx = Sx / Sx.sum()
-        # Sx_target = Sx_target / Sx_target.sum()
-        # dist = torchnmf.metrics.kl_div(Sx, Sx_target)
-        # dist = torchnmf.metrics.euclidean(Sx, Sx_target)
-        dist = tr.linalg.norm(Sx_target - Sx, ord=2, dim=(2, 3))
+        if self.format == "time":
+            Sx = Sx[:, :, 1:, :]  # Remove the 0th order coefficients
+            Sx_target = Sx_target[:, :, 1:, :]  # Remove the 0th order coefficients
+            dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=-1)
+        else:
+            dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=(-2, -1))
         dist = tr.mean(dist)
         return dist
 
@@ -123,8 +110,10 @@ class SCRAPLLoss(nn.Module):
                  J_fr: int,
                  Q_fr: int,
                  T: Union[str, int],
-                 F: Union[str, int]):
+                 F: Union[str, int],
+                 p: int = 2):
         super().__init__()
+        self.p = p
         self.jtfs = TimeFrequencyScrapl(
             shape=(shape,),
             J=J,
@@ -147,7 +136,7 @@ class SCRAPLLoss(nn.Module):
         Sx_target = self.jtfs.scattering_singlepath(x_target, n2, n_fr)
         Sx_target = Sx_target["coef"].squeeze(-1)
         diff = Sx_target - Sx
-        dist = tr.linalg.vector_norm(diff, ord=2, dim=(2, 3))
+        dist = tr.linalg.norm(diff, ord=self.p, dim=(-2, -1))
         dist = tr.mean(dist)
         return dist
 
@@ -195,10 +184,10 @@ class WaveletLoss(nn.Module):
     def forward(self,
                 x: Tensor,
                 x_target: Tensor) -> Tensor:
-                # x_target: Tensor,
-                # alpha: float = 0.1666,
-                # beta: float = 0.0003,
-                # reflect: bool = False) -> Tensor:
+        # x_target: Tensor,
+        # alpha: float = 0.1666,
+        # beta: float = 0.0003,
+        # reflect: bool = False) -> Tensor:
         assert x.ndim == x_target.ndim == 3
         assert x.size(1) == x_target.size(1) == 1
         u1 = self.scat_1d(x)
