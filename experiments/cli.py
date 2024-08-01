@@ -16,7 +16,7 @@ from experiments.paths import CONFIGS_DIR
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(level=os.environ.get('LOGLEVEL', 'INFO'))
+log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class CustomLightningCLI(LightningCLI):
@@ -29,8 +29,8 @@ class CustomLightningCLI(LightningCLI):
             ModelCheckpoint(
                 filename="epoch_{epoch}_step_{step}",  # Name is appended
                 auto_insert_metric_name=False,
-                monitor='val/loss',
-                mode='min',
+                monitor="val/loss",
+                mode="min",
                 save_last=True,
                 save_top_k=1,
                 verbose=False,
@@ -71,7 +71,9 @@ class CustomLightningCLI(LightningCLI):
         for link_args in self.cli_config["link_arguments"]:
             parser.link_arguments(link_args["src"], link_args["dest"])
 
-    def link_arguments_if_possible(self, src: str, dest: str, config: Dict[str, Any], is_strict: bool = False) -> None:
+    def link_arguments_if_possible(
+            self, src: str, dest: str, config: Dict[str, Any], is_strict: bool = False
+    ) -> None:
         src_tokens = src.split(".")
         dest_tokens = dest.split(".")
         assert len(dest_tokens) > 1
@@ -99,7 +101,9 @@ class CustomLightningCLI(LightningCLI):
             log.info(f"Dest {dest} is not reachable")
             return
         if dest_key in curr_dest and curr_dest[dest_key] != src_val:
-            log.info(f"Dest {dest} already exists: {curr_dest[dest_key]}, overriding it with {src_val}")
+            log.info(
+                f"Dest {dest} already exists: {curr_dest[dest_key]}, overriding it with {src_val}"
+            )
         else:
             curr_dest[dest_key] = src_val
 
@@ -127,12 +131,18 @@ class CustomLightningCLI(LightningCLI):
 
         if config.trainer.devices < 2:
             log.info("Disabling strategy")
-            config.trainer.strategy = 'auto'
+            config.trainer.strategy = "auto"
+
+        if config.custom.is_deterministic:
+            log.info("Setting torch.use_deterministic_algorithms(True)")
+            os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+            tr.use_deterministic_algorithms(True, warn_only=True)
+            # tr.backends.cudnn.deterministic = True
 
         if not tr.cuda.is_available():
-            config.trainer.accelerator = 'auto'
-            config.trainer.devices = 'auto'
-            config.trainer.strategy = 'auto'
+            config.trainer.accelerator = "auto"
+            config.trainer.devices = "auto"
+            config.trainer.strategy = "auto"
             config.data.init_args.batch_size = config.custom.cpu_batch_size
             config.data.init_args.num_workers = 0
 
@@ -150,17 +160,22 @@ class CustomLightningCLI(LightningCLI):
     def before_fit(self) -> None:
         for cb in self.trainer.callbacks:
             if isinstance(cb, ModelCheckpoint):
-                cb.filename = f"{self.config.fit.custom.model_name}__" \
-                              f"{self.config.fit.custom.dataset_name}__{cb.filename}"
+                cb.filename = (
+                    f"{self.config.fit.custom.model_name}__"
+                    f"{self.config.fit.custom.dataset_name}__{cb.filename}"
+                )
                 log.info(f"Setting checkpoint name to: {cb.filename}")
 
         use_gpu = tr.cuda.is_available()
-        if ((use_gpu and self.config.fit.custom.use_wandb_gpu) or
-                (not use_gpu and self.config.fit.custom.use_wandb_cpu)):
-            wandb_logger = WandbLogger(save_dir="wandb_logs",
-                                       project=self.config.fit.custom.project_name,
-                                       name=f"{self.config.fit.custom.model_name}__"
-                                            f"{self.config.fit.custom.dataset_name}")
+        if (use_gpu and self.config.fit.custom.use_wandb_gpu) or (
+                not use_gpu and self.config.fit.custom.use_wandb_cpu
+        ):
+            wandb_logger = WandbLogger(
+                save_dir="wandb_logs",
+                project=self.config.fit.custom.project_name,
+                name=f"{self.config.fit.custom.model_name}__"
+                     f"{self.config.fit.custom.dataset_name}",
+            )
             self.trainer.loggers.append(wandb_logger)
         else:
             log.info("wandb is disabled")
@@ -168,10 +183,19 @@ class CustomLightningCLI(LightningCLI):
         if not use_gpu:
             log.info("================ Running on CPU ================ ")
 
-        log.info(f"================ {self.config.fit.custom.project_name} "
-                 f"{self.config.fit.custom.model_name} "
-                 f"{self.config.fit.custom.dataset_name} ================")
-        log.info(f"================ Starting LR = {self.config.fit.optimizer.init_args.lr:.5f} ================ ")
+        log.info(
+            f"================ {self.config.fit.custom.project_name} "
+            f"{self.config.fit.custom.model_name} "
+            f"{self.config.fit.custom.dataset_name} ================"
+        )
+        try:
+            log.info(
+                f"================ {self.config.fit.optimizer.class_path} "
+                f"starting LR = {self.config.fit.optimizer.init_args.lr:.5f} "
+                f"================ "
+            )
+        except Exception:
+            pass
 
     # def after_validate(self) -> None:
     #     print("=================================================================")

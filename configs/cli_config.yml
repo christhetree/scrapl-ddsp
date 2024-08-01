@@ -11,10 +11,12 @@ additional_arguments:
     default: true
   - name: custom.cpu_batch_size
     default: 5
-  - name: custom.cpu_train_num_examples_per_epoch
+  - name: custom.cpu_train_n_per_epoch
     default: 10
-  - name: custom.cpu_val_num_examples_per_epoch
+  - name: custom.cpu_val_n_per_epoch
     default: 5
+  - name: custom.is_deterministic
+    default: false
 
 link_arguments:
   - src: custom.project_name
