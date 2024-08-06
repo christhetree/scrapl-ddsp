@@ -191,7 +191,7 @@ class CustomLightningCLI(LightningCLI):
         try:
             log.info(
                 f"================ {self.config.fit.optimizer.class_path} "
-                f"starting LR = {self.config.fit.optimizer.init_args.lr:.5f} "
+                f"starting LR = {self.config.fit.optimizer.init_args.lr:.6f} "
                 f"================ "
             )
         except Exception:

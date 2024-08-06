@@ -58,6 +58,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.loss_name = self.loss_func.__class__.__name__
         self.l1 = nn.L1Loss()
         self.global_n = 0
+        # self.register_buffer("path_grads_density", tr.zeros(3072, self.loss_func.n_paths))
+        # self.register_buffer("path_grads_slope", tr.zeros(3072, self.loss_func.n_paths))
 
     def on_train_start(self) -> None:
         self.global_n = 0
@@ -77,8 +79,18 @@ class SCRAPLLightingModule(pl.LightningModule):
         x = tr.stack(x, dim=0).unsqueeze(1)  # Unsqueeze channel dim
         return x
 
+    def sag_hook(self, grad: T, batch_indices: T, path_idx: int, path_grads: T,
+                 decay_val: float = 1.0) -> T:
+        assert path_idx is not None
+        if decay_val != 1.0:
+            path_grads.mul_(decay_val)
+        path_grads[batch_indices, path_idx, ...] = grad
+        grad = path_grads[batch_indices, ...]
+        grad = tr.mean(grad, dim=1)
+        return grad
+
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
-        theta_density, theta_slope, seed = batch
+        theta_density, theta_slope, seed, batch_indices = batch
         batch_size = theta_density.size(0)
         if stage == "train":
             self.global_n = (self.global_step *
@@ -156,6 +168,18 @@ class SCRAPLLightingModule(pl.LightningModule):
             "seed": seed,
             "seed_hat": seed_hat,
         }
+
+        # if stage == "train":
+        #     theta_density_hat.register_hook(
+        #         partial(self.sag_hook,
+        #                 batch_indices=batch_indices,
+        #                 path_idx=self.loss_func.curr_path_idx,
+        #                 path_grads=self.path_grads_density))
+        #     theta_slope_hat.register_hook(
+        #         partial(self.sag_hook,
+        #                 batch_indices=batch_indices,
+        #                 path_idx=self.loss_func.curr_path_idx,
+        #                 path_grads=self.path_grads_slope))
         return out_dict
 
     def training_step(self, batch: (T, T, T), batch_idx: int) -> Dict[str, T]:

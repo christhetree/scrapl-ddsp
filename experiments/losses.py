@@ -5,7 +5,7 @@ from typing import Union, List, Any, Optional
 import torch as tr
 import torch.nn as nn
 from kymatio.torch import Scattering1D, TimeFrequencyScattering
-from torch import Tensor as Tensor
+from torch import Tensor as T
 
 from dwt import dwt_2d
 from experiments import util
@@ -44,8 +44,11 @@ class JTFSTLoss(nn.Module):
             F=F,
             format=format_,
         )
+        jtfs_meta = self.jtfs.meta()
+        jtfs_keys = [key for key in jtfs_meta["key"] if len(key) == 2]
+        log.info(f"number of JTFS keys = {len(jtfs_keys)}")
 
-    def forward(self, x: Tensor, x_target: Tensor) -> Tensor:
+    def forward(self, x: T, x_target: T) -> T:
         assert x.ndim == x_target.ndim == 3
         assert x.size(1) == x_target.size(1) == 1
         Sx = self.jtfs(x)
@@ -91,7 +94,7 @@ class MyJTFST2DLoss(nn.Module):
                             avg_win_t=T,
                             reflect_f=True)
 
-    def forward(self, x: Tensor, x_target: Tensor) -> Tensor:
+    def forward(self, x: T, x_target: T) -> T:
         assert x.ndim == x_target.ndim == 3
         assert x.size(1) == x_target.size(1) == 1
         Sx_o1, _, Sx, _ = self.jtfs(x)
@@ -126,12 +129,19 @@ class SCRAPLLoss(nn.Module):
         scrapl_meta = self.jtfs.meta()
         # TODO(cm): check if this is correct
         self.scrapl_keys = [key for key in scrapl_meta["key"] if len(key) == 2]
-        log.info(f"number of SCRAPL keys = {len(self.scrapl_keys)}")
+        self.n_paths = len(self.scrapl_keys)
+        log.info(f"number of SCRAPL keys = {self.n_paths}")
+        # self.curr_path_idx = None  # TODO(cm): tmp
 
-    def forward(self, x: Tensor, x_target: Tensor) -> Tensor:
+    def forward(self, x: T, x_target: T) -> T:
         assert x.ndim == x_target.ndim == 3
         assert x.size(1) == x_target.size(1) == 1
-        n2, n_fr = SCRAPLLoss.choice(self.scrapl_keys)
+        path_idx = SCRAPLLoss.randint(low=0, high=self.n_paths)
+        # if self.training:
+        #     self.curr_path_idx = path_idx
+        # else:
+        #     self.curr_path_idx = None
+        n2, n_fr = self.scrapl_keys[path_idx]
         Sx = self.jtfs.scattering_singlepath(x, n2, n_fr)
         Sx = Sx["coef"].squeeze(-1)
         Sx_target = self.jtfs.scattering_singlepath(x_target, n2, n_fr)
@@ -142,7 +152,7 @@ class SCRAPLLoss(nn.Module):
         return dist
 
     @staticmethod
-    def randint(low: int, high: int, n: int = 1) -> Union[int, Tensor]:
+    def randint(low: int, high: int, n: int = 1) -> Union[int, T]:
         x = tr.randint(low=low, high=high, size=(n,))
         if n == 1:
             return x.item()
@@ -169,7 +179,7 @@ class WaveletLoss(nn.Module):
                                     max_order=1)
         self.wavelets = MorletWavelet(sr, w=None)
 
-    def create_rand_wavelet(self, n_f: int, n_t: int) -> Tensor:
+    def create_rand_wavelet(self, n_f: int, n_t: int) -> T:
         min_s_f = self.wavelets.min_scale_f
         max_s_f = self.wavelets.n_to_scale(n_f)
         min_s_t = self.wavelets.min_scale_t
@@ -182,9 +192,7 @@ class WaveletLoss(nn.Module):
         wavelet = self.wavelets.create_2d_wavelet_from_scale(s_f, s_t, reflect)
         return wavelet
 
-    def forward(self,
-                x: Tensor,
-                x_target: Tensor) -> Tensor:
+    def forward(self, x: T, x_target: T) -> T:
         # x_target: Tensor,
         # alpha: float = 0.1666,
         # beta: float = 0.0003,

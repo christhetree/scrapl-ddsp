@@ -60,3 +60,14 @@ def sample_log_uniform(low: float, high: float, n: int = 1) -> Union[float, T]:
     if n == 1:
         return float(x)
     return tr.from_numpy(x)
+
+
+def clip_norm(x: T, max_norm: float, p: int = 2, eps: float = 1e-8) -> T:
+    total_norm = tr.linalg.vector_norm(x.flatten(), ord=p)
+    clip_coef = max_norm / (total_norm + eps)
+    # Note: multiplying by the clamped coef is redundant when the coef is clamped to 1, but doing so
+    # avoids a `if clip_coef < 1:` conditional which can require a CPU <=> device synchronization
+    # when the gradients do not reside in CPU memory.
+    clip_coef_clamped = tr.clamp(clip_coef, max=1.0)
+    x_clipped = x * clip_coef_clamped
+    return x_clipped

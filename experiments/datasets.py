@@ -19,8 +19,8 @@ class ChirpTextureDataset(Dataset):
     def __len__(self) -> int:
         return len(self.df)
 
-    def __getitem__(self, idx: int) -> (T, T, T, int):
+    def __getitem__(self, idx: int) -> (T, T, T, int, int):
         theta_density = tr.tensor(self.df.iloc[idx]["density"], dtype=tr.float32)
         theta_slope = tr.tensor(self.df.iloc[idx]["slope"], dtype=tr.float32)
         seed = tr.tensor(self.df.iloc[idx]["seed"], dtype=tr.long)
-        return theta_density, theta_slope, seed
+        return theta_density, theta_slope, seed, idx

@@ -1,4 +1,4 @@
 class_path: schedulefree.AdamWScheduleFree
 init_args:
-  lr: 5e-3
+  lr: 1e-4
   betas: [0.9, 0.999]

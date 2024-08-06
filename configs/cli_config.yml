@@ -16,7 +16,7 @@ additional_arguments:
   - name: custom.cpu_val_n_per_epoch
     default: 5
   - name: custom.is_deterministic
-    default: false
+    default: true
 
 link_arguments:
   - src: custom.project_name
