@@ -1,4 +1,4 @@
-class_path: experiments.losses.SCRAPLLoss
+class_path: experiments.losses.AdaptiveSCRAPLLoss
 init_args:
   shape: 32768
   J: 12

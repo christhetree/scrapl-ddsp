@@ -1,11 +1,14 @@
 import logging
 import os
-from typing import Union, List, Any, Optional
+from collections import defaultdict
+from typing import Union, Any, Optional
 
 import torch as tr
 import torch.nn as nn
 from kymatio.torch import Scattering1D, TimeFrequencyScattering
 from torch import Tensor as T
+from torch.autograd import Function
+from torch.nn import functional as F
 
 from dwt import dwt_2d
 from experiments import util
@@ -15,21 +18,23 @@ from wavelets import MorletWavelet
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(level=os.environ.get('LOGLEVEL', 'INFO'))
+log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class JTFSTLoss(nn.Module):
-    def __init__(self,
-                 shape: int,
-                 J: int,
-                 Q1: int,
-                 Q2: int,
-                 J_fr: int,
-                 Q_fr: int,
-                 T: Optional[Union[str, int]] = None,
-                 F: Optional[Union[str, int]] = None,
-                 format_: str = "time",
-                 p: int = 2):
+    def __init__(
+        self,
+        shape: int,
+        J: int,
+        Q1: int,
+        Q2: int,
+        J_fr: int,
+        Q_fr: int,
+        T: Optional[Union[str, int]] = None,
+        F: Optional[Union[str, int]] = None,
+        format_: str = "time",
+        p: int = 2,
+    ):
         super().__init__()
         assert format_ in ["time", "joint"]
         self.format = format_
@@ -64,15 +69,9 @@ class JTFSTLoss(nn.Module):
 
 
 class MyJTFST2DLoss(nn.Module):
-    def __init__(self,
-                 sr: float,
-                 J: int,
-                 Q1: int,
-                 Q2: int,
-                 J_fr: int,
-                 Q_fr: int,
-                 T: int,
-                 F: int):
+    def __init__(
+        self, sr: float, J: int, Q1: int, Q2: int, J_fr: int, Q_fr: int, T: int, F: int
+    ):
         super().__init__()
         should_avg_f = False
         should_avg_t = False
@@ -81,18 +80,20 @@ class MyJTFST2DLoss(nn.Module):
         if T > 1:
             should_avg_t = True
 
-        self.jtfs = JTFST2D(sr=sr,
-                            J_1=J,
-                            J_2_f=J_fr,
-                            J_2_t=J,
-                            Q_1=Q1,
-                            Q_2_f=Q_fr,
-                            Q_2_t=Q2,
-                            should_avg_f=should_avg_f,
-                            should_avg_t=should_avg_t,
-                            avg_win_f=F,
-                            avg_win_t=T,
-                            reflect_f=True)
+        self.jtfs = JTFST2D(
+            sr=sr,
+            J_1=J,
+            J_2_f=J_fr,
+            J_2_t=J,
+            Q_1=Q1,
+            Q_2_f=Q_fr,
+            Q_2_t=Q2,
+            should_avg_f=should_avg_f,
+            should_avg_t=should_avg_t,
+            avg_win_f=F,
+            avg_win_t=T,
+            reflect_f=True,
+        )
 
     def forward(self, x: T, x_target: T) -> T:
         assert x.ndim == x_target.ndim == 3
@@ -105,18 +106,23 @@ class MyJTFST2DLoss(nn.Module):
 
 
 class SCRAPLLoss(nn.Module):
-    def __init__(self,
-                 shape: int,
-                 J: int,
-                 Q1: int,
-                 Q2: int,
-                 J_fr: int,
-                 Q_fr: int,
-                 T: Optional[Union[str, int]] = None,
-                 F: Optional[Union[str, int]] = None,
-                 p: int = 2):
+    def __init__(
+        self,
+        shape: int,
+        J: int,
+        Q1: int,
+        Q2: int,
+        J_fr: int,
+        Q_fr: int,
+        T: Optional[Union[str, int]] = None,
+        F: Optional[Union[str, int]] = None,
+        p: int = 2,
+        sample_all_paths_first: bool = False,
+    ):
         super().__init__()
         self.p = p
+        self.sample_all_paths_first = sample_all_paths_first
+
         self.jtfs = TimeFrequencyScrapl(
             shape=(shape,),
             J=J,
@@ -131,16 +137,21 @@ class SCRAPLLoss(nn.Module):
         self.scrapl_keys = [key for key in scrapl_meta["key"] if len(key) == 2]
         self.n_paths = len(self.scrapl_keys)
         log.info(f"number of SCRAPL keys = {self.n_paths}")
-        # self.curr_path_idx = None  # TODO(cm): tmp
+        self.path_counts = defaultdict(int)
+        self.register_buffer("logits", tr.zeros((self.n_paths,)))
 
-    def forward(self, x: T, x_target: T) -> T:
-        assert x.ndim == x_target.ndim == 3
-        assert x.size(1) == x_target.size(1) == 1
-        path_idx = SCRAPLLoss.randint(low=0, high=self.n_paths)
-        # if self.training:
-        #     self.curr_path_idx = path_idx
-        # else:
-        #     self.curr_path_idx = None
+    def sample_path(self) -> int:
+        if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
+            path_idx = len(self.path_counts)
+        else:
+            with tr.no_grad():
+                probs = F.softmax(self.logits, dim=0)
+                path_idx = tr.multinomial(probs, 1).item()
+        log.info(f"\npath_idx = {path_idx}")
+        self.path_counts[path_idx] += 1
+        return path_idx
+
+    def calc_dist(self, x: T, x_target: T, path_idx: int) -> (T, T, T):
         n2, n_fr = self.scrapl_keys[path_idx]
         Sx = self.jtfs.scattering_singlepath(x, n2, n_fr)
         Sx = Sx["coef"].squeeze(-1)
@@ -149,34 +160,69 @@ class SCRAPLLoss(nn.Module):
         diff = Sx_target - Sx
         dist = tr.linalg.norm(diff, ord=self.p, dim=(-2, -1))
         dist = tr.mean(dist)
+        return dist, Sx, Sx_target
+
+    def forward(self, x: T, x_target: T) -> T:
+        assert x.ndim == x_target.ndim == 3
+        assert x.size(1) == x_target.size(1) == 1
+        path_idx = self.sample_path()
+        dist, _, _ = self.calc_dist(x, x_target, path_idx)
+        return dist
+
+
+class AdaptiveSCRAPLLoss(SCRAPLLoss):
+    def __init__(
+        self,
+        shape: int,
+        J: int,
+        Q1: int,
+        Q2: int,
+        J_fr: int,
+        Q_fr: int,
+        T: Optional[Union[str, int]] = None,
+        F: Optional[Union[str, int]] = None,
+        p: int = 2,
+        sample_all_paths_first: bool = False,
+        is_trainable: bool = True,
+    ):
+        super().__init__(shape, J, Q1, Q2, J_fr, Q_fr, T, F, p, sample_all_paths_first)
+        if is_trainable:
+            self.logits = nn.Parameter(tr.zeros((self.n_paths,)))
+
+    def forward(self, x: T, x_target: T) -> T:
+        assert x.ndim == x_target.ndim == 3
+        assert x.size(1) == x_target.size(1) == 1
+        path_idx = self.sample_path()
+        dist, Sx, Sx_target = self.calc_dist(x, x_target, path_idx)
+        dist = MakeLogitsGradFromEnergy.apply(
+            self.logits, path_idx, dist, Sx, Sx_target
+        )
+        return dist
+
+
+class MakeLogitsGradFromEnergy(Function):
+    @staticmethod
+    def forward(ctx: Any, logits: T, path_idx: int, dist: T, Sx: T, Sx_target) -> T:
+        ctx.save_for_backward(logits, Sx, Sx_target)
+        ctx.path_idx = path_idx
         return dist
 
     @staticmethod
-    def randint(low: int, high: int, n: int = 1) -> Union[int, T]:
-        x = tr.randint(low=low, high=high, size=(n,))
-        if n == 1:
-            return x.item()
-        return x
-
-    @staticmethod
-    def choice(items: List[Any]) -> Any:
-        assert len(items) > 0
-        idx = SCRAPLLoss.randint(low=0, high=len(items))
-        return items[idx]
+    def backward(ctx: Any, grad_dist: T) -> (T, None, T, None, None):
+        logits, Sx, Sx_target = ctx.saved_tensors
+        path_idx = ctx.path_idx
+        mean_target_energy = Sx_target.pow(2).sum()
+        grad_logits = tr.zeros_like(logits)
+        grad_logits[path_idx] = -mean_target_energy
+        return grad_logits, None, grad_dist, None, None
 
 
 class WaveletLoss(nn.Module):
-    def __init__(self,
-                 sr: float,
-                 n_samples: int,
-                 J: int,
-                 Q1: int):
+    def __init__(self, sr: float, n_samples: int, J: int, Q1: int):
         super().__init__()
-        self.scat_1d = Scattering1D(shape=(n_samples,),
-                                    J=J,
-                                    Q=(Q1, 1),
-                                    T=1,
-                                    max_order=1)
+        self.scat_1d = Scattering1D(
+            shape=(n_samples,), J=J, Q=(Q1, 1), T=1, max_order=1
+        )
         self.wavelets = MorletWavelet(sr, w=None)
 
     def create_rand_wavelet(self, n_f: int, n_t: int) -> T:
@@ -255,3 +301,28 @@ class WaveletLoss(nn.Module):
         diff = Sx_target - Sx
         dist = diff.mean()
         return dist
+
+
+if __name__ == "__main__":
+    # tr.manual_seed(0)
+    n = 10000
+    logits = tr.tensor([0.5, -0.5, 0.0])
+    log.info(f"softmax of logits = {F.softmax(logits, dim=0)}")
+    results = tr.zeros_like(logits)
+
+    for _ in range(n):
+        one_hot = F.gumbel_softmax(logits, hard=True)
+        idx = one_hot.argmax().item()
+        results[idx] += 1
+
+    results /= n
+    log.info(f"results gumbel = {results}")
+
+    # Now sample using multinomial
+    results = tr.zeros_like(logits)
+    for _ in range(n):
+        idx = tr.multinomial(F.softmax(logits, dim=0), 1).item()
+        results[idx] += 1
+
+    results /= n
+    log.info(f"results multinomial = {results}")

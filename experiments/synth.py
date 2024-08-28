@@ -146,6 +146,19 @@ class ChirpTextureSynth(nn.Module):
         return y
 
 
+def make_x_from_theta(synth: ChirpTextureSynth,
+                      theta_density: T,
+                      theta_slope: T,
+                      seed: T) -> T:
+    # TODO(cm): add batch support to synth
+    x = []
+    for idx in range(theta_density.size(0)):
+        curr_x = synth(theta_density[idx], theta_slope[idx], seed[idx])
+        x.append(curr_x)
+    x = tr.stack(x, dim=0).unsqueeze(1)  # Unsqueeze channel dim
+    return x
+
+
 if __name__ == "__main__":
     sr = 2 ** 13
     duration = 2 ** 2

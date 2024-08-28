@@ -6,13 +6,13 @@ custom:
 #  model_name: cnn__ploss
 #  model_name: cnn__mss
 #  model_name: cnn__jtfst_dtfa
-  model_name: cnn__scrapl_sf_adam_w_1e-4_bs50
+#  model_name: cnn__scrapl_sf_adam_w_1e-4_bs50
+  model_name: scrapl_uniform
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
-#  dataset_name: chirp_16_16_micro_rand
-#  dataset_name: chirp_32_32_micro_rand
+  dataset_name: chirp_32_32_micro_rand
 #  dataset_name: chirp_32_32_meso
-  dataset_name: chirp_32_32_meso_rand
+#  dataset_name: chirp_32_32_meso_rand
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: true
@@ -49,6 +49,7 @@ model:
 #    loss_func: auraloss.freq.MultiResolutionSTFTLoss
 #    loss_func: ../configs/losses/jtfst_dtfa.yml
     loss_func: ../configs/losses/scrapl_dtfa.yml
+#    loss_func: ../configs/losses/scrapl_adaptive.yml
 #    loss_func: ../configs/losses/rand_mss.yml
     use_p_loss: false
 #    use_p_loss: true
@@ -56,8 +57,8 @@ model:
 
 #    use_rand_seed: false
     use_rand_seed: true
-#    use_rand_seed_hat: false
-    use_rand_seed_hat: true
+    use_rand_seed_hat: false
+#    use_rand_seed_hat: true
     feature_type: cqt
     J_cqt: 5
     cqt_eps: 1e-3

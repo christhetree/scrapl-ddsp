@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import suppress
 from typing import Dict
 
 import pytorch_lightning as pl
@@ -9,7 +10,7 @@ from torch import Tensor as T
 from torch import nn
 
 from experiments.losses import JTFSTLoss, SCRAPLLoss
-from experiments.synth import ChirpTextureSynth
+from experiments.synth import ChirpTextureSynth, make_x_from_theta
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -70,15 +71,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         else:
             raise NotImplementedError
 
-    def make_x_from_theta(self, theta_density: T, theta_slope: T, seed: T) -> T:
-        # TODO(cm): add batch support to synth
-        x = []
-        for idx in range(theta_density.size(0)):
-            curr_x = self.synth(theta_density[idx], theta_slope[idx], seed[idx])
-            x.append(curr_x)
-        x = tr.stack(x, dim=0).unsqueeze(1)  # Unsqueeze channel dim
-        return x
-
     def sag_hook(self, grad: T, batch_indices: T, path_idx: int, path_grads: T,
                  decay_val: float = 1.0) -> T:
         assert path_idx is not None
@@ -110,7 +102,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                                        high=max_seed + seed_range)
 
         with tr.no_grad():
-            x = self.make_x_from_theta(theta_density, theta_slope, seed)
+            x = make_x_from_theta(self.synth, theta_density, theta_slope, seed)
             U = self.calc_U(x)
 
         U_hat = None
@@ -133,7 +125,10 @@ class SCRAPLLightingModule(pl.LightningModule):
                      prog_bar=True,
                      sync_dist=True)
         else:
-            x_hat = self.make_x_from_theta(theta_density_hat, theta_slope_hat, seed_hat)
+            x_hat = make_x_from_theta(self.synth,
+                                      theta_density_hat,
+                                      theta_slope_hat,
+                                      seed_hat)
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
             loss = self.loss_func(x_hat, x)
@@ -148,12 +143,25 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         with tr.no_grad():
             if x is None and self.log_x:
-                x = self.make_x_from_theta(theta_density, theta_slope, seed)
+                x = make_x_from_theta(self.synth, theta_density, theta_slope, seed)
             if x_hat is None and self.log_x_hat:
-                x_hat = self.make_x_from_theta(theta_density_hat,
-                                               theta_slope_hat,
-                                               seed_hat)
+                x_hat = make_x_from_theta(self.synth,
+                                          theta_density_hat,
+                                          theta_slope_hat,
+                                          seed_hat)
                 U_hat = self.calc_U(x_hat)
+
+        with suppress(Exception):
+            logits = self.loss_func.logits
+            probs = tr.softmax(logits, dim=-1)
+            top_n = 8
+            top = tr.topk(probs, k=top_n, dim=-1)
+            percentages = [f"{p:.6f}" for p in top.values]
+            log.info(f"Top {top_n} logits: {top.indices} {percentages}")
+            path_counts = self.loss_func.path_counts
+            path_counts = sorted(path_counts.items(), key=lambda x: x[1], reverse=True)
+            path_counts = list(path_counts)[:top_n]
+            log.info(f"sorted path_counts: {path_counts}")
 
         out_dict = {
             "loss": loss,
