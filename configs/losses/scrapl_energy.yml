@@ -8,10 +8,14 @@ init_args:
   Q_fr: 2
   T: null
   F: null
-  p: 1
+  p: 2
   tau: 1.0
   max_prob: 1.0
-  sample_all_paths_first: true
-#  sample_all_paths_first: false
+#  sample_all_paths_first: true
+  sample_all_paths_first: false
 #  is_trainable: true
   is_trainable: false
+#  probs_path: ../data/uniform_warmup_meso_p2__energy_probs.pt
+#  probs_path: ../data/uniform_warmup_meso_p2__log_energy_probs.pt
+#  probs_path: ../data/uniform_warmup_meso_p2__grad_probs.pt
+  probs_path: ../data/uniform_warmup_meso_p2__grad_probs__tau0.0001.pt

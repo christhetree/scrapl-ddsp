@@ -6,8 +6,9 @@ custom:
 #  model_name: cnn__ploss
 #  model_name: cnn__mss
 #  model_name: cnn__jtfst_dtfa
-#  model_name: cnn__scrapl_sf_adam_w_1e-4_bs50
-  model_name: scrapl_uniform_warmup
+#  model_name: scrapl_p2_energy_probs
+#  model_name: scrapl_p2_log_energy_probs
+  model_name: scrapl_p2_grad_probs_tau0.0001
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
 #  dataset_name: chirp_32_32_micro_rand
@@ -20,7 +21,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [3]
+  devices: [7]
 #  max_epochs: 40
   max_epochs: 400
   num_sanity_val_steps: 0
@@ -66,7 +67,10 @@ model:
     log_x_hat: true
     log_val_grads: true
 
-    run_name: uniform_warmup_meso
+#    run_name: meso_p2_energy_probs
+#    run_name: meso_p2_log_energy_probs
+#    run_name: meso_p2_grad_probs
+    run_name: meso_p2_grad_probs_tau0.0001
 
 #optimizer: ../configs/opt/adam_w.yml
 #optimizer: ../configs/opt/sgd.yml

@@ -1,3 +1,4 @@
+import functools
 import logging
 import os
 from collections import defaultdict
@@ -181,24 +182,51 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         tau: float = 1.0,
         max_prob: float = 1.0,
         is_trainable: bool = True,
+        probs_path: Optional[str] = None,
     ):
         super().__init__(shape, J, Q1, Q2, J_fr, Q_fr, T, F, p, sample_all_paths_first)
         self.tau = tau
         self.max_prob = max_prob
         self.is_trainable = is_trainable
         self.target_path_energies = defaultdict(list)
+        self.path_mean_abs_Sx_grads = defaultdict(list)
         if is_trainable:
             self.logits = nn.Parameter(tr.zeros((self.n_paths,)))
         else:
             self.register_buffer("logits", tr.zeros((self.n_paths,)))
+        if probs_path is not None:
+            log.info(f"Loading probs from {probs_path}")
+            probs = tr.load(probs_path)
+            assert probs.shape == (self.n_paths,)
+            self.register_buffer("probs", probs)
+        else:
+            self.probs = None
+
+    def save_mean_abs_Sx_grad(self, Sx_grad: T, path_idx: int) -> None:
+        # grad_np = Sx_grad[0].squeeze().detach().cpu().numpy()
+        # plt.imshow(grad_np, cmap="bwr", interpolation="none", aspect="auto", vmin=-0.4, vmax=0.4)
+        # plt.imshow(grad_np, cmap="bwr", interpolation="none", aspect="auto")
+        # plt.colorbar()
+        # plt.show()
+        # log.info(f"Sx_grad.min()    = {Sx_grad.min().item()}")
+        # log.info(f"Sx_grad.max()    = {Sx_grad.max().item()}")
+        # log.info(f"Sx_grad.mean()   = {Sx_grad.mean().item()}")
+        mean_abs_Sx_grad = Sx_grad.abs().mean().detach().cpu().item()
+        # log.info(f"mean_abs_Sx_grad = {mean_abs_Sx_grad}")
+        self.path_mean_abs_Sx_grads[path_idx].append(mean_abs_Sx_grad)
 
     def sample_path(self) -> int:
         if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
             path_idx = len(self.path_counts)
-        else:
+            self.path_counts[path_idx] += 1
+            return path_idx
+
+        if self.probs is None:
             with tr.no_grad():
                 probs = util.limited_softmax(self.logits, self.tau, self.max_prob)
-                path_idx = tr.multinomial(probs, 1).item()
+        else:
+            probs = self.probs
+        path_idx = tr.multinomial(probs, 1).item()
         log.info(f"\npath_idx = {path_idx}")
         self.path_counts[path_idx] += 1
         return path_idx
@@ -208,6 +236,15 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         assert x.size(1) == x_target.size(1) == 1
         path_idx = self.sample_path()
         dist, Sx, Sx_target = self.calc_dist(x, x_target, path_idx)
+        # Sx_np = Sx[0].squeeze().detach().cpu().numpy()
+        # Sx_target_np = Sx_target[0].squeeze().detach().cpu().numpy()
+        # plt.imshow(Sx_target_np - Sx_np, cmap="bwr", interpolation="none", aspect="auto")
+        # plt.colorbar()
+        # plt.title("Sx_target - Sx")
+        # plt.show()
+        Sx.register_hook(
+            functools.partial(self.save_mean_abs_Sx_grad, path_idx=path_idx)
+        )
         dist = MakeLogitsGradFromEnergy.apply(
             self.logits, path_idx, dist, Sx, Sx_target, self.target_path_energies
         )
@@ -240,7 +277,7 @@ class MakeLogitsGradFromEnergy(Function):
         # TODO(cm)
         grad_mag = tr.clip(mean_target_energy, min=1e-20)
         grad_mag = tr.log10(grad_mag) + 20
-        log.info(f"grad_mag = {grad_mag}")
+        # log.info(f"grad_mag = {grad_mag}")
 
         grad_logits = tr.zeros_like(logits)
         grad_logits[path_idx] = -grad_mag

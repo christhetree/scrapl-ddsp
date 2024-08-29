@@ -12,6 +12,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 from torch import Tensor as T
 
+from experiments import util
 from experiments.lightning import SCRAPLLightingModule
 from experiments.paths import OUT_DIR
 from experiments.plotting import (
@@ -291,7 +292,7 @@ class LogGradientCallback(Callback):
             if pl_module.log_val_grads:
                 theta_density_hat = out_dict["theta_density_hat"]
                 theta_slope_hat = out_dict["theta_slope_hat"]
-                dist = out_dict["loss"]
+                dist = out_dict["loss"].clone()
                 density_grad, slope_grad = tr.autograd.grad(
                     dist, [theta_density_hat, theta_slope_hat]
                 )
@@ -417,6 +418,24 @@ class LogGradientCallback(Callback):
         self.val_out_dicts.clear()
 
 
+class SaveSCRAPLLogitsCallback(Callback):
+    def on_validation_epoch_end(
+        self, trainer: Trainer, pl_module: LightningModule
+    ) -> None:
+        try:
+            logits = pl_module.loss_func.logits.detach().cpu()
+        except Exception as e:
+            return
+        log.info("Saving logits and probs")
+        out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__logits.pt")
+        tr.save(logits, out_path)
+        probs = util.limited_softmax(
+            logits, tau=pl_module.loss_func.tau, max_prob=pl_module.loss_func.max_prob
+        )
+        out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__probs.pt")
+        tr.save(probs, out_path)
+
+
 class SavePathCountsCallback(Callback):
     def on_validation_epoch_end(
         self, trainer: Trainer, pl_module: LightningModule
@@ -426,7 +445,7 @@ class SavePathCountsCallback(Callback):
         except Exception as e:
             return
         log.info("Saving path counts")
-        out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__path_counts.json")
+        out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__path_counts.yml")
         data = yaml.dump(path_counts)
         with open(out_path, "w") as f:
             f.write(data)
@@ -441,7 +460,22 @@ class SaveTargetPathEnergiesCallback(Callback):
         except Exception as e:
             return
         log.info("Saving target path energies")
-        out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__target_energies.json")
+        out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__target_energies.yml")
         data = yaml.dump(target_path_energies)
+        with open(out_path, "w") as f:
+            f.write(data)
+
+
+class SaveMeanAbsSxGradsCallback(Callback):
+    def on_validation_epoch_end(
+        self, trainer: Trainer, pl_module: LightningModule
+    ) -> None:
+        try:
+            mean_abs_Sx_grads = dict(pl_module.loss_func.path_mean_abs_Sx_grads)
+        except Exception as e:
+            return
+        log.info("Saving mean abs Sx grads")
+        out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__mean_abs_Sx_grads.yml")
+        data = yaml.dump(mean_abs_Sx_grads)
         with open(out_path, "w") as f:
             f.write(data)

@@ -163,13 +163,14 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         top_n = 8
         with suppress(Exception):
-            logits = self.loss_func.logits
-            probs = util.limited_softmax(
-                logits, tau=self.loss_func.tau, max_prob=self.loss_func.max_prob
-            )
-            top = tr.topk(logits, k=top_n, dim=-1)
-            logits = [f"{p:.6f}" for p in top.values]
-            log.info(f"Top {top_n} logits: {top.indices} {logits}")
+            # logits = self.loss_func.logits
+            # probs = util.limited_softmax(
+            #     logits, tau=self.loss_func.tau, max_prob=self.loss_func.max_prob
+            # )
+            # top = tr.topk(logits, k=top_n, dim=-1)
+            # logits = [f"{p:.6f}" for p in top.values]
+            # log.info(f"Top {top_n} logits: {top.indices} {logits}")
+            probs = self.loss_func.probs
             top = tr.topk(probs, k=top_n, dim=-1)
             percentages = [f"{p:.6f}" for p in top.values]
             log.info(f"Top {top_n} percentages: {top.indices} {percentages}")
