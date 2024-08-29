@@ -8,22 +8,24 @@ from torch import nn
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(level=os.environ.get('LOGLEVEL', 'INFO'))
+log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class Spectral2DCNN(nn.Module):
-    def __init__(self,
-                 n_bins: int,
-                 n_frames: int,
-                 in_ch: int = 1,
-                 kernel_size: Tuple[int, int] = (3, 3),
-                 out_channels: Optional[List[int]] = None,
-                 bin_dilations: Optional[List[int]] = None,
-                 temp_dilations: Optional[List[int]] = None,
-                 pool_size: Tuple[int, int] = (2, 2),
-                 latent_dim: int = 32,
-                 use_ln: bool = True,
-                 dropout_prob: float = 0.25) -> None:
+    def __init__(
+        self,
+        n_bins: int,
+        n_frames: int,
+        in_ch: int = 1,
+        kernel_size: Tuple[int, int] = (3, 3),
+        out_channels: Optional[List[int]] = None,
+        bin_dilations: Optional[List[int]] = None,
+        temp_dilations: Optional[List[int]] = None,
+        pool_size: Tuple[int, int] = (2, 2),
+        latent_dim: int = 32,
+        use_ln: bool = True,
+        dropout_prob: float = 0.25,
+    ) -> None:
         super().__init__()
         self.n_bins = n_bins
         self.n_frames = n_frames
@@ -48,8 +50,19 @@ class Spectral2DCNN(nn.Module):
         layers = []
         for out_ch, b_dil, t_dil in zip(out_channels, bin_dilations, temp_dilations):
             if use_ln:
-                layers.append(nn.LayerNorm([n_bins, n_frames], elementwise_affine=False))
-            layers.append(nn.Conv2d(in_ch, out_ch, kernel_size, stride=(1, 1), dilation=(b_dil, t_dil), padding="same"))
+                layers.append(
+                    nn.LayerNorm([n_bins, n_frames], elementwise_affine=False)
+                )
+            layers.append(
+                nn.Conv2d(
+                    in_ch,
+                    out_ch,
+                    kernel_size,
+                    stride=(1, 1),
+                    dilation=(b_dil, t_dil),
+                    padding="same",
+                )
+            )
             layers.append(nn.MaxPool2d(kernel_size=pool_size))
             layers.append(nn.PReLU())
             in_ch = out_ch

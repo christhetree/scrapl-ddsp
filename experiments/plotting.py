@@ -19,7 +19,7 @@ from experiments.paths import OUT_DIR
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(level=os.environ.get('LOGLEVEL', 'INFO'))
+log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 def fig2img(fig: Figure, format: str = "png", dpi: int = 120) -> T:
@@ -33,18 +33,20 @@ def fig2img(fig: Figure, format: str = "png", dpi: int = 120) -> T:
     return image
 
 
-def plot_scalogram(ax: Subplot,
-                   scalogram: T,
-                   sr: float,
-                   y_coords: List[float],
-                   title: Optional[str] = None,
-                   hop_len: int = 1,
-                   cmap: str = "magma",
-                   vmin: Optional[float] = None,
-                   vmax: Optional[float] = None,
-                   x_label: str = "time (s)",
-                   y_label: str = "freq (Hz)",
-                   fontsize: int = 12) -> None:
+def plot_scalogram(
+    ax: Subplot,
+    scalogram: T,
+    sr: float,
+    y_coords: List[float],
+    title: Optional[str] = None,
+    hop_len: int = 1,
+    cmap: str = "magma",
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
+    x_label: str = "time (s)",
+    y_label: str = "freq (Hz)",
+    fontsize: int = 12,
+) -> None:
     """
     Plots a scalogram of the provided data.
 
@@ -77,16 +79,18 @@ def plot_scalogram(ax: Subplot,
     x_coords = librosa.times_like(scalogram.size(1), sr=sr, hop_length=hop_len)
 
     try:
-        librosa.display.specshow(ax=ax,
-                                 data=scalogram.numpy(),
-                                 sr=sr,
-                                 x_axis="time",
-                                 x_coords=x_coords,
-                                 y_axis="cqt_hz",
-                                 y_coords=np.array(y_coords),
-                                 cmap=cmap,
-                                 vmin=vmin,
-                                 vmax=vmax)
+        librosa.display.specshow(
+            ax=ax,
+            data=scalogram.numpy(),
+            sr=sr,
+            x_axis="time",
+            x_coords=x_coords,
+            y_axis="cqt_hz",
+            y_coords=np.array(y_coords),
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax,
+        )
     except IndexError as e:
         # TODO(cm): fix this
         log.warning(f"IndexError: {e}")
@@ -100,13 +104,15 @@ def plot_scalogram(ax: Subplot,
         ax.set_title(title, fontsize=fontsize)
 
 
-def plot_spectrogram(audio: T,
-                     ax: Optional[Subplot] = None,
-                     title: Optional[str] = None,
-                     save_name: Optional[str] = None,
-                     save_dir: str = OUT_DIR,
-                     sr: float = 44100,
-                     fade_n_samples: int = 64) -> T:
+def plot_spectrogram(
+    audio: T,
+    ax: Optional[Subplot] = None,
+    title: Optional[str] = None,
+    save_name: Optional[str] = None,
+    save_dir: str = OUT_DIR,
+    sr: float = 44100,
+    fade_n_samples: int = 64,
+) -> T:
     assert audio.ndim < 3
     audio = audio.detach()
     if audio.ndim == 1:
@@ -128,7 +134,11 @@ def plot_spectrogram(audio: T,
         if not save_name.endswith(".wav"):
             save_name = f"{save_name}.wav"
         if fade_n_samples:
-            transform = Fade(fade_in_len=fade_n_samples, fade_out_len=fade_n_samples, fade_shape="linear")
+            transform = Fade(
+                fade_in_len=fade_n_samples,
+                fade_out_len=fade_n_samples,
+                fade_shape="linear",
+            )
             audio = transform(audio)
         save_path = os.path.join(save_dir, save_name)
         torchaudio.save(save_path, audio, sr)
@@ -136,11 +146,13 @@ def plot_spectrogram(audio: T,
     return spec
 
 
-def plot_waveforms_stacked(waveforms: List[T],
-                           sr: float,
-                           title: Optional[str] = None,
-                           waveform_labels: Optional[List[str]] = None,
-                           show: bool = False) -> Figure:
+def plot_waveforms_stacked(
+    waveforms: List[T],
+    sr: float,
+    title: Optional[str] = None,
+    waveform_labels: Optional[List[str]] = None,
+    show: bool = False,
+) -> Figure:
     assert waveforms
     if waveform_labels is None:
         waveform_labels = [None] * len(waveforms)
@@ -182,39 +194,45 @@ def plot_waveforms_stacked(waveforms: List[T],
     return fig
 
 
-def plot_xy_points_and_grads(ax: Subplot,
-                             x: T,
-                             y: T,
-                             x_hat: T,
-                             y_hat: T,
-                             x_grad: Optional[T] = None,
-                             y_grad: Optional[T] = None,
-                             title: str = "",
-                             x_label: str = "θ slope",
-                             y_label: str = "θ density",
-                             x_min: float = -1.0,
-                             x_max: float = 1.0,
-                             y_min: float = 0.0,
-                             y_max: float = 1.0,
-                             fontsize: int = 12):
+def plot_xy_points_and_grads(
+    ax: Subplot,
+    x: T,
+    y: T,
+    x_hat: T,
+    y_hat: T,
+    x_grad: Optional[T] = None,
+    y_grad: Optional[T] = None,
+    title: str = "",
+    x_label: str = "θ slope",
+    y_label: str = "θ density",
+    x_min: float = -1.0,
+    x_max: float = 1.0,
+    y_min: float = 0.0,
+    y_max: float = 1.0,
+    fontsize: int = 12,
+):
     for idx in range(len(x)):
-        ax.plot([x_hat[idx], x[idx]],
-                [y_hat[idx], y[idx]],
-                color="lightgrey",
-                linestyle="dashed",
-                linewidth=1,
-                zorder=0)
+        ax.plot(
+            [x_hat[idx], x[idx]],
+            [y_hat[idx], y[idx]],
+            color="lightgrey",
+            linestyle="dashed",
+            linewidth=1,
+            zorder=0,
+        )
     if x_grad is not None and y_grad is not None:
-        ax.quiver(x_hat.numpy(),
-                  y_hat.numpy(),
-                  -x_grad.numpy(),
-                  -y_grad.numpy(),
-                  color="red",
-                  angles="xy",
-                  scale=5.0,
-                  scale_units="width",
-                  zorder=1)
-    ax.scatter(x_hat, y_hat, color="black", marker="o", facecolors='none', zorder=2)
+        ax.quiver(
+            x_hat.numpy(),
+            y_hat.numpy(),
+            -x_grad.numpy(),
+            -y_grad.numpy(),
+            color="red",
+            angles="xy",
+            scale=5.0,
+            scale_units="width",
+            zorder=1,
+        )
+    ax.scatter(x_hat, y_hat, color="black", marker="o", facecolors="none", zorder=2)
     ax.scatter(x, y, color="black", marker="x", zorder=2)
     ax.set_xlim(xmin=x_min, xmax=x_max)
     ax.set_ylim(ymin=y_min, ymax=y_max)
@@ -223,7 +241,12 @@ def plot_xy_points_and_grads(ax: Subplot,
     ax.set_ylabel(y_label, fontsize=fontsize)
 
 
-def plot_wavelet_2d(psi_2d: T, title: str = "wavelet 2D (time domain)", cmap: str = "inferno", plot_3d: bool = True) -> None:
+def plot_wavelet_2d(
+    psi_2d: T,
+    title: str = "wavelet 2D (time domain)",
+    cmap: str = "inferno",
+    plot_3d: bool = True,
+) -> None:
     """
     :param psi_2d: complex tensor of wavelet coefficients in the time domain
     :param title: title of the plot
@@ -231,7 +254,7 @@ def plot_wavelet_2d(psi_2d: T, title: str = "wavelet 2D (time domain)", cmap: st
     :param plot_3d: whether to plot the wavelet in 3D or not
     """
     plt.figure(figsize=(7, 7))
-    plt.imshow(psi_2d.real, cmap=cmap, interpolation='none', origin="lower", aspect=1)
+    plt.imshow(psi_2d.real, cmap=cmap, interpolation="none", origin="lower", aspect=1)
     plt.xlabel("time", fontsize=18)
     ax = plt.gca()
     ax.xaxis.set_tick_params(labelbottom=False)

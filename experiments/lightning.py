@@ -16,24 +16,26 @@ from experiments.synth import ChirpTextureSynth, make_x_from_theta
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(level=os.environ.get('LOGLEVEL', 'INFO'))
+log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class SCRAPLLightingModule(pl.LightningModule):
-    def __init__(self,
-                 model: nn.Module,
-                 synth: ChirpTextureSynth,
-                 loss_func: nn.Module,
-                 use_p_loss: bool = False,
-                 use_rand_seed: bool = False,
-                 use_rand_seed_hat: bool = False,
-                 feature_type: str = "cqt",
-                 J_cqt: int = 5,
-                 cqt_eps: float = 1e-3,
-                 log_x: bool = False,
-                 log_x_hat: bool = False,
-                 log_val_grads: bool = False,
-                 run_name: Optional[str] = None):
+    def __init__(
+        self,
+        model: nn.Module,
+        synth: ChirpTextureSynth,
+        loss_func: nn.Module,
+        use_p_loss: bool = False,
+        use_rand_seed: bool = False,
+        use_rand_seed_hat: bool = False,
+        feature_type: str = "cqt",
+        J_cqt: int = 5,
+        cqt_eps: float = 1e-3,
+        log_x: bool = False,
+        log_x_hat: bool = False,
+        log_val_grads: bool = False,
+        run_name: Optional[str] = None,
+    ):
         super().__init__()
         self.model = model
         self.synth = synth
@@ -59,7 +61,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             "n_bins": J_cqt * synth.Q,
             "hop_length": synth.hop_len,
             # TODO(cm): check this
-            "fmin": (0.4 * synth.sr) / (2 ** J_cqt),
+            "fmin": (0.4 * synth.sr) / (2**J_cqt),
             "output_format": "Magnitude",
             "verbose": False,
         }
@@ -79,8 +81,14 @@ class SCRAPLLightingModule(pl.LightningModule):
         else:
             raise NotImplementedError
 
-    def sag_hook(self, grad: T, batch_indices: T, path_idx: int, path_grads: T,
-                 decay_val: float = 1.0) -> T:
+    def sag_hook(
+        self,
+        grad: T,
+        batch_indices: T,
+        path_idx: int,
+        path_grads: T,
+        decay_val: float = 1.0,
+    ) -> T:
         assert path_idx is not None
         if decay_val != 1.0:
             path_grads.mul_(decay_val)
@@ -93,9 +101,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         theta_density, theta_slope, seed, batch_indices = batch
         batch_size = theta_density.size(0)
         if stage == "train":
-            self.global_n = (self.global_step *
-                             self.trainer.accumulate_grad_batches *
-                             batch_size)
+            self.global_n = (
+                self.global_step * self.trainer.accumulate_grad_batches * batch_size
+            )
         # TODO(cm): check if this works for DDP
         self.log(f"global_n", float(self.global_n), sync_dist=True)
 
@@ -105,9 +113,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         seed_hat = seed
         if self.use_rand_seed_hat:
             max_seed = max(seed_range, seed.max())
-            seed_hat = tr.randint_like(seed,
-                                       low=max_seed + 1,
-                                       high=max_seed + seed_range)
+            seed_hat = tr.randint_like(
+                seed, low=max_seed + 1, high=max_seed + seed_range
+            )
 
         with tr.no_grad():
             x = make_x_from_theta(self.synth, theta_density, theta_slope, seed)
@@ -128,22 +136,17 @@ class SCRAPLLightingModule(pl.LightningModule):
             density_loss = self.loss_func(theta_density_hat, theta_density)
             slope_loss = self.loss_func(theta_slope_hat, theta_slope)
             loss = density_loss + slope_loss
-            self.log(f"{stage}/p_loss_{self.loss_name}",
-                     loss,
-                     prog_bar=True,
-                     sync_dist=True)
+            self.log(
+                f"{stage}/p_loss_{self.loss_name}", loss, prog_bar=True, sync_dist=True
+            )
         else:
-            x_hat = make_x_from_theta(self.synth,
-                                      theta_density_hat,
-                                      theta_slope_hat,
-                                      seed_hat)
+            x_hat = make_x_from_theta(
+                self.synth, theta_density_hat, theta_slope_hat, seed_hat
+            )
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
             loss = self.loss_func(x_hat, x)
-            self.log(f"{stage}/{self.loss_name}",
-                     loss,
-                     prog_bar=True,
-                     sync_dist=True)
+            self.log(f"{stage}/{self.loss_name}", loss, prog_bar=True, sync_dist=True)
 
         self.log(f"{stage}/l1_d", density_mae, prog_bar=True, sync_dist=True)
         self.log(f"{stage}/l1_s", slope_mae, prog_bar=True, sync_dist=True)
@@ -153,10 +156,9 @@ class SCRAPLLightingModule(pl.LightningModule):
             if x is None and self.log_x:
                 x = make_x_from_theta(self.synth, theta_density, theta_slope, seed)
             if x_hat is None and self.log_x_hat:
-                x_hat = make_x_from_theta(self.synth,
-                                          theta_density_hat,
-                                          theta_slope_hat,
-                                          seed_hat)
+                x_hat = make_x_from_theta(
+                    self.synth, theta_density_hat, theta_slope_hat, seed_hat
+                )
                 U_hat = self.calc_U(x_hat)
 
         top_n = 8
@@ -205,8 +207,10 @@ class SCRAPLLightingModule(pl.LightningModule):
         return out_dict
 
     def training_step(self, batch: (T, T, T), batch_idx: int) -> Dict[str, T]:
-        if not (isinstance(self.loss_func, JTFSTLoss)
-                or isinstance(self.loss_func, SCRAPLLoss)):
+        if not (
+            isinstance(self.loss_func, JTFSTLoss)
+            or isinstance(self.loss_func, SCRAPLLoss)
+        ):
             assert self.trainer.accumulate_grad_batches == 1
         return self.step(batch, stage="train")
 

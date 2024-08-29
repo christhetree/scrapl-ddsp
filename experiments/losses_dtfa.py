@@ -8,7 +8,7 @@ from kymatio.torch import TimeFrequencyScattering
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(level=os.environ.get('LOGLEVEL', 'INFO'))
+log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 def cosine_distance(x: T, y: T) -> T:
@@ -51,16 +51,16 @@ class DistanceLoss(nn.Module):
 
 class TimeFrequencyScatteringLoss(DistanceLoss):
     def __init__(
-            self,
-            shape,
-            Q=(8, 2),
-            J=12,
-            J_fr=3,
-            Q_fr=2,
-            F=None,
-            T=None,
-            format="time",
-            p=2.0,
+        self,
+        shape,
+        Q=(8, 2),
+        J=12,
+        J_fr=3,
+        Q_fr=2,
+        F=None,
+        T=None,
+        format="time",
+        p=2.0,
     ):
         super().__init__(p=p)
 
@@ -109,18 +109,18 @@ class MultiScaleSpectralLoss(DistanceLoss):
     """
 
     def __init__(
-            self,
-            max_n_fft=2048,
-            num_scales=6,
-            hop_lengths=None,
-            mag_w=1.0,
-            logmag_w=0.0,
-            p=1.0,
+        self,
+        max_n_fft=2048,
+        num_scales=6,
+        hop_lengths=None,
+        mag_w=1.0,
+        logmag_w=0.0,
+        p=1.0,
     ):
         super().__init__(p=p)
         assert max_n_fft // 2 ** (num_scales - 1) > 1
         self.max_n_fft = 2048
-        self.n_ffts = [max_n_fft // (2 ** i) for i in range(num_scales)]
+        self.n_ffts = [max_n_fft // (2**i) for i in range(num_scales)]
         self.hop_lengths = (
             [n // 4 for n in self.n_ffts] if not hop_lengths else hop_lengths
         )
@@ -174,16 +174,16 @@ class TimeFrequencyScatteringS2Loss(DistanceLoss):
     """
 
     def __init__(
-            self,
-            shape,
-            Q=(8, 2),
-            J=12,
-            J_fr=3,
-            Q_fr=2,
-            F=None,
-            T=None,
-            format="time",
-            p=2.0,
+        self,
+        shape,
+        Q=(8, 2),
+        J=12,
+        J_fr=3,
+        Q_fr=2,
+        F=None,
+        T=None,
+        format="time",
+        p=2.0,
     ):
         super().__init__(p=p)
 
@@ -226,8 +226,8 @@ class TimeFrequencyScatteringS2Loss(DistanceLoss):
         loss = torch.tensor(0.0).type_as(x)
         for op in self.ops:
             loss += self.dist(
-                op(x)[0, self.idxs[0][0]:],
-                op(y)[0, self.idxs[0][0]:] if transform_y else y
+                op(x)[0, self.idxs[0][0] :],
+                op(y)[0, self.idxs[0][0] :] if transform_y else y,
             )
         loss /= len(self.ops)
         return loss
@@ -235,17 +235,17 @@ class TimeFrequencyScatteringS2Loss(DistanceLoss):
 
 class WeightedTimeFrequencyScatteringLoss(DistanceLoss):
     def __init__(
-            self,
-            shape,
-            Q=(8, 2),
-            J=12,
-            J_fr=3,
-            Q_fr=2,
-            F=None,
-            T=None,
-            format="time",
-            p=2.0,
-            weights=(1.0, 1.0)
+        self,
+        shape,
+        Q=(8, 2),
+        J=12,
+        J_fr=3,
+        Q_fr=2,
+        F=None,
+        T=None,
+        format="time",
+        p=2.0,
+        weights=(1.0, 1.0),
     ):
         super().__init__(p=p)
 
@@ -280,8 +280,6 @@ class WeightedTimeFrequencyScatteringLoss(DistanceLoss):
             Sx = op(x)
             Sy = op(y)[0] if transform_y else y
             for i, w in enumerate(self.weights):
-                loss += w * self.dist(
-                    Sx[self.idxs[i]], Sy[self.idxs[i]]
-                )
+                loss += w * self.dist(Sx[self.idxs[i]], Sy[self.idxs[i]])
         loss /= len(self.ops)
         return loss

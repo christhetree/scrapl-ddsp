@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(level=os.environ.get('LOGLEVEL', 'INFO'))
+log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class ChirpTextureDataset(Dataset):

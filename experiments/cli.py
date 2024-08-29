@@ -10,8 +10,13 @@ from pytorch_lightning.cli import LightningCLI, LightningArgumentParser
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies import DDPStrategy
 
-from experiments.callbacks import LogAudioCallback, LogScalogramCallback, \
-    LogGradientCallback, SaveTargetPathEnergiesCallback, SavePathCountsCallback
+from experiments.callbacks import (
+    LogAudioCallback,
+    LogScalogramCallback,
+    LogGradientCallback,
+    SaveTargetPathEnergiesCallback,
+    SavePathCountsCallback,
+)
 from experiments.paths import CONFIGS_DIR
 
 logging.basicConfig()
@@ -74,7 +79,7 @@ class CustomLightningCLI(LightningCLI):
             parser.link_arguments(link_args["src"], link_args["dest"])
 
     def link_arguments_if_possible(
-            self, src: str, dest: str, config: Dict[str, Any], is_strict: bool = False
+        self, src: str, dest: str, config: Dict[str, Any], is_strict: bool = False
     ) -> None:
         src_tokens = src.split(".")
         dest_tokens = dest.split(".")
@@ -170,13 +175,13 @@ class CustomLightningCLI(LightningCLI):
 
         use_gpu = tr.cuda.is_available()
         if (use_gpu and self.config.fit.custom.use_wandb_gpu) or (
-                not use_gpu and self.config.fit.custom.use_wandb_cpu
+            not use_gpu and self.config.fit.custom.use_wandb_cpu
         ):
             wandb_logger = WandbLogger(
                 save_dir="wandb_logs",
                 project=self.config.fit.custom.project_name,
                 name=f"{self.config.fit.custom.model_name}__"
-                     f"{self.config.fit.custom.dataset_name}",
+                f"{self.config.fit.custom.dataset_name}",
             )
             self.trainer.loggers.append(wandb_logger)
         else:

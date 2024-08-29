@@ -1,5 +1,4 @@
 import logging
-import logging
 import os
 from collections import defaultdict
 from typing import Any, Dict
@@ -15,8 +14,12 @@ from torch import Tensor as T
 
 from experiments.lightning import SCRAPLLightingModule
 from experiments.paths import OUT_DIR
-from experiments.plotting import fig2img, plot_waveforms_stacked, plot_scalogram, \
-    plot_xy_points_and_grads
+from experiments.plotting import (
+    fig2img,
+    plot_waveforms_stacked,
+    plot_scalogram,
+    plot_xy_points_and_grads,
+)
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -25,10 +28,7 @@ log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 class ConsoleLRMonitor(LearningRateMonitor):
     # TODO(cm): enable every n steps
-    def on_train_epoch_start(self,
-                             trainer: Trainer,
-                             *args: Any,
-                             **kwargs: Any) -> None:
+    def on_train_epoch_start(self, trainer: Trainer, *args: Any, **kwargs: Any) -> None:
         super().on_train_epoch_start(trainer, *args, **kwargs)
         if self.logging_interval != "step":
             interval = "epoch" if self.logging_interval is None else "any"
@@ -44,23 +44,26 @@ class LogScalogramCallback(Callback):
         self.n_examples = n_examples
         self.out_dicts = {}
 
-    def on_validation_batch_end(self,
-                                trainer: Trainer,
-                                pl_module: LightningModule,
-                                out_dict: Dict[str, T],
-                                batch: (T, T, T),
-                                batch_idx: int,
-                                dataloader_idx: int = 0) -> None:
+    def on_validation_batch_end(
+        self,
+        trainer: Trainer,
+        pl_module: LightningModule,
+        out_dict: Dict[str, T],
+        batch: (T, T, T),
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
         example_idx = batch_idx // trainer.accumulate_grad_batches
         if example_idx < self.n_examples:
             if example_idx not in self.out_dicts:
-                out_dict = {k: v.detach().cpu()
-                            for k, v in out_dict.items() if v is not None}
+                out_dict = {
+                    k: v.detach().cpu() for k, v in out_dict.items() if v is not None
+                }
                 self.out_dicts[example_idx] = out_dict
 
-    def on_validation_epoch_end(self,
-                                trainer: Trainer,
-                                pl_module: LightningModule) -> None:
+    def on_validation_epoch_end(
+        self, trainer: Trainer, pl_module: LightningModule
+    ) -> None:
         images = []
         for example_idx in range(self.n_examples):
             if example_idx not in self.out_dicts:
@@ -83,14 +86,13 @@ class LogScalogramCallback(Callback):
             seed = out_dict["seed"][0]
             seed_hat = out_dict["seed_hat"][0]
 
-            title = (f"batch_idx_{example_idx}, "
-                     f"θd: {theta_density:.2f} -> {theta_density_hat:.2f}, "
-                     f"θs: {theta_slope:.2f} -> {theta_slope_hat:.2f}")
+            title = (
+                f"batch_idx_{example_idx}, "
+                f"θd: {theta_density:.2f} -> {theta_density_hat:.2f}, "
+                f"θs: {theta_slope:.2f} -> {theta_slope_hat:.2f}"
+            )
 
-            fig, ax = plt.subplots(nrows=2,
-                                   figsize=(6, 12),
-                                   sharex="all",
-                                   squeeze=True)
+            fig, ax = plt.subplots(nrows=2, figsize=(6, 12), sharex="all", squeeze=True)
             fig.suptitle(title, fontsize=14)
             y_coords = pl_module.cqt.frequencies
             hop_len = pl_module.cqt.hop_length
@@ -99,20 +101,24 @@ class LogScalogramCallback(Callback):
             if U_hat is not None:
                 U_hat = U_hat[0]
                 vmax = max(U.max(), U_hat.max())
-                plot_scalogram(ax[1],
-                               U_hat,
-                               sr,
-                               y_coords,
-                               title=f"U_hat, seed: {int(seed_hat)}",
-                               hop_len=hop_len,
-                               vmax=vmax)
-            plot_scalogram(ax[0],
-                           U,
-                           sr,
-                           y_coords,
-                           title=f"U, seed: {int(seed)}",
-                           hop_len=hop_len,
-                           vmax=vmax)
+                plot_scalogram(
+                    ax[1],
+                    U_hat,
+                    sr,
+                    y_coords,
+                    title=f"U_hat, seed: {int(seed_hat)}",
+                    hop_len=hop_len,
+                    vmax=vmax,
+                )
+            plot_scalogram(
+                ax[0],
+                U,
+                sr,
+                y_coords,
+                title=f"U, seed: {int(seed)}",
+                hop_len=hop_len,
+                vmax=vmax,
+            )
 
             fig.tight_layout()
             img = fig2img(fig)
@@ -122,9 +128,9 @@ class LogScalogramCallback(Callback):
             for logger in trainer.loggers:
                 # TODO(cm): enable for tensorboard as well
                 if isinstance(logger, WandbLogger):
-                    logger.log_image(key="spectrograms",
-                                     images=images,
-                                     step=trainer.global_step)
+                    logger.log_image(
+                        key="spectrograms", images=images, step=trainer.global_step
+                    )
 
         self.out_dicts.clear()
 
@@ -137,13 +143,15 @@ class LogAudioCallback(Callback):
         self.x_hat_audio = []
         self.images = []
 
-    def on_validation_batch_end(self,
-                                trainer: Trainer,
-                                pl_module: SCRAPLLightingModule,
-                                out_dict: Dict[str, T],
-                                batch: (T, T, T),
-                                batch_idx: int,
-                                dataloader_idx: int = 0) -> None:
+    def on_validation_batch_end(
+        self,
+        trainer: Trainer,
+        pl_module: SCRAPLLightingModule,
+        out_dict: Dict[str, T],
+        batch: (T, T, T),
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
         out_dict = {k: v.detach().cpu() for k, v in out_dict.items() if v is not None}
 
         x = out_dict.get("x")
@@ -177,52 +185,60 @@ class LogAudioCallback(Callback):
                         labels.append("x_hat")
                         self.x_hat_audio.append(curr_x_hat.swapaxes(0, 1).numpy())
 
-                    title = (f"batch_idx_{idx}, "
-                             f"θd: {theta_density[idx]:.2f} -> "
-                             f"{theta_density_hat[idx]:.2f}, "
-                             f"θs: {theta_slope[idx]:.2f} -> "
-                             f"{theta_slope_hat[idx]:.2f}")
+                    title = (
+                        f"batch_idx_{idx}, "
+                        f"θd: {theta_density[idx]:.2f} -> "
+                        f"{theta_density_hat[idx]:.2f}, "
+                        f"θs: {theta_slope[idx]:.2f} -> "
+                        f"{theta_slope_hat[idx]:.2f}"
+                    )
 
-                    fig = plot_waveforms_stacked(waveforms,
-                                                 pl_module.synth.sr,
-                                                 title,
-                                                 labels)
+                    fig = plot_waveforms_stacked(
+                        waveforms, pl_module.synth.sr, title, labels
+                    )
                     img = fig2img(fig)
                     self.images.append(img)
 
-    def on_validation_epoch_end(self,
-                                trainer: Trainer,
-                                pl_module: SCRAPLLightingModule) -> None:
+    def on_validation_epoch_end(
+        self, trainer: Trainer, pl_module: SCRAPLLightingModule
+    ) -> None:
         for logger in trainer.loggers:
             # TODO(cm): enable for tensorboard as well
             if isinstance(logger, WandbLogger):
-                logger.log_image(key="waveforms",
-                                 images=self.images,
-                                 step=trainer.global_step)
+                logger.log_image(
+                    key="waveforms", images=self.images, step=trainer.global_step
+                )
                 data = defaultdict(list)
                 columns = [f"idx_{idx}" for idx in range(len(self.images))]
                 for idx, curr_x_audio in enumerate(self.x_audio):
                     data["x_audio"].append(
-                        wandb.Audio(curr_x_audio,
-                                    caption=f"x_{idx}",
-                                    sample_rate=int(pl_module.synth.sr))
+                        wandb.Audio(
+                            curr_x_audio,
+                            caption=f"x_{idx}",
+                            sample_rate=int(pl_module.synth.sr),
+                        )
                     )
                 for idx, curr_x_hat_audio in enumerate(self.x_hat_audio):
                     data["x_hat_audio"].append(
-                        wandb.Audio(curr_x_hat_audio,
-                                    caption=f"x_hat_{idx}",
-                                    sample_rate=int(pl_module.synth.sr))
+                        wandb.Audio(
+                            curr_x_hat_audio,
+                            caption=f"x_hat_{idx}",
+                            sample_rate=int(pl_module.synth.sr),
+                        )
                     )
                 data = list(data.values())
-                logger.log_table(key="audio",
-                                 columns=columns,
-                                 data=data,
-                                 step=trainer.global_step)
+                logger.log_table(
+                    key="audio", columns=columns, data=data, step=trainer.global_step
+                )
 
 
 class LogGradientCallback(Callback):
     REQUIRED_OUT_DICT_KEYS = {
-        "theta_density", "theta_slope", "theta_density_hat", "theta_slope_hat"}
+        "theta_density",
+        "theta_slope",
+        "theta_density_hat",
+        "theta_slope_hat",
+    }
 
     def __init__(self, n_examples: int = 5, max_n_points: int = 16) -> None:
         super().__init__()
@@ -235,13 +251,15 @@ class LogGradientCallback(Callback):
         self.val_slope_grads = defaultdict(list)
         self.val_out_dicts = defaultdict(lambda: defaultdict(list))
 
-    def on_train_batch_end(self,
-                           trainer: Trainer,
-                           pl_module: SCRAPLLightingModule,
-                           out_dict: Dict[str, T],
-                           batch: (T, T, T),
-                           batch_idx: int,
-                           dataloader_idx: int = 0) -> None:
+    def on_train_batch_end(
+        self,
+        trainer: Trainer,
+        pl_module: SCRAPLLightingModule,
+        out_dict: Dict[str, T],
+        batch: (T, T, T),
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
         example_idx = batch_idx // trainer.accumulate_grad_batches
         batch_size = batch[0].size(0)
 
@@ -257,13 +275,15 @@ class LogGradientCallback(Callback):
                     if len(train_out_dict[k]) * batch_size < self.max_n_points:
                         train_out_dict[k].append(v.detach().cpu())
 
-    def on_validation_batch_end(self,
-                                trainer: Trainer,
-                                pl_module: SCRAPLLightingModule,
-                                out_dict: Dict[str, T],
-                                batch: (T, T, T),
-                                batch_idx: int,
-                                dataloader_idx: int = 0) -> None:
+    def on_validation_batch_end(
+        self,
+        trainer: Trainer,
+        pl_module: SCRAPLLightingModule,
+        out_dict: Dict[str, T],
+        batch: (T, T, T),
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
         example_idx = batch_idx // trainer.accumulate_grad_batches
         batch_size = batch[0].size(0)
 
@@ -273,7 +293,8 @@ class LogGradientCallback(Callback):
                 theta_slope_hat = out_dict["theta_slope_hat"]
                 dist = out_dict["loss"]
                 density_grad, slope_grad = tr.autograd.grad(
-                    dist, [theta_density_hat, theta_slope_hat])
+                    dist, [theta_density_hat, theta_slope_hat]
+                )
                 density_grad = density_grad.detach().cpu()
                 slope_grad = slope_grad.detach().cpu()
                 density_grad /= trainer.accumulate_grad_batches
@@ -287,23 +308,25 @@ class LogGradientCallback(Callback):
                     if len(val_out_dict[k]) * batch_size < self.max_n_points:
                         val_out_dict[k].append(v.detach().cpu())
 
-    def on_validation_epoch_end(self,
-                                trainer: Trainer,
-                                pl_module: LightningModule) -> None:
+    def on_validation_epoch_end(
+        self, trainer: Trainer, pl_module: LightningModule
+    ) -> None:
         images = []
         for example_idx in range(self.n_examples):
             fig, ax = plt.subplots(nrows=2, figsize=(4, 8), squeeze=True)
             title_suffix = "meso" if pl_module.use_rand_seed_hat else "micro"
 
             train_out_dict = self.train_out_dicts[example_idx]
-            train_out_dict = {k: tr.cat(v, dim=0)[:self.max_n_points]
-                              for k, v in train_out_dict.items()}
+            train_out_dict = {
+                k: tr.cat(v, dim=0)[: self.max_n_points]
+                for k, v in train_out_dict.items()
+            }
             if train_out_dict:
                 # TODO(cm): remove duplicate code
                 density_grad = self.train_density_grads[example_idx]
                 slope_grad = self.train_slope_grads[example_idx]
-                density_grad = tr.cat(density_grad, dim=0)[:self.max_n_points]
-                slope_grad = tr.cat(slope_grad, dim=0)[:self.max_n_points]
+                density_grad = tr.cat(density_grad, dim=0)[: self.max_n_points]
+                slope_grad = tr.cat(slope_grad, dim=0)[: self.max_n_points]
                 max_density_grad = density_grad.abs().max()
                 max_slope_grad = slope_grad.abs().max()
                 avg_density_grad = density_grad.abs().mean()
@@ -312,32 +335,36 @@ class LogGradientCallback(Callback):
                 density_grad /= max_grad
                 slope_grad /= max_grad
 
-                plot_xy_points_and_grads(ax[0],
-                                         train_out_dict["theta_slope"],
-                                         train_out_dict["theta_density"],
-                                         train_out_dict["theta_slope_hat"],
-                                         train_out_dict["theta_density_hat"],
-                                         slope_grad,
-                                         density_grad,
-                                         title=f"train_{example_idx}_{title_suffix}"
-                                               f"\nmax_d∇: {max_density_grad:.4f}"
-                                               f" max_s∇: {max_slope_grad:.4f}"
-                                               f"\navg_d∇: {avg_density_grad:.4f}"
-                                               f" avg_s∇: {avg_slope_grad:.4f}")
+                plot_xy_points_and_grads(
+                    ax[0],
+                    train_out_dict["theta_slope"],
+                    train_out_dict["theta_density"],
+                    train_out_dict["theta_slope_hat"],
+                    train_out_dict["theta_density_hat"],
+                    slope_grad,
+                    density_grad,
+                    title=f"train_{example_idx}_{title_suffix}"
+                    f"\nmax_d∇: {max_density_grad:.4f}"
+                    f" max_s∇: {max_slope_grad:.4f}"
+                    f"\navg_d∇: {avg_density_grad:.4f}"
+                    f" avg_s∇: {avg_slope_grad:.4f}",
+                )
             else:
                 log.warning(f"train_out_dict for example_idx={example_idx} is empty")
 
             val_out_dict = self.val_out_dicts[example_idx]
-            val_out_dict = {k: tr.cat(v, dim=0)[:self.max_n_points]
-                            for k, v in val_out_dict.items()}
+            val_out_dict = {
+                k: tr.cat(v, dim=0)[: self.max_n_points]
+                for k, v in val_out_dict.items()
+            }
             if val_out_dict:
                 density_grad = None
                 slope_grad = None
                 if pl_module.log_val_grads:
                     density_grad = self.val_density_grads[example_idx]
                     slope_grad = self.val_slope_grads[example_idx]
-                    density_grad = tr.cat(density_grad, dim=0)[:self.max_n_points]
-                    slope_grad = tr.cat(slope_grad, dim=0)[:self.max_n_points]
+                    density_grad = tr.cat(density_grad, dim=0)[: self.max_n_points]
+                    slope_grad = tr.cat(slope_grad, dim=0)[: self.max_n_points]
                     max_density_grad = density_grad.abs().max()
                     max_slope_grad = slope_grad.abs().max()
                     avg_density_grad = density_grad.abs().mean()
@@ -345,22 +372,26 @@ class LogGradientCallback(Callback):
                     max_grad = max(max_density_grad, max_slope_grad)
                     density_grad /= max_grad
                     slope_grad /= max_grad
-                    title = f"val_{example_idx}_{title_suffix}" \
-                            f"\nmax_d∇: {max_density_grad:.4f}" \
-                            f" max_s∇: {max_slope_grad:.4f}" \
-                            f"\navg_d∇: {avg_density_grad:.4f}" \
-                            f" avg_s∇: {avg_slope_grad:.4f}"
+                    title = (
+                        f"val_{example_idx}_{title_suffix}"
+                        f"\nmax_d∇: {max_density_grad:.4f}"
+                        f" max_s∇: {max_slope_grad:.4f}"
+                        f"\navg_d∇: {avg_density_grad:.4f}"
+                        f" avg_s∇: {avg_slope_grad:.4f}"
+                    )
                 else:
                     title = f"val_{example_idx}_{title_suffix}"
 
-                plot_xy_points_and_grads(ax[1],
-                                         val_out_dict["theta_slope"],
-                                         val_out_dict["theta_density"],
-                                         val_out_dict["theta_slope_hat"],
-                                         val_out_dict["theta_density_hat"],
-                                         slope_grad,
-                                         density_grad,
-                                         title=title)
+                plot_xy_points_and_grads(
+                    ax[1],
+                    val_out_dict["theta_slope"],
+                    val_out_dict["theta_density"],
+                    val_out_dict["theta_slope_hat"],
+                    val_out_dict["theta_density_hat"],
+                    slope_grad,
+                    density_grad,
+                    title=title,
+                )
             else:
                 log.warning(f"val_out_dict for example_idx={example_idx} is empty")
 
@@ -372,9 +403,11 @@ class LogGradientCallback(Callback):
             for logger in trainer.loggers:
                 # TODO(cm): enable for tensorboard as well
                 if isinstance(logger, WandbLogger):
-                    logger.log_image(key="xy_points_and_grads",
-                                     images=images,
-                                     step=trainer.global_step)
+                    logger.log_image(
+                        key="xy_points_and_grads",
+                        images=images,
+                        step=trainer.global_step,
+                    )
 
         self.train_density_grads.clear()
         self.train_slope_grads.clear()
@@ -385,9 +418,9 @@ class LogGradientCallback(Callback):
 
 
 class SavePathCountsCallback(Callback):
-    def on_validation_epoch_end(self,
-                                trainer: Trainer,
-                                pl_module: LightningModule) -> None:
+    def on_validation_epoch_end(
+        self, trainer: Trainer, pl_module: LightningModule
+    ) -> None:
         try:
             path_counts = dict(pl_module.loss_func.path_counts)
         except Exception as e:
@@ -400,9 +433,9 @@ class SavePathCountsCallback(Callback):
 
 
 class SaveTargetPathEnergiesCallback(Callback):
-    def on_validation_epoch_end(self,
-                                trainer: Trainer,
-                                pl_module: LightningModule) -> None:
+    def on_validation_epoch_end(
+        self, trainer: Trainer, pl_module: LightningModule
+    ) -> None:
         try:
             target_path_energies = dict(pl_module.loss_func.target_path_energies)
         except Exception as e:

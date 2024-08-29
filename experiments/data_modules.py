@@ -12,17 +12,19 @@ from experiments.datasets import ChirpTextureDataset
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(level=os.environ.get('LOGLEVEL', 'INFO'))
+log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class ChirpTextureDataModule(pl.LightningDataModule):
-    def __init__(self,
-                 batch_size: int,
-                 n_densities: int,
-                 n_slopes: int,
-                 n_seeds_per_fold: int,
-                 n_folds: int,
-                 num_workers: int = 0):
+    def __init__(
+        self,
+        batch_size: int,
+        n_densities: int,
+        n_slopes: int,
+        n_seeds_per_fold: int,
+        n_folds: int,
+        num_workers: int = 0,
+    ):
         super().__init__()
         self.batch_size = batch_size
         self.n_densities = n_densities
@@ -48,8 +50,9 @@ class ChirpTextureDataModule(pl.LightningDataModule):
         df["fold"] = folds
         # Shuffle such that batches in validation and test contain a variety of
         # different theta values. This makes the visualization callbacks more diverse.
-        df = df.sample(frac=1,
-                       random_state=tr.random.initial_seed()).reset_index(drop=True)
+        df = df.sample(frac=1, random_state=tr.random.initial_seed()).reset_index(
+            drop=True
+        )
 
         self.df = df
         self.train_ds = None

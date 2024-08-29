@@ -11,21 +11,23 @@ from experiments.paths import OUT_DIR
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-log.setLevel(level=os.environ.get('LOGLEVEL', 'INFO'))
+log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class ChirpTextureSynth(nn.Module):
-    def __init__(self,
-                 sr: float,
-                 n_samples: int,
-                 n_grains: int,
-                 grain_n_samples: int,
-                 f0_min_hz: float,
-                 f0_max_hz: float,
-                 Q: int,
-                 hop_len: int,
-                 max_theta_slope: float = 0.95,
-                 seed: Optional[int] = None):
+    def __init__(
+        self,
+        sr: float,
+        n_samples: int,
+        n_grains: int,
+        grain_n_samples: int,
+        f0_min_hz: float,
+        f0_max_hz: float,
+        Q: int,
+        hop_len: int,
+        max_theta_slope: float = 0.95,
+        seed: Optional[int] = None,
+    ):
         super().__init__()
         assert n_samples >= grain_n_samples
         assert f0_max_hz >= f0_min_hz
@@ -82,15 +84,21 @@ class ChirpTextureSynth(nn.Module):
 
     def sample_f0_freqs(self, rand_gen: tr.Generator) -> T:
         log2_f0_freqs = self.log2_f0_freqs.uniform_(generator=rand_gen)
-        log2_f0_freqs = log2_f0_freqs * (self.log2_f0_max - self.log2_f0_min) + self.log2_f0_min
+        log2_f0_freqs = (
+            log2_f0_freqs * (self.log2_f0_max - self.log2_f0_min) + self.log2_f0_min
+        )
         f0_freqs = tr.pow(2.0, log2_f0_freqs)
         f0_freqs = f0_freqs.view(-1, 1)
         return f0_freqs
 
     def calc_amplitudes(self, theta_density: T) -> T:
         assert theta_density.ndim == 0
-        offset = 0.25 * theta_density + 0.75 * theta_density ** 2
-        sigmoid_operand = (1 - theta_density) * self.n_grains * (self.grain_indices / self.n_grains - offset)
+        offset = 0.25 * theta_density + 0.75 * theta_density**2
+        sigmoid_operand = (
+            (1 - theta_density)
+            * self.n_grains
+            * (self.grain_indices / self.n_grains - offset)
+        )
         amplitudes = 1 - tr.sigmoid(2 * sigmoid_operand)
         amplitudes = amplitudes / tr.max(amplitudes)
         amplitudes = amplitudes.view(-1, 1)
@@ -105,14 +113,12 @@ class ChirpTextureSynth(nn.Module):
         assert theta_slope.ndim == 0
         # theta_slope = self.max_theta_slope * theta_slope
         typical_slope = self.sr / (self.Q * self.hop_len)
-        slope = tr.tan(
-            self.max_theta_slope * theta_slope * np.pi / 2) * typical_slope / 4
+        slope = (
+            tr.tan(self.max_theta_slope * theta_slope * np.pi / 2) * typical_slope / 4
+        )
         return slope
 
-    def forward(self,
-                theta_density: T,
-                theta_slope: T,
-                seed: Optional[T] = None) -> T:
+    def forward(self, theta_density: T, theta_slope: T, seed: Optional[T] = None) -> T:
         assert theta_density.ndim == theta_slope.ndim == 0
         rand_gen = self.get_rand_gen(device=self.grain_support.device.type)
         if seed is not None:
@@ -146,10 +152,9 @@ class ChirpTextureSynth(nn.Module):
         return y
 
 
-def make_x_from_theta(synth: ChirpTextureSynth,
-                      theta_density: T,
-                      theta_slope: T,
-                      seed: T) -> T:
+def make_x_from_theta(
+    synth: ChirpTextureSynth, theta_density: T, theta_slope: T, seed: T
+) -> T:
     # TODO(cm): add batch support to synth
     x = []
     for idx in range(theta_density.size(0)):
@@ -160,27 +165,30 @@ def make_x_from_theta(synth: ChirpTextureSynth,
 
 
 if __name__ == "__main__":
-    sr = 2 ** 13
-    duration = 2 ** 2
-    grain_duration = 2 ** 2
-    n_grains = 2 ** 0
-    f0_min_hz = 2 ** 8
-    f0_max_hz = 2 ** 11
+    sr = 2**13
+    duration = 2**2
+    grain_duration = 2**2
+    n_grains = 2**0
+    f0_min_hz = 2**8
+    f0_max_hz = 2**11
 
     n_samples = int(duration * sr)
     grain_n_samples = int(grain_duration * sr)
 
-    synth = ChirpTextureSynth(sr=sr,
-                              n_samples=n_samples,
-                              n_grains=n_grains,
-                              grain_n_samples=grain_n_samples,
-                              f0_min_hz=f0_min_hz,
-                              f0_max_hz=f0_max_hz,
-                              Q=12,
-                              hop_len=256)
+    synth = ChirpTextureSynth(
+        sr=sr,
+        n_samples=n_samples,
+        n_grains=n_grains,
+        grain_n_samples=grain_n_samples,
+        f0_min_hz=f0_min_hz,
+        f0_max_hz=f0_max_hz,
+        Q=12,
+        hop_len=256,
+    )
 
     x = synth.forward(theta_density=tr.tensor(1.0), theta_slope=tr.tensor(0.5))
 
     save_path = "chirp_texture.wav"
     import soundfile as sf
+
     sf.write(os.path.join(OUT_DIR, save_path), x.numpy(), samplerate=sr)
