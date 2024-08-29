@@ -1,10 +1,12 @@
 import logging
+import logging
 import os
 from collections import defaultdict
 from typing import Any, Dict
 
 import torch as tr
 import wandb
+import yaml
 from matplotlib import pyplot as plt
 from pytorch_lightning import Trainer, Callback, LightningModule
 from pytorch_lightning.callbacks import LearningRateMonitor
@@ -12,6 +14,7 @@ from pytorch_lightning.loggers import WandbLogger
 from torch import Tensor as T
 
 from experiments.lightning import SCRAPLLightingModule
+from experiments.paths import OUT_DIR
 from experiments.plotting import fig2img, plot_waveforms_stacked, plot_scalogram, \
     plot_xy_points_and_grads
 
@@ -379,3 +382,33 @@ class LogGradientCallback(Callback):
         self.val_density_grads.clear()
         self.val_slope_grads.clear()
         self.val_out_dicts.clear()
+
+
+class SavePathCountsCallback(Callback):
+    def on_validation_epoch_end(self,
+                                trainer: Trainer,
+                                pl_module: LightningModule) -> None:
+        try:
+            path_counts = dict(pl_module.loss_func.path_counts)
+        except Exception as e:
+            return
+        log.info("Saving path counts")
+        out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__path_counts.json")
+        data = yaml.dump(path_counts)
+        with open(out_path, "w") as f:
+            f.write(data)
+
+
+class SaveTargetPathEnergiesCallback(Callback):
+    def on_validation_epoch_end(self,
+                                trainer: Trainer,
+                                pl_module: LightningModule) -> None:
+        try:
+            target_path_energies = dict(pl_module.loss_func.target_path_energies)
+        except Exception as e:
+            return
+        log.info("Saving target path energies")
+        out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__target_energies.json")
+        data = yaml.dump(target_path_energies)
+        with open(out_path, "w") as f:
+            f.write(data)

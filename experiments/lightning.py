@@ -1,7 +1,8 @@
 import logging
 import os
 from contextlib import suppress
-from typing import Dict
+from datetime import datetime
+from typing import Dict, Optional
 
 import pytorch_lightning as pl
 import torch as tr
@@ -9,6 +10,7 @@ from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
 
+from experiments import util
 from experiments.losses import JTFSTLoss, SCRAPLLoss
 from experiments.synth import ChirpTextureSynth, make_x_from_theta
 
@@ -30,7 +32,8 @@ class SCRAPLLightingModule(pl.LightningModule):
                  cqt_eps: float = 1e-3,
                  log_x: bool = False,
                  log_x_hat: bool = False,
-                 log_val_grads: bool = False):
+                 log_val_grads: bool = False,
+                 run_name: Optional[str] = None):
         super().__init__()
         self.model = model
         self.synth = synth
@@ -44,6 +47,11 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.log_x = log_x
         self.log_x_hat = log_x_hat
         self.log_val_grads = log_val_grads
+        if run_name is None:
+            self.run_name = f"run__{datetime.now().strftime('%Y-%m-%d__%H-%M-%S')}"
+        else:
+            self.run_name = run_name
+        log.info(f"Run name: {self.run_name}")
 
         cqt_params = {
             "sr": synth.sr,
@@ -151,13 +159,19 @@ class SCRAPLLightingModule(pl.LightningModule):
                                           seed_hat)
                 U_hat = self.calc_U(x_hat)
 
+        top_n = 8
         with suppress(Exception):
             logits = self.loss_func.logits
-            probs = tr.softmax(logits, dim=-1)
-            top_n = 8
+            probs = util.limited_softmax(
+                logits, tau=self.loss_func.tau, max_prob=self.loss_func.max_prob
+            )
+            top = tr.topk(logits, k=top_n, dim=-1)
+            logits = [f"{p:.6f}" for p in top.values]
+            log.info(f"Top {top_n} logits: {top.indices} {logits}")
             top = tr.topk(probs, k=top_n, dim=-1)
             percentages = [f"{p:.6f}" for p in top.values]
-            log.info(f"Top {top_n} logits: {top.indices} {percentages}")
+            log.info(f"Top {top_n} percentages: {top.indices} {percentages}")
+        with suppress(Exception):
             path_counts = self.loss_func.path_counts
             path_counts = sorted(path_counts.items(), key=lambda x: x[1], reverse=True)
             path_counts = list(path_counts)[:top_n]

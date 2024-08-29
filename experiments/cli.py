@@ -11,7 +11,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies import DDPStrategy
 
 from experiments.callbacks import LogAudioCallback, LogScalogramCallback, \
-    LogGradientCallback
+    LogGradientCallback, SaveTargetPathEnergiesCallback, SavePathCountsCallback
 from experiments.paths import CONFIGS_DIR
 
 logging.basicConfig()
@@ -38,6 +38,8 @@ class CustomLightningCLI(LightningCLI):
             LogScalogramCallback(),
             # LogAudioCallback(),
             LogGradientCallback(),
+            SavePathCountsCallback(),
+            SaveTargetPathEnergiesCallback(),
         ],
         "logger": {
             "class_path": "pytorch_lightning.loggers.TensorBoardLogger",

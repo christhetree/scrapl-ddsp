@@ -71,3 +71,63 @@ def clip_norm(x: T, max_norm: float, p: int = 2, eps: float = 1e-8) -> T:
     clip_coef_clamped = tr.clamp(clip_coef, max=1.0)
     x_clipped = x * clip_coef_clamped
     return x_clipped
+
+
+def stable_softmax(logits: T, tau: float = 1.0) -> T:
+    assert tau > 0, f"Invalid temperature: {tau}, must be > 0"
+    # Subtract the max logit for numerical stability
+    max_logit = tr.max(logits, dim=-1, keepdim=True)[0]
+    logits = logits - max_logit
+    # Apply temperature scaling
+    scaled_logits = logits / tau
+    # Compute the exponential
+    exp_logits = tr.exp(scaled_logits)
+    # Normalize the probabilities
+    sum_exp_logits = tr.sum(exp_logits, dim=-1, keepdim=True)
+    softmax_probs = exp_logits / sum_exp_logits
+    return softmax_probs
+
+
+def limited_softmax(logits: T, tau: float = 1.0, max_prob: float = 1.0) -> T:
+    """
+    Compute a softmax with a maximum probability for each class.
+    If a class has a probability greater than the maximum, the excess probability is
+    distributed uniformly among the other classes.
+
+    Args:
+        logits: The input logits.
+        tau: The temperature scaling factor.
+        max_prob: The maximum probability for each class.
+    """
+    n_classes = logits.size(-1)
+    min_max_prob = 1.0 / n_classes
+    assert min_max_prob < max_prob <= 1.0
+    softmax_probs = stable_softmax(logits, tau)
+    if max_prob == 1.0:
+        return softmax_probs
+    clipped_probs = tr.clip(softmax_probs, max=max_prob)
+    excess_probs = tr.clip(softmax_probs - clipped_probs, min=0.0)
+    n_excess_probs = (excess_probs > 0.0).sum(dim=-1, keepdim=True)
+    excess_probs = excess_probs.sum(dim=-1, keepdim=True)
+    excess_probs = excess_probs / (n_classes - n_excess_probs)
+    lim_probs = tr.clip(clipped_probs + excess_probs, max=max_prob)
+    # lim_prob_sums = lim_probs.sum(dim=-1, keepdim=True)
+    # assert tr.allclose(lim_prob_sums, tr.ones_like(lim_prob_sums))
+    return lim_probs
+
+
+if __name__ == "__main__":
+    print("Hello, world!")
+    print("This is a util module.")
+
+    # Print torch tensors as 2 decimal places not in scientific notation
+    tr.set_printoptions(precision=2, sci_mode=False)
+
+    logits = tr.tensor([[0.5, 0.4, 0.1], [2.0, 3.0, 4.0]])
+    tau = 0.25
+    softmax_probs = stable_softmax(logits, tau)
+    print(softmax_probs)
+    softmax_probs = limited_softmax(logits, tau, max_prob=0.60)
+    print(softmax_probs)
+    softmax_probs = tr.softmax(logits, dim=-1)
+    print(softmax_probs)

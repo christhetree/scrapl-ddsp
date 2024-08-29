@@ -1,7 +1,7 @@
 import logging
 import os
 from collections import defaultdict
-from typing import Union, Any, Optional
+from typing import Union, Any, Optional, List, Dict
 
 import torch as tr
 import torch.nn as nn
@@ -138,15 +138,12 @@ class SCRAPLLoss(nn.Module):
         self.n_paths = len(self.scrapl_keys)
         log.info(f"number of SCRAPL keys = {self.n_paths}")
         self.path_counts = defaultdict(int)
-        self.register_buffer("logits", tr.zeros((self.n_paths,)))
 
     def sample_path(self) -> int:
         if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
             path_idx = len(self.path_counts)
         else:
-            with tr.no_grad():
-                probs = F.softmax(self.logits, dim=0)
-                path_idx = tr.multinomial(probs, 1).item()
+            path_idx = tr.randint(0, self.n_paths, (1,)).item()
         log.info(f"\npath_idx = {path_idx}")
         self.path_counts[path_idx] += 1
         return path_idx
@@ -183,11 +180,30 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         F: Optional[Union[str, int]] = None,
         p: int = 2,
         sample_all_paths_first: bool = False,
+        tau: float = 1.0,
+        max_prob: float = 1.0,
         is_trainable: bool = True,
     ):
         super().__init__(shape, J, Q1, Q2, J_fr, Q_fr, T, F, p, sample_all_paths_first)
+        self.tau = tau
+        self.max_prob = max_prob
+        self.is_trainable = is_trainable
+        self.target_path_energies = defaultdict(list)
         if is_trainable:
             self.logits = nn.Parameter(tr.zeros((self.n_paths,)))
+        else:
+            self.register_buffer("logits", tr.zeros((self.n_paths,)))
+
+    def sample_path(self) -> int:
+        if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
+            path_idx = len(self.path_counts)
+        else:
+            with tr.no_grad():
+                probs = util.limited_softmax(self.logits, self.tau, self.max_prob)
+                path_idx = tr.multinomial(probs, 1).item()
+        log.info(f"\npath_idx = {path_idx}")
+        self.path_counts[path_idx] += 1
+        return path_idx
 
     def forward(self, x: T, x_target: T) -> T:
         assert x.ndim == x_target.ndim == 3
@@ -195,26 +211,42 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         path_idx = self.sample_path()
         dist, Sx, Sx_target = self.calc_dist(x, x_target, path_idx)
         dist = MakeLogitsGradFromEnergy.apply(
-            self.logits, path_idx, dist, Sx, Sx_target
+            self.logits, path_idx, dist, Sx, Sx_target, self.target_path_energies
         )
         return dist
 
 
 class MakeLogitsGradFromEnergy(Function):
     @staticmethod
-    def forward(ctx: Any, logits: T, path_idx: int, dist: T, Sx: T, Sx_target) -> T:
+    def forward(
+        ctx: Any,
+        logits: T,
+        path_idx: int,
+        dist: T,
+        Sx: T,
+        Sx_target: T,
+        target_path_energies: Dict[int, List[float]],
+    ) -> T:
         ctx.save_for_backward(logits, Sx, Sx_target)
         ctx.path_idx = path_idx
+        ctx.target_path_energies = target_path_energies
         return dist
 
     @staticmethod
-    def backward(ctx: Any, grad_dist: T) -> (T, None, T, None, None):
+    def backward(ctx: Any, grad_dist: T) -> (T, None, T, None, None, None):
         logits, Sx, Sx_target = ctx.saved_tensors
         path_idx = ctx.path_idx
-        mean_target_energy = Sx_target.pow(2).sum()
+        target_path_energies = ctx.target_path_energies
+        mean_target_energy = Sx_target.pow(2).mean()
+        target_path_energies[path_idx].append(mean_target_energy.item())
+        # TODO(cm)
+        grad_mag = tr.clip(mean_target_energy, min=1e-20)
+        grad_mag = tr.log10(grad_mag) + 20
+        log.info(f"grad_mag = {grad_mag}")
+
         grad_logits = tr.zeros_like(logits)
-        grad_logits[path_idx] = -mean_target_energy
-        return grad_logits, None, grad_dist, None, None
+        grad_logits[path_idx] = -grad_mag
+        return grad_logits, None, grad_dist, None, None, None
 
 
 class WaveletLoss(nn.Module):
@@ -306,7 +338,7 @@ class WaveletLoss(nn.Module):
 if __name__ == "__main__":
     # tr.manual_seed(0)
     n = 10000
-    logits = tr.tensor([0.5, -0.5, 0.0])
+    logits = tr.tensor([0.9, 0.1, 0.0])
     log.info(f"softmax of logits = {F.softmax(logits, dim=0)}")
     results = tr.zeros_like(logits)
 
@@ -321,7 +353,8 @@ if __name__ == "__main__":
     # Now sample using multinomial
     results = tr.zeros_like(logits)
     for _ in range(n):
-        idx = tr.multinomial(F.softmax(logits, dim=0), 1).item()
+        # idx = tr.multinomial(F.softmax(logits, dim=0), 1).item()
+        idx = tr.multinomial(tr.tensor([0.8, 0.1, 0.0]), 1).item()
         results[idx] += 1
 
     results /= n

@@ -9,5 +9,9 @@ init_args:
   T: null
   F: null
   p: 1
-#  sample_all_paths_first: true
-  sample_all_paths_first: false
+  tau: 1.0
+  max_prob: 1.0
+  sample_all_paths_first: true
+#  sample_all_paths_first: false
+#  is_trainable: true
+  is_trainable: false
