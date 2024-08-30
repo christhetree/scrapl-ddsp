@@ -479,3 +479,23 @@ class SaveMeanAbsSxGradsCallback(Callback):
         data = yaml.dump(mean_abs_Sx_grads)
         with open(out_path, "w") as f:
             f.write(data)
+
+
+class SaveThetaGradsCallback(Callback):
+    def on_validation_epoch_end(
+        self, trainer: Trainer, pl_module: LightningModule
+    ) -> None:
+        try:
+            d_grads = dict(pl_module.d_grads)
+            s_grads = dict(pl_module.s_grads)
+        except Exception as e:
+            return
+        log.info("Saving D and S grads")
+        out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__d_grads.yml")
+        data = yaml.dump(d_grads)
+        with open(out_path, "w") as f:
+            f.write(data)
+        out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__s_grads.yml")
+        data = yaml.dump(s_grads)
+        with open(out_path, "w") as f:
+            f.write(data)

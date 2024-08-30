@@ -201,6 +201,7 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
             self.register_buffer("probs", probs)
         else:
             self.probs = None
+        self.curr_path_idx = None
 
     def save_mean_abs_Sx_grad(self, Sx_grad: T, path_idx: int) -> None:
         # grad_np = Sx_grad[0].squeeze().detach().cpu().numpy()
@@ -219,6 +220,7 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
             path_idx = len(self.path_counts)
             self.path_counts[path_idx] += 1
+            self.curr_path_idx = path_idx
             return path_idx
 
         if self.probs is None:
@@ -229,6 +231,7 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         path_idx = tr.multinomial(probs, 1).item()
         log.info(f"\npath_idx = {path_idx}")
         self.path_counts[path_idx] += 1
+        self.curr_path_idx = path_idx
         return path_idx
 
     def forward(self, x: T, x_target: T) -> T:

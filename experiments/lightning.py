@@ -1,8 +1,10 @@
 import logging
 import os
+from collections import defaultdict
 from contextlib import suppress
 from datetime import datetime
-from typing import Dict, Optional
+from functools import partial
+from typing import Dict, Optional, List
 
 import pytorch_lightning as pl
 import torch as tr
@@ -69,8 +71,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.loss_name = self.loss_func.__class__.__name__
         self.l1 = nn.L1Loss()
         self.global_n = 0
-        # self.register_buffer("path_grads_density", tr.zeros(3072, self.loss_func.n_paths))
-        # self.register_buffer("path_grads_slope", tr.zeros(3072, self.loss_func.n_paths))
+
+        self.d_grads = defaultdict(list)
+        self.s_grads = defaultdict(list)
 
     def on_train_start(self) -> None:
         self.global_n = 0
@@ -162,18 +165,18 @@ class SCRAPLLightingModule(pl.LightningModule):
                 U_hat = self.calc_U(x_hat)
 
         top_n = 8
-        with suppress(Exception):
-            # logits = self.loss_func.logits
-            # probs = util.limited_softmax(
-            #     logits, tau=self.loss_func.tau, max_prob=self.loss_func.max_prob
-            # )
-            # top = tr.topk(logits, k=top_n, dim=-1)
-            # logits = [f"{p:.6f}" for p in top.values]
-            # log.info(f"Top {top_n} logits: {top.indices} {logits}")
-            probs = self.loss_func.probs
-            top = tr.topk(probs, k=top_n, dim=-1)
-            percentages = [f"{p:.6f}" for p in top.values]
-            log.info(f"Top {top_n} percentages: {top.indices} {percentages}")
+        # with suppress(Exception):
+        #     logits = self.loss_func.logits
+        #     probs = util.limited_softmax(
+        #         logits, tau=self.loss_func.tau, max_prob=self.loss_func.max_prob
+        #     )
+        #     top = tr.topk(logits, k=top_n, dim=-1)
+        #     logits = [f"{p:.6f}" for p in top.values]
+        #     log.info(f"Top {top_n} logits: {top.indices} {logits}")
+        #     probs = self.loss_func.probs
+        #     top = tr.topk(probs, k=top_n, dim=-1)
+        #     percentages = [f"{p:.6f}" for p in top.values]
+        #     log.info(f"Top {top_n} percentages: {top.indices} {percentages}")
         with suppress(Exception):
             path_counts = self.loss_func.path_counts
             path_counts = sorted(path_counts.items(), key=lambda x: x[1], reverse=True)
@@ -194,17 +197,21 @@ class SCRAPLLightingModule(pl.LightningModule):
             "seed_hat": seed_hat,
         }
 
-        # if stage == "train":
-        #     theta_density_hat.register_hook(
-        #         partial(self.sag_hook,
-        #                 batch_indices=batch_indices,
-        #                 path_idx=self.loss_func.curr_path_idx,
-        #                 path_grads=self.path_grads_density))
-        #     theta_slope_hat.register_hook(
-        #         partial(self.sag_hook,
-        #                 batch_indices=batch_indices,
-        #                 path_idx=self.loss_func.curr_path_idx,
-        #                 path_grads=self.path_grads_slope))
+        if stage == "train":
+            theta_density_hat.register_hook(
+                partial(
+                    self.save_grad,
+                    path_idx=self.loss_func.curr_path_idx,
+                    idx_to_grads=self.d_grads,
+                )
+            )
+            theta_slope_hat.register_hook(
+                partial(
+                    self.save_grad,
+                    path_idx=self.loss_func.curr_path_idx,
+                    idx_to_grads=self.s_grads,
+                )
+            )
         return out_dict
 
     def training_step(self, batch: (T, T, T), batch_idx: int) -> Dict[str, T]:
@@ -228,3 +235,12 @@ class SCRAPLLightingModule(pl.LightningModule):
         U = cqt(x)
         U = tr.log1p(U / cqt_eps)
         return U
+
+    @staticmethod
+    def save_grad(
+        grad: T, path_idx: int, idx_to_grads: defaultdict[int, List[float]]
+    ) -> T:
+        assert path_idx is not None
+        mean_grad = grad.abs().mean().detach().cpu().item()
+        idx_to_grads[path_idx].append(mean_grad)
+        return grad
