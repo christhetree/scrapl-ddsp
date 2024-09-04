@@ -31,7 +31,7 @@ class JTFSTLoss(nn.Module):
         Q_fr: int,
         T: Optional[Union[str, int]] = None,
         F: Optional[Union[str, int]] = None,
-        format_: str = "time",
+        format_: str = "joint",
         p: int = 2,
     ):
         super().__init__()
@@ -117,6 +117,7 @@ class SCRAPLLoss(nn.Module):
         F: Optional[Union[str, int]] = None,
         p: int = 2,
         sample_all_paths_first: bool = False,
+        fixed_path_idx: Optional[int] = None,
     ):
         super().__init__()
         self.p = p
@@ -137,9 +138,12 @@ class SCRAPLLoss(nn.Module):
         self.n_paths = len(self.scrapl_keys)
         log.info(f"number of SCRAPL keys = {self.n_paths}")
         self.path_counts = defaultdict(int)
+        self.fixed_path_idx = fixed_path_idx
 
     def sample_path(self) -> int:
-        if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
+        if self.fixed_path_idx is not None:
+            path_idx = self.fixed_path_idx
+        elif self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
             path_idx = len(self.path_counts)
         else:
             path_idx = tr.randint(0, self.n_paths, (1,)).item()

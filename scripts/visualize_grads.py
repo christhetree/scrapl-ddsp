@@ -9,6 +9,7 @@ import numpy as np
 import torch as tr
 import yaml
 from matplotlib import pyplot as plt
+from torch import Tensor as T
 
 from experiments.losses import AdaptiveSCRAPLLoss
 from experiments.paths import OUT_DIR, CONFIGS_DIR
@@ -172,7 +173,25 @@ def process_path_dict(
     plt_dist: bool = False,
     plt_probs: bool = True,
     plt_log: bool = False,
-) -> None:
+) -> T:
+    # vals = list(itertools.chain(*data.values()))
+    # m_s = []
+    # for idx, vals in data.items():
+    #     plt.plot(vals)
+    #     # Plot line of best fit
+    #     x = np.arange(len(vals))
+    #     y = np.array(vals)
+    #     m, b = np.polyfit(x, y, 1)
+    #     log.info(f"{idx} m = {m}")
+    #     m_s.append(m)
+    #     plt.plot(x, m * x + b)
+    #     plt.title(f"{name} path {idx}")
+    #     plt.show()
+    #     derp = 1
+    # log.info(f"mean m = {np.mean(m_s)}")
+    # log.info(f"std m = {np.std(m_s)}")
+    # exit()
+
     if plt_path_counts:
         bar_heights = [len(v) for v in data.values()]
         plt.bar(list(data.keys()), bar_heights)
@@ -230,6 +249,8 @@ def process_path_dict(
             plt.title(f"{name} log10 probs")
             plt.show()
 
+    return probs
+
 
 if __name__ == "__main__":
     config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_energy.yml")
@@ -243,19 +264,22 @@ if __name__ == "__main__":
         # "micro_p2__d_grads.yml",
         # "micro_p2__s_grads.yml",
         "meso_p2__d_grads.yml",
-        "meso_p2__s_grads.yml",
+        # "meso_p2__s_grads.yml",
+        # "meso_p2__mean_abs_Sx_grads.yml",
     ]
     # seg_axes = ["J2", "J_fr", "spin", "orders"]
-    seg_axes = ["J2"]
+    seg_axes = []
+    # seg_axes = ["J2"]
     # seg_axes = ["J_fr"]
     # seg_axes = ["spin"]
     # seg_axes = ["orders"]
-    # seg_axes = []
+    probs_all = []
 
     for name in names:
         data_path = os.path.join(dir_path, name)
         data = yaml.safe_load(open(data_path, "r"))
-        process_path_dict(data, name)
+        probs = process_path_dict(data, name)
+        probs_all.append(probs)
 
         for seg_axis in seg_axes:
             seg_indices = make_segmentation_indices(seg_axis, meta, name)
@@ -275,3 +299,18 @@ if __name__ == "__main__":
             log.info(f"============ {seg_axis} ==============")
             for k, v in seg_idx_to_label.items():
                 log.info(f"{k}: {v}")
+
+    # for name, probs in zip(names, probs_all):
+    #     out_path = os.path.join(OUT_DIR, f"{name}.pt")
+    #     tr.save(probs, out_path)
+    #
+    # mean_probs = tr.mean(tr.stack(probs_all, dim=0), dim=0)
+    # log.info(f"mean_probs.sum() = {mean_probs.sum()}")
+    # log.info(f"mean_probs.min() = {mean_probs.min()}")
+    # log.info(f"mean_probs.max() = {mean_probs.max()}")
+    # out_path = os.path.join(OUT_DIR, f"mean_probs.pt")
+    # tr.save(mean_probs, out_path)
+    #
+    # plt.bar(range(mean_probs.size(0)), mean_probs.numpy())
+    # plt.title("mean_probs")
+    # plt.show()

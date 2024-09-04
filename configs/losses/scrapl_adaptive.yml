@@ -1,0 +1,27 @@
+class_path: experiments.losses.AdaptiveSCRAPLLoss
+init_args:
+  shape: 32768
+  J: 12
+  Q1: 8
+  Q2: 2
+  J_fr: 3
+  Q_fr: 2
+  T: null
+  F: null
+  p: 2
+  tau: 1.0
+  max_prob: 1.0
+#  sample_all_paths_first: true
+  sample_all_paths_first: false
+#  is_trainable: true
+  is_trainable: false
+#  probs_path: ../data/meso_p2__theta_grads.pt  # max 0.013821
+#  probs_path: ../data/meso_p2__d_grads.yml.pt  # max 0.021210
+#  probs_path: ../data/meso_p2__s_grads.yml.pt  # max 0.009078
+
+#  probs_path: ../data/micro_p2__cos_sim.pt  # max 0.004277152009308338
+#  probs_path: ../data/micro_p2__cos_sim_weighted.pt  # max 0.012973041273653507
+#  probs_path: ../data/micro_p2__d_cos_sim.pt  # max 0.003954584710299969
+#  probs_path: ../data/micro_p2__d_cos_sim_weighted.pt  # max 0.011630410328507423
+#  probs_path: ../data/micro_p2__cos_sim_theta_norm.pt  # max 0.0038949870504438877
+#  probs_path: ../data/micro_p2__cos_sim_theta_norm_weighted.pt  # max 0.007348468992859125

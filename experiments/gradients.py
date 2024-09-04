@@ -3,22 +3,17 @@ import os
 import random
 from typing import Optional
 
-import auraloss
 import numpy as np
 import torch as tr
 import yaml
 from matplotlib import pyplot as plt
-from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
 from tqdm import tqdm
 
-from experiments.lightning import SCRAPLLightingModule
-from experiments.losses import SCRAPLLoss, JTFSTLoss, WaveletLoss
-from experiments.losses_dtfa import TimeFrequencyScatteringLoss, MultiScaleSpectralLoss
+from experiments.losses import SCRAPLLoss, JTFSTLoss
 from experiments.paths import CONFIGS_DIR, OUT_DIR
 from experiments.synth import ChirpTextureSynth
-from plotting import plot_scalogram
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -178,7 +173,7 @@ if __name__ == "__main__":
     np.random.seed(seed)
     random.seed(seed)
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
     if tr.cuda.is_available():
         log.info("Using GPU")
@@ -213,8 +208,8 @@ if __name__ == "__main__":
     # dist_func = nn.MSELoss()
     # dist_func = auraloss.freq.RandomResolutionSTFTLoss(max_fft_size=16384 * 2 - 1)
     # dist_func = auraloss.freq.MultiResolutionSTFTLoss()
-    dist_func = jtfst_loss
-    # dist_func = scrapl_loss
+    # dist_func = jtfst_loss
+    dist_func = scrapl_loss
     # dist_func = jtfst_mine_2d_loss
     # dist_func = WaveletLoss(sr=synth.sr,
     #                         n_samples=synth.n_samples,
@@ -232,7 +227,7 @@ if __name__ == "__main__":
     theta_slope = tr.tensor(0.4)
     n_density = 9
     n_slope = 9
-    n_trials = 20
+    n_trials = 50
 
     if dist_func == jtfst_loss or dist_func == scrapl_loss:
         psi1_freqs = [f["xi"] * synth.sr for f in dist_func.jtfs.psi1_f]
@@ -269,91 +264,89 @@ if __name__ == "__main__":
             f"_T{dist_func.jtfs.T}"
             f"_F{dist_func.jtfs.F}"
         )
-    # elif dist_func == jtfst_mine_2d_loss:
-    #     suffix = (f"d{n_density}s{n_slope}t{n_trials}__J{dist_func.jtfs.J_1}"
-    #               f"_Q{dist_func.jtfs.Q_1}"
-    #               f"_QQ{dist_func.jtfs.Q_2_t}"
-    #               f"_Jfr{dist_func.jtfs.J_2_f}"
-    #               f"_Qfr{dist_func.jtfs.Q_2_f}"
-    #               f"_T{dist_func.jtfs.avg_win_t}"
-    #               f"_F{dist_func.jtfs.avg_win_f}")
     else:
         suffix = f"d{n_density}s{n_slope}t{n_trials}"
     # exit()
 
-    if use_rand_seeds:
-        save_name = f"dist__{dist_func.__class__.__name__}__meso__{suffix}.png"
-    else:
-        save_name = f"dist__{dist_func.__class__.__name__}__micro__{suffix}.png"
+    for path_idx in tqdm(range(dist_func.n_paths)):
+        dist_func.fixed_path_idx = path_idx
 
-    log.info(f"save_name={save_name}")
+        if use_rand_seeds:
+            save_name = f"{dist_func.__class__.__name__}__meso__{suffix}__p{path_idx}"
+        else:
+            save_name = f"{dist_func.__class__.__name__}__micro__{suffix}__p{path_idx}"
 
-    save_path = os.path.join(OUT_DIR, save_name)
+        log.info(f"save_name={save_name}")
 
-    title = (
-        f"{dist_func.__class__.__name__}\n"
-        f"θ density={theta_density:.2f}, "
-        f"θ slope={theta_slope:.2f}, "
-        f"{'meso' if use_rand_seeds else 'micro'}, "
-        f"t{n_trials}"
-    )
-
-    theta_density_hats = None
-    theta_slope_hats = None
-    dist_matrices = []
-    dgm_all = []
-    sgm_all = []
-
-    with tqdm(total=n_trials * n_density * n_slope) as pbar:
-        for idx in range(n_trials):
-            theta_density_hats, theta_slope_hats, dist_matrix, dgm, sgm = (
-                calc_distance_grad_matrices(
-                    dist_func,
-                    synth,
-                    theta_density=theta_density,
-                    theta_slope=theta_slope,
-                    n_density=n_density,
-                    n_slope=n_slope,
-                    use_rand_seeds=use_rand_seeds,
-                    seed=seed + idx,
-                    pbar=pbar,
-                )
-            )
-            dist_matrices.append(dist_matrix)
-            dgm_all.append(dgm)
-            sgm_all.append(sgm)
-
-    dist_matrix = tr.stack(dist_matrices)
-    dgm = tr.stack(dgm_all)
-    sgm = tr.stack(sgm_all)
-    if n_trials > 1:
-        # TODO(cm): variance measurements are currently not comparable across losses?
-        dist_avg_var = dist_matrix.var(dim=0).mean()
-        dgm_avg_var = dgm.var(dim=0).mean()
-        sgm_avg_var = sgm.var(dim=0).mean()
-        log.info(
-            f"dist_avg_var={dist_avg_var:.6f}, "
-            f" dgm_avg_var={dgm_avg_var:.6f}, "
-            f" sgm_avg_var={sgm_avg_var:.6f}"
+        title = (
+            f"{dist_func.__class__.__name__}\n"
+            f"θ density={theta_density:.2f}, "
+            f"θ slope={theta_slope:.2f}, "
+            f"{'meso' if use_rand_seeds else 'micro'}, "
+            f"t{n_trials}, p{path_idx}"
         )
-    dist_matrix = dist_matrix.mean(dim=0)
-    dgm = dgm.mean(dim=0)
-    sgm = sgm.mean(dim=0)
 
-    dist_matrix = dist_matrix / dist_matrix.abs().max()
-    max_grad = max(dgm.abs().max(), sgm.abs().max())
-    log.info(f"max_grad={max_grad:.6f}")
-    dgm /= max_grad
-    sgm /= max_grad
+        theta_density_hats = None
+        theta_slope_hats = None
+        dist_matrices = []
+        dgm_all = []
+        sgm_all = []
 
-    plot_gradients(
-        theta_density,
-        theta_slope,
-        dist_matrix,
-        theta_density_hats,
-        theta_slope_hats,
-        dgm,
-        sgm,
-        title=title,
-        save_path=save_path,
-    )
+        with tqdm(total=n_trials * n_density * n_slope) as pbar:
+            for idx in range(n_trials):
+                theta_density_hats, theta_slope_hats, dist_matrix, dgm, sgm = (
+                    calc_distance_grad_matrices(
+                        dist_func,
+                        synth,
+                        theta_density=theta_density,
+                        theta_slope=theta_slope,
+                        n_density=n_density,
+                        n_slope=n_slope,
+                        use_rand_seeds=use_rand_seeds,
+                        seed=seed + idx,
+                        pbar=pbar,
+                    )
+                )
+                dist_matrices.append(dist_matrix)
+                dgm_all.append(dgm)
+                sgm_all.append(sgm)
+
+        dist_matrix = tr.stack(dist_matrices)
+        dgm = tr.stack(dgm_all)
+        sgm = tr.stack(sgm_all)
+
+        tr.save(dist_matrix, os.path.join(OUT_DIR, f"dist__{save_name}.pt"))
+        tr.save(dgm, os.path.join(OUT_DIR, f"dgm__{save_name}.pt"))
+        tr.save(sgm, os.path.join(OUT_DIR, f"sgm__{save_name}.pt"))
+
+        # if n_trials > 1:
+        #     # TODO(cm): variance measurements are currently not comparable across losses?
+        #     dist_avg_var = dist_matrix.var(dim=0).mean()
+        #     dgm_avg_var = dgm.var(dim=0).mean()
+        #     sgm_avg_var = sgm.var(dim=0).mean()
+        #     log.info(
+        #         f"dist_avg_var={dist_avg_var:.6f}, "
+        #         f" dgm_avg_var={dgm_avg_var:.6f}, "
+        #         f" sgm_avg_var={sgm_avg_var:.6f}"
+        #     )
+        dist_matrix = dist_matrix.mean(dim=0)
+        dgm = dgm.mean(dim=0)
+        sgm = sgm.mean(dim=0)
+
+        dist_matrix_norm = dist_matrix / dist_matrix.abs().max()
+        max_grad = max(dgm.abs().max(), sgm.abs().max())
+        # log.info(f"max_grad={max_grad:.6f}")
+        dgm_norm = dgm / max_grad
+        sgm_norm = sgm / max_grad
+
+        plot_gradients(
+            theta_density,
+            theta_slope,
+            dist_matrix_norm,
+            theta_density_hats,
+            theta_slope_hats,
+            dgm_norm,
+            sgm_norm,
+            title=title,
+            save_path=os.path.join(OUT_DIR, f"dist__{save_name}.png"),
+        )

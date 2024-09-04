@@ -424,14 +424,15 @@ class SaveSCRAPLLogitsCallback(Callback):
     ) -> None:
         try:
             logits = pl_module.loss_func.logits.detach().cpu()
+            probs = pl_module.loss_func.probs.detach().cpu()
         except Exception as e:
             return
         log.info("Saving logits and probs")
         out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__logits.pt")
         tr.save(logits, out_path)
-        probs = util.limited_softmax(
-            logits, tau=pl_module.loss_func.tau, max_prob=pl_module.loss_func.max_prob
-        )
+        # probs = util.limited_softmax(
+        #     logits, tau=pl_module.loss_func.tau, max_prob=pl_module.loss_func.max_prob
+        # )
         out_path = os.path.join(OUT_DIR, f"{pl_module.run_name}__probs.pt")
         tr.save(probs, out_path)
 

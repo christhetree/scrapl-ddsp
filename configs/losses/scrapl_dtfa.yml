@@ -8,6 +8,5 @@ init_args:
   Q_fr: 2
   T: null
   F: null
-  p: 1
-#  sample_all_paths_first: true
+  p: 2
   sample_all_paths_first: false

@@ -5,16 +5,13 @@ custom:
 #  model_name: testing
 #  model_name: cnn__ploss
 #  model_name: cnn__mss
-#  model_name: cnn__jtfst_dtfa
-#  model_name: scrapl_p2_energy_probs
-#  model_name: scrapl_p2_log_energy_probs
-#  model_name: scrapl_p2_grad_probs
+#  model_name: cnn__jtfst
   model_name: scrapl_p2
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
-  dataset_name: chirp_32_32_micro_rand
+#  dataset_name: chirp_32_32_micro_rand
 #  dataset_name: chirp_32_32_meso
-#  dataset_name: chirp_32_32_meso_rand
+  dataset_name: chirp_32_32_meso_rand
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: true
@@ -22,7 +19,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [3]
+  devices: [4]
 #  max_epochs: 40
   max_epochs: 400
   num_sanity_val_steps: 0
@@ -51,7 +48,7 @@ model:
 #    loss_func: auraloss.freq.MultiResolutionSTFTLoss
 #    loss_func: ../configs/losses/jtfst_dtfa.yml
 #    loss_func: ../configs/losses/scrapl_dtfa.yml
-    loss_func: ../configs/losses/scrapl_energy.yml
+    loss_func: ../configs/losses/scrapl_adaptive.yml
 #    loss_func: ../configs/losses/rand_mss.yml
     use_p_loss: false
 #    use_p_loss: true
@@ -59,8 +56,8 @@ model:
 
 #    use_rand_seed: false
     use_rand_seed: true
-    use_rand_seed_hat: false
-#    use_rand_seed_hat: true
+#    use_rand_seed_hat: false
+    use_rand_seed_hat: true
     feature_type: cqt
     J_cqt: 5
     cqt_eps: 1e-3
@@ -68,8 +65,12 @@ model:
     log_x_hat: true
     log_val_grads: true
 
-    run_name: micro_p2
+#    run_name: micro_p2
+#    run_name: micro_p2_d_cos_sim
+#    run_name: micro_p2_d_cos_sim_weighted
 #    run_name: meso_p2
+#    run_name: meso_p2_cos_sim
+#    run_name: meso_p2_cos_sim_weighted
 
 #optimizer: ../configs/opt/adam_w.yml
 #optimizer: ../configs/opt/sgd.yml
