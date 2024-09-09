@@ -253,19 +253,15 @@ def process_path_dict(
 
 
 if __name__ == "__main__":
-    config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_energy.yml")
+    config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_adaptive.yml")
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
     scrapl = AdaptiveSCRAPLLoss(**config["init_args"])
     meta = scrapl.jtfs.meta()
 
-    dir_path = os.path.join(OUT_DIR, "out")
+    dir_path = OUT_DIR
     names = [
-        # "micro_p2__d_grads.yml",
-        # "micro_p2__s_grads.yml",
-        "meso_p2__d_grads.yml",
-        # "meso_p2__s_grads.yml",
-        # "meso_p2__mean_abs_Sx_grads.yml",
+        "data_meso_t50"
     ]
     # seg_axes = ["J2", "J_fr", "spin", "orders"]
     seg_axes = []
@@ -277,6 +273,19 @@ if __name__ == "__main__":
 
     for name in names:
         data_path = os.path.join(dir_path, name)
+
+        # dir = data_path
+        # paths = [
+        #     os.path.join(dir, f)
+        #     for f in os.listdir(dir)
+        #     if f.endswith(".pt") and f.startswith("dgm")
+        # ]
+        # data = defaultdict(list)
+        # for path in paths:
+        #     path_idx = int(path.split("__")[-1].split(".")[0][1:])
+        #     grads = tr.load(path).abs().view(-1).tolist()
+        #     data[path_idx].extend(grads)
+
         data = yaml.safe_load(open(data_path, "r"))
         probs = process_path_dict(data, name)
         probs_all.append(probs)

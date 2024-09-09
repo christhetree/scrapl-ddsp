@@ -6,7 +6,8 @@ custom:
 #  model_name: cnn__ploss
 #  model_name: cnn__mss
 #  model_name: cnn__jtfst
-  model_name: scrapl_p2
+#  model_name: scrapl
+  model_name: scrapl_meso_t50__z_abs_min_ds_min0
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
 #  dataset_name: chirp_32_32_micro_rand
@@ -19,7 +20,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [4]
+  devices: [3]
 #  max_epochs: 40
   max_epochs: 400
   num_sanity_val_steps: 0
@@ -64,13 +65,6 @@ model:
     log_x: true
     log_x_hat: true
     log_val_grads: true
-
-#    run_name: micro_p2
-#    run_name: micro_p2_d_cos_sim
-#    run_name: micro_p2_d_cos_sim_weighted
-#    run_name: meso_p2
-#    run_name: meso_p2_cos_sim
-#    run_name: meso_p2_cos_sim_weighted
 
 #optimizer: ../configs/opt/adam_w.yml
 #optimizer: ../configs/opt/sgd.yml
