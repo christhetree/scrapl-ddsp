@@ -1,4 +1,4 @@
-seed_everything: 42
+seed_everything: 43
 
 custom:
   project_name: scrapl
@@ -6,8 +6,11 @@ custom:
 #  model_name: cnn__ploss
 #  model_name: cnn__mss
 #  model_name: cnn__jtfst
-#  model_name: scrapl
-  model_name: scrapl_meso_t50__z_abs_min_ds_min0
+  model_name: scrapl
+#  model_name: scrapl_convex_4x_v2
+#  model_name: scrapl_entropy_4x_v2
+#  model_name: scrapl_lc_4x_v2
+#  model_name: scrapl_lc_mean_4x_v2
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
 #  dataset_name: chirp_32_32_micro_rand

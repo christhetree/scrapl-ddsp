@@ -33,3 +33,10 @@ init_args:
 #  probs_path: ../data/meso_t50__norm_mag_min0.pt  # max 0.008515
 #  probs_path: ../data/meso_t50__z_min_ds_min0.pt  # max 0.007102
 #  probs_path: ../data/meso_t50__z_abs_min_ds_min0.pt  # max 0.005446
+#  probs_path: ../data/meso_t50__entropy_min0.pt  # max 0.005244
+#  probs_path: ../data/meso_t50__entropy_4x.pt  # max 0.012699
+#  probs_path: ../data/meso_t50__lipschitz_norm_min0.pt  # max 0.006999
+#  probs_path: ../data/meso_t50__convex_4x_v2.pt
+#  probs_path: ../data/meso_t50__entropy_4x_v2.pt
+#  probs_path: ../data/meso_t50__lc_4x_v2.pt
+#  probs_path: ../data/meso_t50__lc_mean_4x_v2.pt

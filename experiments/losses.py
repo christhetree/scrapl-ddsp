@@ -147,7 +147,7 @@ class SCRAPLLoss(nn.Module):
             path_idx = len(self.path_counts)
         else:
             path_idx = tr.randint(0, self.n_paths, (1,)).item()
-        log.info(f"\npath_idx = {path_idx}")
+        # log.info(f"\npath_idx = {path_idx}")
         self.path_counts[path_idx] += 1
         return path_idx
 
@@ -233,7 +233,7 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         else:
             probs = self.probs
         path_idx = tr.multinomial(probs, 1).item()
-        log.info(f"\npath_idx = {path_idx}")
+        # log.info(f"\npath_idx = {path_idx}")
         self.path_counts[path_idx] += 1
         self.curr_path_idx = path_idx
         return path_idx

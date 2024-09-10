@@ -116,6 +116,35 @@ def limited_softmax(logits: T, tau: float = 1.0, max_prob: float = 1.0) -> T:
     return lim_probs
 
 
+def target_softmax(
+    logits: T, max_prob: float = 1.0, eps: float = 1e-6, max_iter: int = 10000
+) -> T:
+    assert logits.ndim == 1
+    n_classes = logits.size(-1)
+    min_max_prob = 1.0 / n_classes
+    assert min_max_prob < max_prob <= 1.0
+    curr_tau = 1.0
+    probs = stable_softmax(logits, curr_tau)
+    idx = 0
+    for idx in range(max_iter):
+        curr_min_prob = probs.min().item()
+        curr_max_prob = probs.max().item()
+        # delta = curr_max_prob - max_prob
+        curr_range = curr_max_prob - curr_min_prob
+        delta = curr_range - max_prob
+        if abs(delta) < eps:
+            break
+        elif delta < 0:
+            curr_tau *= 0.9
+        else:
+            curr_tau *= 1.1
+        probs = stable_softmax(logits, curr_tau)
+    log.info(f"idx = {idx}")
+    if idx == max_iter - 1:
+        log.warning(f"target_softmax: max_iter reached: {max_iter}")
+    return probs
+
+
 if __name__ == "__main__":
     print("Hello, world!")
     print("This is a util module.")
