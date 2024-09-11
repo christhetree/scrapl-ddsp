@@ -1,7 +1,7 @@
+import functools
 import logging
 import os
 from collections import defaultdict
-from contextlib import suppress
 from datetime import datetime
 from functools import partial
 from typing import Dict, Optional, List
@@ -12,9 +12,9 @@ from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
 
-from experiments import util
-from experiments.losses import JTFSTLoss, SCRAPLLoss
+from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss
 from experiments.synth import ChirpTextureSynth, make_x_from_theta
+from experiments.util import ReadOnlyTensorDict
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -75,6 +75,44 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.d_grads = defaultdict(list)
         self.s_grads = defaultdict(list)
 
+        avg_grads = {}
+        self.sag_grads = defaultdict(lambda: {})
+        for idx, p in enumerate(self.parameters()):
+            avg_grads[idx] = tr.zeros_like(p)
+            p.register_hook(
+                functools.partial(self.sag_hook, param_idx=idx, scrapl=self.loss_func)
+            )
+            # break
+        self.avg_grads = ReadOnlyTensorDict(avg_grads)
+
+    def sag_hook(self, grad: T, param_idx: int, scrapl: AdaptiveSCRAPLLoss) -> T:
+        if not self.training:
+            log.warning("sag_hook called during eval")
+            return grad
+
+        path_idx = scrapl.curr_path_idx
+        # path_idx = 250
+        n_paths = scrapl.n_paths
+        avg_grad = self.avg_grads[param_idx]
+        # log.info(f"grad.max()      {grad.max()}")
+        # log.info(f"avg_grad.max()  {avg_grad.max()}")
+        prev_grads = self.sag_grads[param_idx]
+
+        if path_idx in prev_grads:
+            prev_grad = prev_grads[path_idx].to(avg_grad.device)
+            # log.info(f"prev_grad.max() {prev_grad.max()}")
+            avg_grad -= prev_grad
+            # log.info(f"after sub avg_grad.max()  {avg_grad.max()}")
+
+        avg_grad += grad
+        # log.info(f"after add avg_grad.max() {avg_grad.max()}")
+        # prev_grads[path_idx] = grad.detach().cpu()
+        prev_grads[path_idx] = grad.detach()
+        grad = avg_grad / n_paths
+        # log.info(f"return grad.max()      {grad.max()}")
+        # log.info(f"return avg_grad.max()  {avg_grad.max()}")
+        return grad
+
     def on_train_start(self) -> None:
         self.global_n = 0
 
@@ -84,21 +122,21 @@ class SCRAPLLightingModule(pl.LightningModule):
         else:
             raise NotImplementedError
 
-    def sag_hook(
-        self,
-        grad: T,
-        batch_indices: T,
-        path_idx: int,
-        path_grads: T,
-        decay_val: float = 1.0,
-    ) -> T:
-        assert path_idx is not None
-        if decay_val != 1.0:
-            path_grads.mul_(decay_val)
-        path_grads[batch_indices, path_idx, ...] = grad
-        grad = path_grads[batch_indices, ...]
-        grad = tr.mean(grad, dim=1)
-        return grad
+    # def sag_hook(
+    #     self,
+    #     grad: T,
+    #     batch_indices: T,
+    #     path_idx: int,
+    #     path_grads: T,
+    #     decay_val: float = 1.0,
+    # ) -> T:
+    #     assert path_idx is not None
+    #     if decay_val != 1.0:
+    #         path_grads.mul_(decay_val)
+    #     path_grads[batch_indices, path_idx, ...] = grad
+    #     grad = path_grads[batch_indices, ...]
+    #     grad = tr.mean(grad, dim=1)
+    #     return grad
 
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         theta_density, theta_slope, seed, batch_indices = batch
