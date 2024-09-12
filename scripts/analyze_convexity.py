@@ -196,6 +196,8 @@ if __name__ == "__main__":
         # entropy = entropy.sum()
         # entropy = entropy / tr.log(tr.tensor(n))
         # sim = entropy.item()
+        # sim = d_grad.abs().mean().item()
+        sim = s_grad.abs().mean().item()
 
         d_grad = d_grad.mean(dim=0)
         s_grad = s_grad.mean(dim=0)
@@ -210,7 +212,7 @@ if __name__ == "__main__":
         # grad = grad / grad.norm(dim=-1).max()
         # sim = estimate_lipschitz_constant(grad)
 
-        sim = measure_convexity(grad)
+        # sim = measure_convexity(grad)
 
         # grad_d = grad.clone()
         # grad_d[:, :, 1] = 0
@@ -241,7 +243,7 @@ if __name__ == "__main__":
 
     grads = sorted(grads, key=lambda x: x[1])
     for idx, (path_idx, sim, _) in enumerate(grads):
-        log.info(f"{idx:3} Path {path_idx} has similarity {sim:.6f}")
+        log.info(f"{idx:3} Path {path_idx} has similarity {sim:.2e}")
 
     for path_idx, sim, grad in grads[1:1]:
         # for path_idx, sim, grad in grads[:10]:

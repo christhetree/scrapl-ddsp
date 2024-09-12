@@ -6,17 +6,13 @@ custom:
 #  model_name: cnn__ploss
 #  model_name: cnn__mss
 #  model_name: cnn__jtfst
-  model_name: scrapl_sag
-#  model_name: scrapl_sag_sgd_1e-4_0.9
-#  model_name: scrapl_convex_4x_v2
-#  model_name: scrapl_entropy_4x_v2
-#  model_name: scrapl_lc_4x_v2
-#  model_name: scrapl_lc_mean_4x_v2
+#  model_name: scrapl_adamw_1e-4_1e-2
+  model_name: scrapl_sag_m_sgd_1e-4_0_1e-2
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
 #  dataset_name: chirp_32_32_micro_rand
-#  dataset_name: chirp_32_32_meso
-  dataset_name: chirp_32_32_meso_rand
+  dataset_name: chirp_32_32_meso
+#  dataset_name: chirp_32_32_meso_rand
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: true
@@ -24,7 +20,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [4]
+  devices: [2]
 #  max_epochs: 40
   max_epochs: 400
   num_sanity_val_steps: 0
@@ -55,12 +51,16 @@ model:
 #    loss_func: ../configs/losses/scrapl_dtfa.yml
     loss_func: ../configs/losses/scrapl_adaptive.yml
 #    loss_func: ../configs/losses/rand_mss.yml
+
+    use_sag: true
+#    use_sag: false
+
     use_p_loss: false
 #    use_p_loss: true
 #    loss_func: torch.nn.MSELoss
 
-#    use_rand_seed: false
-    use_rand_seed: true
+    use_rand_seed: false
+#    use_rand_seed: true
 #    use_rand_seed_hat: false
     use_rand_seed_hat: true
     feature_type: cqt
@@ -71,5 +71,6 @@ model:
     log_val_grads: true
 
 #optimizer: ../configs/opt/adam_w.yml
-#optimizer: ../configs/opt/sgd.yml
-optimizer: ../configs/opt/sf_adam_w.yml
+optimizer: ../configs/opt/sgd.yml
+#optimizer: ../configs/opt/sf_adam_w.yml
+#optimizer: ../configs/opt/sf_sgd.yml
