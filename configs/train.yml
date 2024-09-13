@@ -6,13 +6,12 @@ custom:
 #  model_name: cnn__ploss
 #  model_name: cnn__mss
 #  model_name: cnn__jtfst
-#  model_name: scrapl_adamw_1e-4_1e-2
-  model_name: scrapl_sag_m_sgd_1e-4_0_1e-2
+#  model_name: scrapl_adamw_1e-5_1e-2
+#  model_name: scrapl_sag_m_adamw_1e-5_1e-2
+  model_name: scrapl_sag_m_sgd_1e-5_0_1e-2
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
-#  dataset_name: chirp_32_32_micro_rand
-  dataset_name: chirp_32_32_meso
-#  dataset_name: chirp_32_32_meso_rand
+  dataset_name: chirp_32_32_meso_unique2
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: true
@@ -37,8 +36,13 @@ data:
 #    n_densities: 3
     n_slopes: 32
 #    n_slopes: 3
-    n_seeds_per_fold: 1
+    n_seeds_per_theta: 5
+#    n_seeds_per_theta: 1
     n_folds: 5
+    use_unique_seeds: true
+#    use_unique_seeds: false
+    use_unique_theta_in_val_test: true
+#    use_unique_theta_in_val_test: false
 
 model:
   class_path: experiments.lightning.SCRAPLLightingModule
@@ -59,10 +63,14 @@ model:
 #    use_p_loss: true
 #    loss_func: torch.nn.MSELoss
 
-    use_rand_seed: false
-#    use_rand_seed: true
+    use_train_rand_seed: false
+#    use_train_rand_seed: true
+    use_val_rand_seed: false
+#    use_val_rand_seed: true
+
 #    use_rand_seed_hat: false
     use_rand_seed_hat: true
+
     feature_type: cqt
     J_cqt: 5
     cqt_eps: 1e-3

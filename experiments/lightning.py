@@ -29,7 +29,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         loss_func: nn.Module,
         use_sag: bool = False,
         use_p_loss: bool = False,
-        use_rand_seed: bool = False,
+        use_train_rand_seed: bool = False,
+        use_val_rand_seed: bool = False,
         use_rand_seed_hat: bool = False,
         feature_type: str = "cqt",
         J_cqt: int = 5,
@@ -45,7 +46,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.loss_func = loss_func
         self.use_sag = use_sag
         self.use_p_loss = use_p_loss
-        self.use_rand_seed = use_rand_seed
+        self.use_train_rand_seed = use_train_rand_seed
+        self.use_val_rand_seed = use_val_rand_seed
         self.use_rand_seed_hat = use_rand_seed_hat
         self.J_cqt = J_cqt
         self.feature_type = feature_type
@@ -142,7 +144,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         prev_v_s[path_idx] = v
 
         # SAG algorithm
-        n_paths = scrapl.n_paths
         avg_grad = self.avg_grads[param_idx]
         # log.info(f"grad.max()      {grad.max()}")
         # log.info(f"avg_grad.max()  {avg_grad.max()}")
@@ -210,13 +211,14 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         # TODO(cm): make this cleaner
         seed_range = 9999999
-        if self.use_rand_seed:
+        if stage == "train" and self.use_train_rand_seed:
+            seed = tr.randint_like(seed, low=0, high=seed_range)
+        elif stage == "val" and self.use_val_rand_seed:
             seed = tr.randint_like(seed, low=0, high=seed_range)
         seed_hat = seed
         if self.use_rand_seed_hat:
-            max_seed = max(seed_range, seed.max())
             seed_hat = tr.randint_like(
-                seed, low=max_seed + 1, high=max_seed + seed_range
+                seed, low=seed_range, high=2 * seed_range
             )
 
         with tr.no_grad():

@@ -21,21 +21,35 @@ class ChirpTextureDataModule(pl.LightningDataModule):
         batch_size: int,
         n_densities: int,
         n_slopes: int,
-        n_seeds_per_fold: int,
-        n_folds: int,
+        n_seeds_per_theta: int = 1,
+        n_folds: int = 5,
+        use_unique_seeds: bool = True,
+        use_unique_theta_in_val_test: bool = True,
         num_workers: int = 0,
     ):
         super().__init__()
         self.batch_size = batch_size
         self.n_densities = n_densities
         self.n_slopes = n_slopes
-        self.n_seeds_per_fold = n_seeds_per_fold
+        self.n_seeds_per_theta = n_seeds_per_theta
+        assert n_folds >= 3, "n_folds must be at least 3."
         self.n_folds = n_folds
+        if use_unique_seeds:
+            log.info(f"Using a unique seed for each theta combination.")
+        self.use_unique_seeds = use_unique_seeds
+        if use_unique_theta_in_val_test:
+            log.info(
+                f"Theta combinations are unique in validation and test sets."
+            )
+        self.use_unique_theta_in_val_test = use_unique_theta_in_val_test
         self.num_workers = num_workers
 
         slope_idx = np.arange(n_slopes)
         density_idx = np.arange(n_densities)
-        seeds = np.arange(n_seeds_per_fold * n_folds)
+        if use_unique_theta_in_val_test:
+            seeds = np.arange(n_seeds_per_theta)
+        else:
+            seeds = np.arange(n_seeds_per_theta * n_folds)
 
         theta_idx = list(itertools.product(density_idx, slope_idx, seeds))
         df_idx = pd.DataFrame(theta_idx, columns=["density_idx", "slope_idx", "seed"])
@@ -48,6 +62,19 @@ class ChirpTextureDataModule(pl.LightningDataModule):
 
         folds = df["seed"] % n_folds
         df["fold"] = folds
+
+        # Replace seeds with unique values for each theta combination if requested
+        if use_unique_seeds:
+            seeds = np.arange(len(df))
+            df["seed"] = seeds
+
+        # Ensure unseen theta combinations in validation and test sets if requested
+        if use_unique_theta_in_val_test:
+            df["unique_theta_idx"] = df["density_idx"] * n_slopes + df["slope_idx"]
+            folds = df["unique_theta_idx"] % n_folds
+            df["fold"] = folds
+            del df["unique_theta_idx"]
+
         # Shuffle such that batches in validation and test contain a variety of
         # different theta values. This makes the visualization callbacks more diverse.
         df = df.sample(frac=1, random_state=tr.random.initial_seed()).reset_index(
