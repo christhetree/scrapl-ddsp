@@ -28,6 +28,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         synth: ChirpTextureSynth,
         loss_func: nn.Module,
         use_sag: bool = False,
+        sag_beta: float = 0.99,
         use_p_loss: bool = False,
         use_train_rand_seed: bool = False,
         use_val_rand_seed: bool = False,
@@ -45,6 +46,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.synth = synth
         self.loss_func = loss_func
         self.use_sag = use_sag
+        self.sag_beta = sag_beta
         self.use_p_loss = use_p_loss
         self.use_train_rand_seed = use_train_rand_seed
         self.use_val_rand_seed = use_val_rand_seed
@@ -80,23 +82,31 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.s_grads = defaultdict(list)
 
         if self.use_sag:
-            log.info("Using SAG")
-            avg_grads = {}
-            self.sag_grads = defaultdict(lambda: {})
+            log.info(f"Using SAG with decay {self.sag_beta}")
+            n_paths = self.loss_func.n_paths
+            self.paths_seen = set()
+            prev_path_grads = {}
             for idx, p in enumerate(self.parameters()):
-                avg_grads[idx] = tr.zeros_like(p)
+                prev_path_grads[idx] = tr.zeros((n_paths, *p.shape))
                 p.register_hook(
                     functools.partial(
                         self.sag_hook, param_idx=idx, scrapl=self.loss_func
                     )
                 )
                 # break
-            self.avg_grads = ReadOnlyTensorDict(avg_grads)
+            self.prev_path_grads = ReadOnlyTensorDict(prev_path_grads)
             self.sag_m = defaultdict(lambda: {})
             self.sag_v = defaultdict(lambda: {})
+            self.sag_t = defaultdict(lambda: {})
+
+            paths_beta = self.sag_beta
+            # importance_after_n_path_steps = 0.05
+            # paths_beta = importance_after_n_path_steps ** (1 / n_paths)
+            # log.info(f"paths_beta: {paths_beta}")
+            self.register_buffer("path_betas", tr.full((n_paths,), paths_beta))
 
     @staticmethod
-    def adam_grad_normalization(
+    def adam_grad_norm(
         grad: T,
         prev_m: T,
         prev_v: T,
@@ -113,6 +123,31 @@ class SCRAPLLightingModule(pl.LightningModule):
         grad_hat = m_hat / (tr.sqrt(v_hat) + eps)
         return grad_hat, m, v
 
+    @staticmethod
+    def adam_grad_norm_cont(
+        grad: T,
+        prev_m: T,
+        prev_v: T,
+        t: float,
+        prev_t: float,
+        b1: float = 0.9,
+        b2: float = 0.999,
+        eps: float = 1e-8,
+    ) -> (T, T, T):
+        # grad *= 1e8
+        assert t > prev_t >= 0.0
+        delta_t = t - prev_t
+        eff_b1 = b1**delta_t
+        eff_b2 = b2**delta_t
+        m = eff_b1 * prev_m + (1 - eff_b1) * grad
+        v = eff_b2 * prev_v + (1 - eff_b2) * grad**2
+        m_hat = m / (1 - b1**t)
+        v_hat = v / (1 - b2**t)
+        grad_hat = m_hat / (T.sqrt(v_hat) + eps)
+        # log.info(f"grad_hat.abs().mean() {grad_hat.abs().mean()}")
+        # log.info(f"grad_hat.abs().std() {grad_hat.abs().std()}")
+        return grad_hat, m, v
+
     def sag_hook(self, grad: T, param_idx: int, scrapl: AdaptiveSCRAPLLoss) -> T:
         if not self.training:
             log.warning("sag_hook called during eval")
@@ -120,59 +155,44 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         path_idx = scrapl.curr_path_idx
         # path_idx = 250
+        self.paths_seen.add(path_idx)
+        n_paths = scrapl.n_paths
+        curr_t = self.global_step + 1
 
         # Adam grad normalization
         prev_m_s = self.sag_m[param_idx]
         prev_v_s = self.sag_v[param_idx]
+        prev_t_norms = self.sag_t[param_idx]
         if path_idx in prev_m_s:
             prev_m = prev_m_s[path_idx]
         else:
             prev_m = tr.zeros_like(grad)
-        # log.info(f"prev_m.max() {prev_m.max()}")
         if path_idx in prev_v_s:
             prev_v = prev_v_s[path_idx]
         else:
             prev_v = tr.zeros_like(grad)
-        # log.info(f"prev_v.max() {prev_v.max()}")
-        t = self.global_step + 1
-        grad, m, v = self.adam_grad_normalization(grad, prev_m, prev_v, t)
-        # log.info(f"grad.mean() {grad.mean()}")
-        # log.info(f"grad.std() {grad.std()}")
-        # log.info(f"m.max() {m.max()}")
-        # log.info(f"v.max() {v.max()}")
+        if path_idx in prev_t_norms:
+            prev_t_norm = prev_t_norms[path_idx]
+        else:
+            prev_t_norm = 0.0
+        t_norm = curr_t / n_paths
+
+        grad, m, v = self.adam_grad_norm_cont(grad, prev_m, prev_v, t_norm, prev_t_norm)
         prev_m_s[path_idx] = m
         prev_v_s[path_idx] = v
+        prev_t_norms[path_idx] = t_norm
 
         # SAG algorithm
-        avg_grad = self.avg_grads[param_idx]
-        # log.info(f"grad.max()      {grad.max()}")
-        # log.info(f"avg_grad.max()  {avg_grad.max()}")
-        prev_path_grads = self.sag_grads[param_idx]
-        # if prev_path_grads:
-        #     pp_means = [f"{v.abs().mean().item():.0e}" for v in prev_path_grads.values()]
-        #     pp_stds = [f"{v.abs().std().item():.0e}" for v in prev_path_grads.values()]
-        #     log.info(f"\npp_means: {pp_means}")
-        #     log.info(f"\npp_stds : {pp_stds}")
-
-        if path_idx in prev_path_grads:
-            # prev_grad = prev_path_grads[path_idx].to(avg_grad.device)
-            prev_grad = prev_path_grads[path_idx]
-            # log.info(f"prev_grad.max() {prev_grad.max()}")
-            avg_grad -= prev_grad
-            # log.info(f"after sub avg_grad.max()  {avg_grad.max()}")
-
-        avg_grad += grad
-        # log.info(f"after add avg_grad.max() {avg_grad.max()}")
-        # prev_path_grads[path_idx] = grad.detach().cpu()
-        prev_path_grads[path_idx] = grad.detach()
-
-        n_paths_seen = len(prev_path_grads)
-        # log.info(f"n_paths_seen {n_paths_seen}")
-        # grad = avg_grad / n_paths
-        grad = avg_grad / n_paths_seen
-        # log.info(f"return grad.max()      {grad.max()}")
-        # log.info(f"return avg_grad.max()  {avg_grad.max()}")
-        return grad
+        # Get prev path grads
+        prev_path_grads = self.prev_path_grads[param_idx]
+        # Apply decay
+        betas = self.path_betas.view(-1, *([1] * grad.ndim))
+        prev_path_grads *= betas
+        # Update current path grad
+        prev_path_grads[path_idx, ...] = grad
+        n_paths_seen = len(self.paths_seen)
+        avg_grad = prev_path_grads.sum(dim=0) / n_paths_seen
+        return avg_grad
 
     def on_train_start(self) -> None:
         self.global_n = 0
@@ -217,9 +237,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             seed = tr.randint_like(seed, low=0, high=seed_range)
         seed_hat = seed
         if self.use_rand_seed_hat:
-            seed_hat = tr.randint_like(
-                seed, low=seed_range, high=2 * seed_range
-            )
+            seed_hat = tr.randint_like(seed, low=seed_range, high=2 * seed_range)
 
         with tr.no_grad():
             x = make_x_from_theta(self.synth, theta_density, theta_slope, seed)
@@ -254,8 +272,9 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         self.log(f"{stage}/l1_d", density_mae, prog_bar=True, sync_dist=True)
         self.log(f"{stage}/l1_s", slope_mae, prog_bar=True, sync_dist=True)
-        mean_mae = (density_mae + slope_mae) / 2
-        self.log(f"{stage}/l1_mean", mean_mae, prog_bar=True, sync_dist=True)
+        # Slope has twice the range of density so we normalize it first before averaging
+        theta_mae = (density_mae + (slope_mae / 2)) / 2
+        self.log(f"{stage}/l1_theta", theta_mae, prog_bar=True, sync_dist=True)
         self.log(f"{stage}/loss", loss, prog_bar=False, sync_dist=True)
 
         with tr.no_grad():
