@@ -27,8 +27,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         model: nn.Module,
         synth: ChirpTextureSynth,
         loss_func: nn.Module,
-        use_sag: bool = False,
-        sag_beta: float = 0.99,
+        vr_algo: Optional[str] = None,
+        vr_beta: float = 0.99,
         use_p_loss: bool = False,
         use_train_rand_seed: bool = False,
         use_val_rand_seed: bool = False,
@@ -45,8 +45,13 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.model = model
         self.synth = synth
         self.loss_func = loss_func
-        self.use_sag = use_sag
-        self.sag_beta = sag_beta
+        if vr_algo is not None:
+            assert vr_algo in ["sag", "saga", "none"]
+            if vr_algo == "none":
+                vr_algo = None
+            assert isinstance(loss_func, AdaptiveSCRAPLLoss)
+        self.vr_algo = vr_algo
+        self.vr_beta = vr_beta
         self.use_p_loss = use_p_loss
         self.use_train_rand_seed = use_train_rand_seed
         self.use_val_rand_seed = use_val_rand_seed
@@ -81,8 +86,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.d_grads = defaultdict(list)
         self.s_grads = defaultdict(list)
 
-        if self.use_sag:
-            log.info(f"Using SAG with decay {self.sag_beta}")
+        if self.vr_algo is not None:
+            log.info(f"Using {self.vr_algo.upper()} with decay {self.vr_beta}")
             n_paths = self.loss_func.n_paths
             self.paths_seen = set()
             prev_path_grads = {}
@@ -99,7 +104,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.sag_v = defaultdict(lambda: {})
             self.sag_t = defaultdict(lambda: {})
 
-            paths_beta = self.sag_beta
+            paths_beta = self.vr_beta
             # importance_after_n_path_steps = 0.05
             # paths_beta = importance_after_n_path_steps ** (1 / n_paths)
             # log.info(f"paths_beta: {paths_beta}")
@@ -182,17 +187,33 @@ class SCRAPLLightingModule(pl.LightningModule):
         prev_v_s[path_idx] = v
         prev_t_norms[path_idx] = t_norm
 
-        # SAG algorithm
+        # VR algorithms
         # Get prev path grads
         prev_path_grads = self.prev_path_grads[param_idx]
         # Apply decay
         betas = self.path_betas.view(-1, *([1] * grad.ndim))
         prev_path_grads *= betas
-        # Update current path grad
-        prev_path_grads[path_idx, ...] = grad
+        # Get number of paths seen
         n_paths_seen = len(self.paths_seen)
-        avg_grad = prev_path_grads.sum(dim=0) / n_paths_seen
-        return avg_grad
+
+        if self.vr_algo == "sag":
+            # Update current path grad
+            prev_path_grads[path_idx, ...] = grad
+            # Calculate SAG grad
+            sag_grad = prev_path_grads.sum(dim=0) / n_paths_seen
+            return sag_grad
+        elif self.vr_algo == "saga":
+            # Get prev path grad
+            prev_path_grad = prev_path_grads[path_idx]
+            # Calculate previous average grad
+            prev_avg_grad = prev_path_grads.sum(dim=0) / max(1, n_paths_seen - 1)
+            # Calculate SAGA grad
+            saga_grad = grad - prev_path_grad + prev_avg_grad
+            # Update current path grad
+            prev_path_grads[path_idx, ...] = grad
+            return saga_grad
+        else:
+            raise ValueError(f"Unknown VR algorithm: {self.vr_algo}")
 
     def on_train_start(self) -> None:
         self.global_n = 0
