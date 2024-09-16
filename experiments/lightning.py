@@ -13,6 +13,7 @@ from torch import Tensor as T
 from torch import nn
 
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss
+from experiments.paths import OUT_DIR
 from experiments.synth import ChirpTextureSynth, make_x_from_theta
 from experiments.util import ReadOnlyTensorDict
 
@@ -95,7 +96,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                 prev_path_grads[idx] = tr.zeros((n_paths, *p.shape))
                 p.register_hook(
                     functools.partial(
-                        self.sag_hook, param_idx=idx, scrapl=self.loss_func
+                        self.vr_hook, param_idx=idx, scrapl=self.loss_func
                     )
                 )
                 # break
@@ -153,9 +154,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         # log.info(f"grad_hat.abs().std() {grad_hat.abs().std()}")
         return grad_hat, m, v
 
-    def sag_hook(self, grad: T, param_idx: int, scrapl: AdaptiveSCRAPLLoss) -> T:
+    def vr_hook(self, grad: T, param_idx: int, scrapl: AdaptiveSCRAPLLoss) -> T:
         if not self.training:
-            log.warning("sag_hook called during eval")
+            log.warning("vr_hook called during eval")
             return grad
 
         path_idx = scrapl.curr_path_idx
@@ -164,10 +165,22 @@ class SCRAPLLightingModule(pl.LightningModule):
         n_paths = scrapl.n_paths
         curr_t = self.global_step + 1
 
-        # Adam grad normalization
+        # save_path = os.path.join(
+        #     OUT_DIR, f"{self.run_name}_weight_{param_idx}_{curr_t}_{path_idx}.pt"
+        # )
+        # weight = list(self.parameters())[param_idx]
+        # assert weight.shape == grad.shape
+        # tr.save(weight, save_path)
+        #
+        # save_path = os.path.join(
+        #     OUT_DIR, f"{self.run_name}_grad_{param_idx}_{curr_t}_{path_idx}.pt"
+        # )
+        # tr.save(grad, save_path)
+
+        # Adam grad continuous normalization
         prev_m_s = self.sag_m[param_idx]
         prev_v_s = self.sag_v[param_idx]
-        prev_t_norms = self.sag_t[param_idx]
+        prev_t_s = self.sag_t[param_idx]
         if path_idx in prev_m_s:
             prev_m = prev_m_s[path_idx]
         else:
@@ -176,23 +189,33 @@ class SCRAPLLightingModule(pl.LightningModule):
             prev_v = prev_v_s[path_idx]
         else:
             prev_v = tr.zeros_like(grad)
-        if path_idx in prev_t_norms:
-            prev_t_norm = prev_t_norms[path_idx]
+        if path_idx in prev_t_s:
+            prev_t = prev_t_s[path_idx]
         else:
-            prev_t_norm = 0.0
+            prev_t = 0
+        prev_t_norm = prev_t / n_paths
         t_norm = curr_t / n_paths
 
         grad, m, v = self.adam_grad_norm_cont(grad, prev_m, prev_v, t_norm, prev_t_norm)
         prev_m_s[path_idx] = m
         prev_v_s[path_idx] = v
-        prev_t_norms[path_idx] = t_norm
+        prev_t_s[path_idx] = curr_t
+
+        # save_path = os.path.join(
+        #     OUT_DIR, f"{self.run_name}_grad_norm_{param_idx}_{curr_t}_{path_idx}.pt"
+        # )
+        # tr.save(grad, save_path)
+
+        # Convert grad to just 1 or -1
+        # grad = tr.sign(grad)
 
         # VR algorithms
         # Get prev path grads
         prev_path_grads = self.prev_path_grads[param_idx]
         # Apply decay
-        betas = self.path_betas.view(-1, *([1] * grad.ndim))
-        prev_path_grads *= betas
+        if self.vr_beta != 1.0:
+            betas = self.path_betas.view(-1, *([1] * grad.ndim))
+            prev_path_grads *= betas
         # Get number of paths seen
         n_paths_seen = len(self.paths_seen)
 
@@ -203,10 +226,14 @@ class SCRAPLLightingModule(pl.LightningModule):
             sag_grad = prev_path_grads.sum(dim=0) / n_paths_seen
             return sag_grad
         elif self.vr_algo == "saga":
-            # Get prev path grad
-            prev_path_grad = prev_path_grads[path_idx]
             # Calculate previous average grad
             prev_avg_grad = prev_path_grads.sum(dim=0) / max(1, n_paths_seen - 1)
+            # Get prev path grad
+            prev_path_grad = prev_path_grads[path_idx, ...]
+            if self.vr_beta != 1.0 and prev_t > 0:
+                # Undo decay
+                delta_t = curr_t - prev_t
+                prev_path_grad /= self.vr_beta**delta_t
             # Calculate SAGA grad
             saga_grad = grad - prev_path_grad + prev_avg_grad
             # Update current path grad
