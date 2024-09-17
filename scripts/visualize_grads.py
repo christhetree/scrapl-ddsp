@@ -10,6 +10,7 @@ import torch as tr
 import yaml
 from matplotlib import pyplot as plt
 from torch import Tensor as T
+from tqdm import tqdm
 
 from experiments.losses import AdaptiveSCRAPLLoss
 from experiments.paths import OUT_DIR, CONFIGS_DIR
@@ -168,10 +169,10 @@ def process_path_dict(
     n_bins: int = 100,
     min_val: Optional[float] = None,
     agg_func: Callable[[List[float]], float] = np.mean,
-    plt_path_counts: bool = False,
+    plt_path_counts: bool = True,
     plt_vals: bool = False,
-    plt_dist: bool = False,
-    plt_probs: bool = True,
+    plt_dist: bool = True,
+    plt_probs: bool = False,
     plt_log: bool = False,
 ) -> T:
     # vals = list(itertools.chain(*data.values()))
@@ -230,7 +231,8 @@ def process_path_dict(
     log.info(f"log_probs.max() = {log_probs.max():.6f}")
 
     if plt_dist:
-        plt.plot(dist.numpy())
+        # plt.plot(dist.numpy())
+        plt.bar(range(dist.size(0)), dist.numpy())
         plt.title(f"{name} dist")
         plt.show()
         if plt_log:
@@ -260,12 +262,10 @@ if __name__ == "__main__":
     meta = scrapl.jtfs.meta()
 
     dir_path = OUT_DIR
-    names = [
-        "data_meso_t50"
-    ]
+    names = ["data_meso_w_p15"]
     # seg_axes = ["J2", "J_fr", "spin", "orders"]
-    seg_axes = []
-    # seg_axes = ["J2"]
+    # seg_axes = []
+    seg_axes = ["J2"]
     # seg_axes = ["J_fr"]
     # seg_axes = ["spin"]
     # seg_axes = ["orders"]
@@ -274,19 +274,28 @@ if __name__ == "__main__":
     for name in names:
         data_path = os.path.join(dir_path, name)
 
-        # dir = data_path
-        # paths = [
-        #     os.path.join(dir, f)
-        #     for f in os.listdir(dir)
-        #     if f.endswith(".pt") and f.startswith("dgm")
-        # ]
-        # data = defaultdict(list)
-        # for path in paths:
-        #     path_idx = int(path.split("__")[-1].split(".")[0][1:])
-        #     grads = tr.load(path).abs().view(-1).tolist()
-        #     data[path_idx].extend(grads)
+        dir = data_path
+        paths = [
+            os.path.join(dir, f)
+            for f in tqdm(os.listdir(dir))
+            if f.endswith(".pt")
+            # and f.startswith("sag_b0.99_sgd_1e-4_cont_t_lrs99_grad_norm_2_")
+            # and f.startswith("sag_b0.99_sgd_1e-4_cont_t_lrs99_grad_15")
+            # and f.startswith("sag_b0.99_sgd_1e-4_cont_t_lrs99_grad_norm_3_")
+            # and f.startswith("sag_b0.99_sgd_1e-4_cont_t_lrs99_grad_norm_12")
+            # and f.startswith("sag_b0.99_sgd_1e-4_cont_t_lrs99_p15_grad_norm")
+            # and f.startswith("sag_b0.99_sgd_1e-4_cont_t_1e8_lrs99_p15_grad_15")
+            and f.startswith("sag_b0.99_sgd_1e-4_cont_t_1e8_lrs99_p15_grad_norm")
+        ]
+        log.info(f"n_files = {len(paths)}")
+        data = defaultdict(list)
+        for path in tqdm(paths):
+            path_idx = int(path.split("_")[-1].split(".")[0])
+            grads = tr.load(path, map_location=tr.device("cpu"))
+            grads = grads.abs().view(-1).tolist()
+            data[path_idx].extend(grads)
 
-        data = yaml.safe_load(open(data_path, "r"))
+        # data = yaml.safe_load(open(data_path, "r"))
         probs = process_path_dict(data, name)
         probs_all.append(probs)
 

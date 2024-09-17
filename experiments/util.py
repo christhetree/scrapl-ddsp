@@ -147,22 +147,22 @@ def limited_softmax(logits: T, tau: float = 1.0, max_prob: float = 1.0) -> T:
     return lim_probs
 
 
-def target_softmax(
-    logits: T, max_prob: float = 1.0, eps: float = 1e-6, max_iter: int = 10000
+def target_range_softmax(
+    logits: T, target_range: float, eps: float = 1e-6, max_iter: int = 10000
 ) -> T:
     assert logits.ndim == 1
+    assert 0.0 < target_range < 1.0
     n_classes = logits.size(-1)
     min_max_prob = 1.0 / n_classes
-    assert min_max_prob < max_prob <= 1.0
+    assert min_max_prob < target_range <= 1.0
     curr_tau = 1.0
     probs = stable_softmax(logits, curr_tau)
     idx = 0
     for idx in range(max_iter):
         curr_min_prob = probs.min().item()
         curr_max_prob = probs.max().item()
-        # delta = curr_max_prob - max_prob
         curr_range = curr_max_prob - curr_min_prob
-        delta = curr_range - max_prob
+        delta = curr_range - target_range
         if abs(delta) < eps:
             break
         elif delta < 0:

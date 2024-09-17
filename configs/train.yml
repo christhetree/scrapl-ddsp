@@ -7,9 +7,9 @@ custom:
 #  model_name: cnn__mss
 #  model_name: cnn__jtfst
 #  model_name: scrapl_adamw_1e-4_b0.99_lrs99
+  model_name: scrapl_sag_sgd_1e-5_cont_t_1e8
+#  model_name: scrapl_saga_sgd_1e-5_cont_t_1e8
 #  model_name: scrapl_sag_b0.99_sgd_1e-4_cont_t_lrs99
-#  model_name: scrapl_saga_sgd_5e-5_cont_t_lrs99
-  model_name: scrapl_saga_b0.99_sgd_1e-4_cont_t_lrs99
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
   dataset_name: chirp_32_32_meso_unique2
@@ -20,8 +20,8 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [5]
-#  max_epochs: 30
+  devices: [4]
+#  max_epochs: 200
   max_epochs: 400
   num_sanity_val_steps: 0
   accumulate_grad_batches: 1
@@ -58,10 +58,10 @@ model:
 #    loss_func: ../configs/losses/rand_mss.yml
 
 #    vr_algo: null
-#    vr_algo: sag
-    vr_algo: saga
-    vr_beta: 0.99
-#    vr_beta: 1.00
+    vr_algo: sag
+#    vr_algo: saga
+#    vr_beta: 0.99
+    vr_beta: 1.00
 
     use_p_loss: false
 #    use_p_loss: true
@@ -82,11 +82,11 @@ model:
     log_x_hat: true
     log_val_grads: true
 
-#    run_name: sag_b0.99_sgd_1e-4_cont_t_lrs99
+#    run_name: sag_b0.99_sgd_1e-4_cont_t_lrs99_p15
 
 #optimizer: ../configs/opt/adam_w.yml
 optimizer: ../configs/opt/sgd.yml
 #optimizer: ../configs/opt/sf_adam_w.yml
 #optimizer: ../configs/opt/sf_sgd.yml
 
-lr_scheduler: ../configs/opt/exp_scheduler.yml
+#lr_scheduler: ../configs/opt/exp_scheduler.yml

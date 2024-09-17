@@ -3,8 +3,7 @@ import logging
 import os
 from collections import defaultdict
 from datetime import datetime
-from functools import partial
-from typing import Dict, Optional, List
+from typing import Dict, Optional
 
 import pytorch_lightning as pl
 import torch as tr
@@ -13,7 +12,6 @@ from torch import Tensor as T
 from torch import nn
 
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss
-from experiments.paths import OUT_DIR
 from experiments.synth import ChirpTextureSynth, make_x_from_theta
 from experiments.util import ReadOnlyTensorDict
 
@@ -84,9 +82,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.l1 = nn.L1Loss()
         self.global_n = 0
 
-        self.d_grads = defaultdict(list)
-        self.s_grads = defaultdict(list)
-
+        # TODO(cm): add hook for ADAM grad *= 1e8 for fair comparison
         if self.vr_algo is not None:
             log.info(f"Using {self.vr_algo.upper()} with decay {self.vr_beta}")
             n_paths = self.loss_func.n_paths
@@ -140,7 +136,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         b2: float = 0.999,
         eps: float = 1e-8,
     ) -> (T, T, T):
-        # grad *= 1e8
+        grad *= 1e8  # TODO(cm): parameterize this
         assert t > prev_t >= 0.0
         delta_t = t - prev_t
         eff_b1 = b1**delta_t
@@ -165,17 +161,18 @@ class SCRAPLLightingModule(pl.LightningModule):
         n_paths = scrapl.n_paths
         curr_t = self.global_step + 1
 
-        # save_path = os.path.join(
-        #     OUT_DIR, f"{self.run_name}_weight_{param_idx}_{curr_t}_{path_idx}.pt"
-        # )
-        # weight = list(self.parameters())[param_idx]
-        # assert weight.shape == grad.shape
-        # tr.save(weight, save_path)
+        # if param_idx == 15:
+        #     save_path = os.path.join(
+        #         OUT_DIR, f"{self.run_name}_weight_{param_idx}_{curr_t}_{path_idx}.pt"
+        #     )
+        #     weight = list(self.parameters())[param_idx]
+        #     assert weight.shape == grad.shape
+        #     tr.save(weight.detach().cpu(), save_path)
         #
-        # save_path = os.path.join(
-        #     OUT_DIR, f"{self.run_name}_grad_{param_idx}_{curr_t}_{path_idx}.pt"
-        # )
-        # tr.save(grad, save_path)
+        #     save_path = os.path.join(
+        #         OUT_DIR, f"{self.run_name}_grad_{param_idx}_{curr_t}_{path_idx}.pt"
+        #     )
+        #     tr.save(grad.detach().cpu(), save_path)
 
         # Adam grad continuous normalization
         prev_m_s = self.sag_m[param_idx]
@@ -201,10 +198,11 @@ class SCRAPLLightingModule(pl.LightningModule):
         prev_v_s[path_idx] = v
         prev_t_s[path_idx] = curr_t
 
-        # save_path = os.path.join(
-        #     OUT_DIR, f"{self.run_name}_grad_norm_{param_idx}_{curr_t}_{path_idx}.pt"
-        # )
-        # tr.save(grad, save_path)
+        # if param_idx == 15:
+        #     save_path = os.path.join(
+        #         OUT_DIR, f"{self.run_name}_grad_norm_{param_idx}_{curr_t}_{path_idx}.pt"
+        #     )
+        #     tr.save(grad.detach().cpu(), save_path)
 
         # Convert grad to just 1 or -1
         # grad = tr.sign(grad)
@@ -366,22 +364,6 @@ class SCRAPLLightingModule(pl.LightningModule):
             "seed": seed,
             "seed_hat": seed_hat,
         }
-
-        if stage == "train":
-            theta_density_hat.register_hook(
-                partial(
-                    self.save_grad,
-                    path_idx=self.loss_func.curr_path_idx,
-                    idx_to_grads=self.d_grads,
-                )
-            )
-            theta_slope_hat.register_hook(
-                partial(
-                    self.save_grad,
-                    path_idx=self.loss_func.curr_path_idx,
-                    idx_to_grads=self.s_grads,
-                )
-            )
         return out_dict
 
     def training_step(self, batch: (T, T, T), batch_idx: int) -> Dict[str, T]:
@@ -405,12 +387,3 @@ class SCRAPLLightingModule(pl.LightningModule):
         U = cqt(x)
         U = tr.log1p(U / cqt_eps)
         return U
-
-    @staticmethod
-    def save_grad(
-        grad: T, path_idx: int, idx_to_grads: defaultdict[int, List[float]]
-    ) -> T:
-        assert path_idx is not None
-        mean_grad = grad.abs().mean().detach().cpu().item()
-        idx_to_grads[path_idx].append(mean_grad)
-        return grad
