@@ -12,7 +12,6 @@ from torch.autograd import Function
 from torch.nn import functional as F
 
 from experiments import util
-from jtfst_implementation.python.jtfst import JTFST2D
 from scrapl.torch import TimeFrequencyScrapl
 
 logging.basicConfig()
@@ -63,43 +62,6 @@ class JTFSTLoss(nn.Module):
             dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=-1)
         else:
             dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=(-2, -1))
-        dist = tr.mean(dist)
-        return dist
-
-
-class MyJTFST2DLoss(nn.Module):
-    def __init__(
-        self, sr: float, J: int, Q1: int, Q2: int, J_fr: int, Q_fr: int, T: int, F: int
-    ):
-        super().__init__()
-        should_avg_f = False
-        should_avg_t = False
-        if F > 1:
-            should_avg_f = True
-        if T > 1:
-            should_avg_t = True
-
-        self.jtfs = JTFST2D(
-            sr=sr,
-            J_1=J,
-            J_2_f=J_fr,
-            J_2_t=J,
-            Q_1=Q1,
-            Q_2_f=Q_fr,
-            Q_2_t=Q2,
-            should_avg_f=should_avg_f,
-            should_avg_t=should_avg_t,
-            avg_win_f=F,
-            avg_win_t=T,
-            reflect_f=True,
-        )
-
-    def forward(self, x: T, x_target: T) -> T:
-        assert x.ndim == x_target.ndim == 3
-        assert x.size(1) == x_target.size(1) == 1
-        Sx_o1, _, Sx, _ = self.jtfs(x)
-        Sx_o1_target, _, Sx_target, _ = self.jtfs(x_target)
-        dist = tr.linalg.vector_norm(Sx_target - Sx, ord=2, dim=(2, 3))
         dist = tr.mean(dist)
         return dist
 
