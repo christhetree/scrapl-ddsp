@@ -45,9 +45,7 @@ def calc_lc(
     return lc
 
 
-def calc_convexity(
-    a: T, b: T, grad_a: T, grad_b: T, elementwise: bool = False
-) -> T:
+def calc_convexity(a: T, b: T, grad_a: T, grad_b: T, elementwise: bool = False) -> T:
     assert a.shape == b.shape == grad_a.shape == grad_b.shape
     if not elementwise:
         a = a.flatten()
@@ -108,10 +106,10 @@ def calc_pairwise_metric(
 
 if __name__ == "__main__":
     n_paths = 315
-    sampling_factor = 4
+    sampling_factor = 10
+    metric_name = "norm"
     # metric_name = "lc"
     # metric_name = "conv"
-    metric_name = "norm"
 
     reduction = "mean"
     # reduction = "median"
@@ -132,8 +130,8 @@ if __name__ == "__main__":
         for f in os.listdir(dir)
         if f.endswith(".pt")
         and (
-            # f.startswith("sag_b0.99_sgd_1e-4_cont_t_1e8_lrs99_p15_grad_15")
-            f.startswith("sag_b0.99_sgd_1e-4_cont_t_1e8_lrs99_p15_grad_norm")
+            f.startswith("sag_b0.99_sgd_1e-4_cont_t_1e8_lrs99_p15_grad_15")
+            # f.startswith("sag_b0.99_sgd_1e-4_cont_t_1e8_lrs99_p15_grad_norm")
         )
     ]
     log.info(f"Found {len(paths)} files")
@@ -197,16 +195,10 @@ if __name__ == "__main__":
     uniform_prob = 1 / n_paths
     target_min_prob = uniform_prob / sampling_factor
     target_max_prob = uniform_prob * sampling_factor
-    log.info(
-        f"uniform_prob =    {uniform_prob:.6f}, "
-        f"target_min_prob = {target_min_prob:.6f}, "
-        f"target_max_prob = {target_max_prob:.6f}"
-    )
     target_range = target_max_prob - target_min_prob
     prob = target_range_softmax(logits, target_range=target_range)
     prob -= prob.min()
     prob += target_min_prob
-    log.info(f"Min prob: {prob.min().item():.6f}, Max prob: {prob.max().item():.6f}")
 
     # plt.plot(range(prob.size(0)), prob.numpy())
     # plt.ylim(0, (sampling_factor + 0.5) * uniform_prob)
@@ -231,3 +223,21 @@ if __name__ == "__main__":
     )
     plt.legend()
     plt.show()
+
+    log.info(
+        f"uniform_prob = {uniform_prob:.6f}, "
+        f"target_min_prob = {target_min_prob:.6f}, "
+        f"target_max_prob = {target_max_prob:.6f}"
+    )
+    log.info(f"Min prob: {prob.min().item():.6f}, "
+             f"Max prob: {prob.max().item():.6f}, "
+             f"Mean prob: {prob.mean().item():.6f}")
+    out_path = os.path.join(
+        OUT_DIR,
+        f"{name}_{metric_name}_{reduction}"
+        f"_elem_{str(elementwise)[0]}"
+        f"_adj_{str(compare_adj_only)[0]}_{sampling_factor}x.pt",
+    )
+
+    log.info(f"Saving to {out_path}")
+    tr.save(prob, out_path)

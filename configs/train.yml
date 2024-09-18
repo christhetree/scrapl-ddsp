@@ -6,10 +6,9 @@ custom:
 #  model_name: cnn__ploss
 #  model_name: cnn__mss
 #  model_name: cnn__jtfst
-#  model_name: scrapl_adamw_1e-4_b0.99_lrs99
-  model_name: scrapl_sag_sgd_1e-5_cont_t_1e8
-#  model_name: scrapl_saga_sgd_1e-5_cont_t_1e8
-#  model_name: scrapl_sag_b0.99_sgd_1e-4_cont_t_lrs99
+#  model_name: scrapl_adamw_1e-5_b0.9_1e8
+  model_name: scrapl_1e8_pwa_sgd_1e-5_conv_10x
+#  model_name: scrapl_1e8_saga_no_pwa_1e-5_b0.9
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
   dataset_name: chirp_32_32_meso_unique2
@@ -20,9 +19,9 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [4]
+  devices: [7]
 #  max_epochs: 200
-  max_epochs: 400
+  max_epochs: 300
   num_sanity_val_steps: 0
   accumulate_grad_batches: 1
 #  gradient_clip_val: 0.5
@@ -57,9 +56,13 @@ model:
     loss_func: ../configs/losses/scrapl_adaptive.yml
 #    loss_func: ../configs/losses/rand_mss.yml
 
-#    vr_algo: null
-    vr_algo: sag
+    use_pathwise_adam: True
+#    use_pathwise_adam: False
+
+    vr_algo: null
+#    vr_algo: sag
 #    vr_algo: saga
+#    vr_beta: 0.9
 #    vr_beta: 0.99
     vr_beta: 1.00
 

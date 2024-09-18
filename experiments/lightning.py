@@ -26,6 +26,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         model: nn.Module,
         synth: ChirpTextureSynth,
         loss_func: nn.Module,
+        grad_multiplier: Optional[float] = 1e8,
+        use_pathwise_adam: bool = True,
         vr_algo: Optional[str] = None,
         vr_beta: float = 0.99,
         use_p_loss: bool = False,
@@ -44,6 +46,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.model = model
         self.synth = synth
         self.loss_func = loss_func
+        self.grad_multiplier = grad_multiplier
+        self.use_pathwise_adam = use_pathwise_adam
         if vr_algo is not None:
             assert vr_algo in ["sag", "saga", "none"]
             if vr_algo == "none":
@@ -82,9 +86,10 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.l1 = nn.L1Loss()
         self.global_n = 0
 
-        # TODO(cm): add hook for ADAM grad *= 1e8 for fair comparison
-        if self.vr_algo is not None:
-            log.info(f"Using {self.vr_algo.upper()} with decay {self.vr_beta}")
+        if use_pathwise_adam or vr_algo:
+            log.info(f"Pathwise ADAM: {use_pathwise_adam}")
+            if vr_algo:
+                log.info(f"Using {self.vr_algo.upper()} with decay {self.vr_beta}")
             n_paths = self.loss_func.n_paths
             self.paths_seen = set()
             prev_path_grads = {}
@@ -106,6 +111,10 @@ class SCRAPLLightingModule(pl.LightningModule):
             # paths_beta = importance_after_n_path_steps ** (1 / n_paths)
             # log.info(f"paths_beta: {paths_beta}")
             self.register_buffer("path_betas", tr.full((n_paths,), paths_beta))
+        elif grad_multiplier is not None:
+            log.info("Not using VR or pathwise ADAM, adding grad multiplier hook")
+            for p in self.parameters():
+                p.register_hook(self.grad_multiplier_hook)
 
     @staticmethod
     def adam_grad_norm(
@@ -136,7 +145,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         b2: float = 0.999,
         eps: float = 1e-8,
     ) -> (T, T, T):
-        grad *= 1e8  # TODO(cm): parameterize this
         assert t > prev_t >= 0.0
         delta_t = t - prev_t
         eff_b1 = b1**delta_t
@@ -149,6 +157,13 @@ class SCRAPLLightingModule(pl.LightningModule):
         # log.info(f"grad_hat.abs().mean() {grad_hat.abs().mean()}")
         # log.info(f"grad_hat.abs().std() {grad_hat.abs().std()}")
         return grad_hat, m, v
+
+    def grad_multiplier_hook(self, grad: T) -> T:
+        if not self.training:
+            log.warning("grad_multiplier_hook called during eval")
+            return grad
+        grad *= self.grad_multiplier
+        return grad
 
     def vr_hook(self, grad: T, param_idx: int, scrapl: AdaptiveSCRAPLLoss) -> T:
         if not self.training:
@@ -174,29 +189,35 @@ class SCRAPLLightingModule(pl.LightningModule):
         #     )
         #     tr.save(grad.detach().cpu(), save_path)
 
-        # Adam grad continuous normalization
-        prev_m_s = self.sag_m[param_idx]
-        prev_v_s = self.sag_v[param_idx]
-        prev_t_s = self.sag_t[param_idx]
-        if path_idx in prev_m_s:
-            prev_m = prev_m_s[path_idx]
-        else:
-            prev_m = tr.zeros_like(grad)
-        if path_idx in prev_v_s:
-            prev_v = prev_v_s[path_idx]
-        else:
-            prev_v = tr.zeros_like(grad)
-        if path_idx in prev_t_s:
-            prev_t = prev_t_s[path_idx]
-        else:
-            prev_t = 0
-        prev_t_norm = prev_t / n_paths
-        t_norm = curr_t / n_paths
+        if self.grad_multiplier is not None:
+            grad *= self.grad_multiplier
 
-        grad, m, v = self.adam_grad_norm_cont(grad, prev_m, prev_v, t_norm, prev_t_norm)
-        prev_m_s[path_idx] = m
-        prev_v_s[path_idx] = v
-        prev_t_s[path_idx] = curr_t
+        if self.use_pathwise_adam:
+            # Adam grad continuous normalization
+            prev_m_s = self.sag_m[param_idx]
+            prev_v_s = self.sag_v[param_idx]
+            prev_t_s = self.sag_t[param_idx]
+            if path_idx in prev_m_s:
+                prev_m = prev_m_s[path_idx]
+            else:
+                prev_m = tr.zeros_like(grad)
+            if path_idx in prev_v_s:
+                prev_v = prev_v_s[path_idx]
+            else:
+                prev_v = tr.zeros_like(grad)
+            if path_idx in prev_t_s:
+                prev_t = prev_t_s[path_idx]
+            else:
+                prev_t = 0
+            prev_t_norm = prev_t / n_paths
+            t_norm = curr_t / n_paths
+
+            grad, m, v = self.adam_grad_norm_cont(
+                grad, prev_m, prev_v, t_norm, prev_t_norm
+            )
+            prev_m_s[path_idx] = m
+            prev_v_s[path_idx] = v
+            prev_t_s[path_idx] = curr_t
 
         # if param_idx == 15:
         #     save_path = os.path.join(
@@ -204,8 +225,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         #     )
         #     tr.save(grad.detach().cpu(), save_path)
 
-        # Convert grad to just 1 or -1
-        # grad = tr.sign(grad)
+        if self.vr_algo is None:
+            return grad
 
         # VR algorithms
         # Get prev path grads
@@ -230,6 +251,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             prev_path_grad = prev_path_grads[path_idx, ...]
             if self.vr_beta != 1.0 and prev_t > 0:
                 # Undo decay
+                assert False  # TODO(cm): tmp, this can cause NaN
                 delta_t = curr_t - prev_t
                 prev_path_grad /= self.vr_beta**delta_t
             # Calculate SAGA grad

@@ -15,28 +15,6 @@ init_args:
   sample_all_paths_first: false
 #  is_trainable: true
   is_trainable: false
-#  probs_path: ../data/meso_p2__theta_grads.pt  # max 0.013821
-#  probs_path: ../data/meso_p2__d_grads.yml.pt  # max 0.021210
-#  probs_path: ../data/meso_p2__s_grads.yml.pt  # max 0.009078
-
-#  probs_path: ../data/micro_p2__cos_sim.pt  # max 0.004277152009308338
-#  probs_path: ../data/micro_p2__cos_sim_weighted.pt  # max 0.012973041273653507
-#  probs_path: ../data/micro_p2__d_cos_sim.pt  # max 0.003954584710299969
-#  probs_path: ../data/micro_p2__d_cos_sim_weighted.pt  # max 0.011630410328507423
-#  probs_path: ../data/micro_p2__cos_sim_theta_norm.pt  # max 0.0038949870504438877
-#  probs_path: ../data/micro_p2__cos_sim_theta_norm_weighted.pt  # max 0.007348468992859125
-#  probs_path: ../data/meso_t50__convex_min0.pt  # max 0.005341
-#  probs_path: ../data/meso_t50__convex_min0_d.pt  # max 0.004509
-#  probs_path: ../data/meso_t50__convex_min0_s.pt  # max 0.007498
-#  probs_path: ../data/meso_t50__convex_min0_ds.pt  # max 0.005317
-#  probs_path: ../data/meso_t50__convex_min0_sd_min.pt  # max 0.007015
-#  probs_path: ../data/meso_t50__norm_mag_min0.pt  # max 0.008515
-#  probs_path: ../data/meso_t50__z_min_ds_min0.pt  # max 0.007102
-#  probs_path: ../data/meso_t50__z_abs_min_ds_min0.pt  # max 0.005446
-#  probs_path: ../data/meso_t50__entropy_min0.pt  # max 0.005244
-#  probs_path: ../data/meso_t50__entropy_4x.pt  # max 0.012699
-#  probs_path: ../data/meso_t50__lipschitz_norm_min0.pt  # max 0.006999
-#  probs_path: ../data/meso_t50__convex_4x_v2.pt
-#  probs_path: ../data/meso_t50__entropy_4x_v2.pt
-#  probs_path: ../data/meso_t50__lc_4x_v2.pt
-#  probs_path: ../data/meso_t50__lc_mean_4x_v2.pt
+#  probs_path: ../data/data_meso_w_p15_norm_mean_elem_F_adj_T_10x.pt
+#  probs_path: ../data/data_meso_w_p15_lc_mean_elem_F_adj_T_10x.pt
+#  probs_path: ../data/data_meso_w_p15_conv_mean_elem_F_adj_T_10x.pt
