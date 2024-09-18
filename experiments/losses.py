@@ -1,15 +1,18 @@
 import functools
 import logging
 import os
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Union, Any, Optional, List, Dict
 
 import torch as tr
 import torch.nn as nn
 from kymatio.torch import TimeFrequencyScattering
+from msclap import CLAP
 from torch import Tensor as T
 from torch.autograd import Function
 from torch.nn import functional as F
+from torchaudio.transforms import Resample
 
 from experiments import util
 from scrapl.torch import TimeFrequencyScrapl
@@ -251,6 +254,78 @@ class MakeLogitsGradFromEnergy(Function):
         grad_logits = tr.zeros_like(logits)
         grad_logits[path_idx] = -grad_mag
         return grad_logits, None, grad_dist, None, None, None
+
+
+class EmbeddingLoss(ABC, nn.Module):
+    def __init__(self, in_sr: int = 44100, p: int = 2):
+        super().__init__()
+        self.in_sr = in_sr
+        self.p = p
+        self.resampler = None
+        self.set_resampler(in_sr)
+
+    def set_resampler(self, in_sr: int) -> None:
+        self.in_sr = in_sr
+        if in_sr != self.get_model_sr():
+            self.resampler = Resample(orig_freq=in_sr, new_freq=self.get_model_sr())
+        else:
+            self.resampler = None
+
+    def preproc_audio(self, x: T) -> T:
+        if self.resampler is not None:
+            x = self.resampler(x)
+        n_samples = x.size(-1)
+        model_n_samples = self.get_model_n_samples()
+        if n_samples < model_n_samples:
+            n_repeats = model_n_samples // n_samples + 1
+            x = x.repeat(1, n_repeats)
+        x = x[:, :model_n_samples]
+        return x
+
+    @abstractmethod
+    def get_model_sr(self) -> int:
+        pass
+
+    @abstractmethod
+    def get_model_n_samples(self) -> int:
+        pass
+
+    @abstractmethod
+    def get_embedding(self, x: T) -> T:
+        pass
+
+    def forward(self, x: T, x_target: T) -> T:
+        assert x.ndim == x_target.ndim == 3
+        assert x.size(1) == x_target.size(1) == 1
+        x = x.squeeze(1)
+        x_target = x_target.squeeze(1)
+        x = self.preproc_audio(x)
+        x_target = self.preproc_audio(x_target)
+        x_emb = self.get_embedding(x)
+        x_target_emb = self.get_embedding(x_target)
+        diff = x_target_emb - x_emb
+        assert diff.ndim == 2
+        dist = tr.linalg.norm(diff, ord=self.p, dim=-1)
+        dist = tr.mean(dist)
+        return dist
+
+
+class ClapEmbeddingLoss(EmbeddingLoss):
+    def __init__(self, use_cuda: bool, in_sr: int = 44100, p: int = 2):
+        self.model = CLAP(version="2023", use_cuda=use_cuda)
+        super().__init__(in_sr, p)
+
+    def get_model_sr(self) -> int:
+        return self.model.args.sampling_rate
+
+    def get_model_n_samples(self) -> int:
+        dur = self.model.args.duration
+        n_samples = dur * self.get_model_sr()
+        return n_samples
+
+    def get_embedding(self, x: T) -> T:
+        x_emb, _ = self.model.clap.audio_encoder(x)
+        return x_emb
 
 
 if __name__ == "__main__":

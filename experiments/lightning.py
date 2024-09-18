@@ -71,6 +71,17 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.run_name = run_name
         log.info(f"Run name: {self.run_name}")
 
+        if type(self.loss_func) not in {SCRAPLLoss, AdaptiveSCRAPLLoss}:
+            # TODO(cm): check JTFS
+            assert (
+                self.grad_multiplier is None
+            ), "Grad multiplier is only for SCRAPL and JTFS"
+            assert not use_pathwise_adam, "Pathwise ADAM is only for SCRAPL"
+            assert vr_algo is None, "VR is only for SCRAPL"
+
+        if hasattr(self.loss_func, "set_resampler"):
+            self.loss_func.set_resampler(self.synth.sr)
+
         cqt_params = {
             "sr": synth.sr,
             "bins_per_octave": synth.Q,
@@ -85,6 +96,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.loss_name = self.loss_func.__class__.__name__
         self.l1 = nn.L1Loss()
         self.global_n = 0
+        self.val_l1_s = defaultdict(list)
 
         if use_pathwise_adam or vr_algo:
             log.info(f"Pathwise ADAM: {use_pathwise_adam}")
@@ -321,6 +333,9 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         density_mae = self.l1(theta_density_hat, theta_density)
         slope_mae = self.l1(theta_slope_hat, theta_slope)
+        if stage == "val":
+            self.val_l1_s["l1_d"].append(density_mae.detach().cpu())
+            self.val_l1_s["l1_s"].append(slope_mae.detach().cpu() / 2.0)  # Normalize
 
         if self.use_p_loss:
             density_loss = self.loss_func(theta_density_hat, theta_density)
@@ -403,6 +418,12 @@ class SCRAPLLightingModule(pl.LightningModule):
 
     def test_step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         return self.step(batch, stage="test")
+
+    def on_validation_epoch_end(self) -> None:
+        for name, l1_s in self.val_l1_s.items():
+            if len(l1_s) > 1:
+                l1_var = tr.stack(l1_s, dim=0).var(dim=0)
+                self.log(f"val/{name}_var", l1_var, prog_bar=False)
 
     @staticmethod
     def calc_cqt(x: T, cqt: CQT, cqt_eps: float = 1e-3) -> T:

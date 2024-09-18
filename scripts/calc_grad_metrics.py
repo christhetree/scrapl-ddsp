@@ -104,21 +104,31 @@ def calc_pairwise_metric(
     return metric.item()
 
 
+def calc_mag_entropy(x: T) -> T:
+    x = x.abs()
+    x /= x.sum()
+    entropy = -x * tr.log(x)
+    entropy = entropy.sum()
+    entropy /= tr.log(tr.tensor(x.numel()))
+    return entropy
+
+
 if __name__ == "__main__":
     n_paths = 315
-    sampling_factor = 10
-    metric_name = "norm"
-    # metric_name = "lc"
+    sampling_factor = 5
+    # metric_name = "norm"
+    metric_name = "lc"
     # metric_name = "conv"
+    # metric_name = "ent"
 
-    reduction = "mean"
-    # reduction = "median"
+    # reduction = "mean"
+    reduction = "median"
     # reduction = "max"
 
     # elementwise = True
     elementwise = False
-    compare_adj_only = True
-    # compare_adj_only = False
+    # compare_adj_only = True
+    compare_adj_only = False
 
     dir_path = OUT_DIR
     name = "data_meso_w_p15"
@@ -130,8 +140,8 @@ if __name__ == "__main__":
         for f in os.listdir(dir)
         if f.endswith(".pt")
         and (
-            f.startswith("sag_b0.99_sgd_1e-4_cont_t_1e8_lrs99_p15_grad_15")
-            # f.startswith("sag_b0.99_sgd_1e-4_cont_t_1e8_lrs99_p15_grad_norm")
+            # f.startswith("sag_b0.99_sgd_1e-4_cont_t_1e8_lrs99_p15_grad_15")
+            f.startswith("sag_b0.99_sgd_1e-4_cont_t_1e8_lrs99_p15_grad_norm")
         )
     ]
     log.info(f"Found {len(paths)} files")
@@ -157,6 +167,9 @@ if __name__ == "__main__":
 
                 if metric_name == "norm":
                     vals = [g.flatten().norm(p=2) for g in grads]
+                    metric = tr.stack(vals).mean()
+                elif metric_name == "ent":
+                    vals = [calc_mag_entropy(g) for g in grads]
                     metric = tr.stack(vals).mean()
                 else:
                     if metric_name == "lc":

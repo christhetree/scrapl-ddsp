@@ -3,11 +3,13 @@ seed_everything: 44
 custom:
   project_name: scrapl
 #  model_name: testing
-#  model_name: cnn__ploss
-#  model_name: cnn__mss
-#  model_name: cnn__jtfst
-#  model_name: scrapl_adamw_1e-5_b0.9_1e8
-  model_name: scrapl_1e8_pwa_sgd_1e-5_conv_10x
+#  model_name: ploss
+#  model_name: mss
+#  model_name: jtfst
+  model_name: clap_adamw_1e-4_b0.9
+#  model_name: scrapl_1e8_adamw_1e-4_b0.9
+#  model_name: scrapl_1e8_sag_b0.9_sgd_1e-4
+#  model_name: scrapl_1e8_pwa_sgd_1e-5_ent_10x
 #  model_name: scrapl_1e8_saga_no_pwa_1e-5_b0.9
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
@@ -19,7 +21,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [7]
+  devices: [1]
 #  max_epochs: 200
   max_epochs: 300
   num_sanity_val_steps: 0
@@ -51,13 +53,16 @@ model:
     synth: ../configs/synths/chirp_texture_8khz.yml
 
 #    loss_func: auraloss.freq.MultiResolutionSTFTLoss
+#    loss_func: ../configs/losses/rand_mss.yml
 #    loss_func: ../configs/losses/jtfst_dtfa.yml
 #    loss_func: ../configs/losses/scrapl_dtfa.yml
-    loss_func: ../configs/losses/scrapl_adaptive.yml
-#    loss_func: ../configs/losses/rand_mss.yml
+#    loss_func: ../configs/losses/scrapl_adaptive.yml
+    loss_func: ../configs/losses/clap.yml
 
-    use_pathwise_adam: True
-#    use_pathwise_adam: False
+    grad_multiplier: null
+
+#    use_pathwise_adam: True
+    use_pathwise_adam: False
 
     vr_algo: null
 #    vr_algo: sag
@@ -87,8 +92,8 @@ model:
 
 #    run_name: sag_b0.99_sgd_1e-4_cont_t_lrs99_p15
 
-#optimizer: ../configs/opt/adam_w.yml
-optimizer: ../configs/opt/sgd.yml
+optimizer: ../configs/opt/adam_w.yml
+#optimizer: ../configs/opt/sgd.yml
 #optimizer: ../configs/opt/sf_adam_w.yml
 #optimizer: ../configs/opt/sf_sgd.yml
 

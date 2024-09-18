@@ -18,3 +18,4 @@ init_args:
 #  probs_path: ../data/data_meso_w_p15_norm_mean_elem_F_adj_T_10x.pt
 #  probs_path: ../data/data_meso_w_p15_lc_mean_elem_F_adj_T_10x.pt
 #  probs_path: ../data/data_meso_w_p15_conv_mean_elem_F_adj_T_10x.pt
+#  probs_path: ../data/data_meso_w_p15_ent_mean_elem_F_adj_T_10x.pt

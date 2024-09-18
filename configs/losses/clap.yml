@@ -1,0 +1,4 @@
+class_path: experiments.losses.ClapEmbeddingLoss
+init_args:
+  use_cuda: true
+  p: 2
