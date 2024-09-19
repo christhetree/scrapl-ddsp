@@ -276,6 +276,8 @@ class EmbeddingLoss(ABC, nn.Module):
             x = self.resampler(x)
         n_samples = x.size(-1)
         model_n_samples = self.get_model_n_samples()
+        if model_n_samples == -1:  # Model can handle any number of samples
+            return x
         if n_samples < model_n_samples:
             n_repeats = model_n_samples // n_samples + 1
             x = x.repeat(1, n_repeats)

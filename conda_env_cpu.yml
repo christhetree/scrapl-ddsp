@@ -11,6 +11,7 @@ dependencies:
     - librosa
     - lightning
     - matplotlib
+    - msclap
     - nnaudio
     - numpy<2.0.0
     - nvitop
@@ -26,4 +27,4 @@ dependencies:
     - wandb
     - git+https://github.com/kymatio/kymatio.git
 
-# uv pip install torch lightning torchaudio torchvision auraloss black 'jsonargparse[signatures]>=4.27.7' librosa matplotlib 'numpy<2.0.0' nvitop pandas scipy tensorboard wandb pip-chill nnaudio git+https://github.com/kymatio/kymatio.git
+# uv pip install torch lightning torchaudio torchvision auraloss black 'jsonargparse[signatures]>=4.27.7' librosa matplotlib msclap 'numpy<2.0.0' nvitop pandas scipy tensorboard wandb pip-chill nnaudio git+https://github.com/kymatio/kymatio.git

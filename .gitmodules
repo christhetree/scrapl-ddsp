@@ -1,0 +1,3 @@
+[submodule "flowtron"]
+	path = flowtron
+	url = git@github.com:NVIDIA/flowtron.git

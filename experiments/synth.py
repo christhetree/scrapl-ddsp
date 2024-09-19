@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from typing import Optional
@@ -5,9 +6,13 @@ from typing import Optional
 import numpy as np
 import torch as tr
 import torch.nn as nn
+import torchaudio
 from torch import Tensor as T
 
-from experiments.paths import OUT_DIR
+from experiments.paths import OUT_DIR, CONFIGS_DIR, DATA_DIR
+from data import Data
+from flowtron import Flowtron
+from denoiser import Denoiser
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -164,7 +169,134 @@ def make_x_from_theta(
     return x
 
 
+class FlowtronSynth(nn.Module):
+    def __init__(
+        self,
+        config_path: str,
+        model_path: str,
+        waveglow_path: str,
+        text_dataset_path: str,
+        theta_e_path: str,
+        text: str = "What is going on?!",
+        n_frames: int = 128,
+        max_sigma: float = 1.0,
+        waveglow_sigma: float = 0.75,
+        denoiser_strength: float = 0.01,
+    ):
+        super().__init__()
+        self.text = text
+        self.n_frames = n_frames
+        self.max_sigma = max_sigma
+        self.waveglow_sigma = waveglow_sigma
+        self.denoiser_strength = denoiser_strength
+
+        self.rand_gen_cpu = tr.Generator(device="cpu")
+        self.rand_gen_gpu = None
+        if tr.cuda.is_available():
+            self.rand_gen_gpu = tr.Generator(device="cuda")
+
+        with open(config_path, "r") as f:
+            config = json.load(f)
+        self.data_config = config["data_config"]
+        self.model_config = config["model_config"]
+        self.sr = self.data_config["sampling_rate"]
+        self.z_dim = self.model_config["n_mel_channels"]
+
+        state_dict = tr.load(model_path, map_location="cpu")["state_dict"]
+        model = Flowtron(**self.model_config)
+        model.load_state_dict(state_dict, strict=False)
+        model.eval()
+
+        waveglow = tr.load(waveglow_path, map_location="cpu")["model"]
+        waveglow.eval()
+        denoiser = Denoiser(waveglow)
+        denoiser.eval()
+
+        self.model = model
+        self.waveglow = waveglow
+        self.denoiser = denoiser
+
+        dataset_kwargs = {
+            k: v
+            for k, v in self.data_config.items()
+            if k not in ["training_files", "validation_files"]
+        }
+        self.text_dataset = Data(text_dataset_path, **dataset_kwargs)
+        text_encoded = self.text_dataset.get_text(text)[None]
+        self.register_buffer("text_encoded", text_encoded)
+        self.register_buffer("speaker_id", tr.tensor([0]).long())
+
+        theta_e_mu = tr.load(theta_e_path)
+        assert theta_e_mu.shape == (self.z_dim, 1)
+        self.register_buffer("theta_e_mu", theta_e_mu)
+        # self.register_buffer("z", tr.zeros((1, self.z_dim, self.n_frames)))
+
+    def get_rand_gen(self, device: str) -> tr.Generator:
+        if device == "cpu":
+            return self.rand_gen_cpu
+        else:
+            return self.rand_gen_gpu
+
+    def forward(self, theta_sig: T, theta_e: T, seed: Optional[T] = None) -> T:
+        assert theta_sig.ndim == theta_e.ndim == 1
+        rand_gen = self.get_rand_gen(device=self.speaker_id.device.type)
+        if seed is not None:
+            rand_gen.manual_seed(int(seed.item()))
+
+        z_s = []
+        for sig_0to1, e_0to1 in zip(theta_sig, theta_e):
+            assert 0 < sig_0to1 <= 1
+            assert 0 <= e_0to1 <= 1
+            sig = sig_0to1 * self.max_sigma
+            mu = e_0to1 * self.theta_e_mu
+            mu = mu.view(-1, 1).expand(-1, self.n_frames)
+            z = tr.normal(mu, sig, generator=rand_gen)
+            z_s.append(z)
+        z_s = tr.stack(z_s, dim=0)
+
+        bs = z_s.size(0)
+        speaker_id = self.speaker_id.expand(bs)
+        # speaker_id = self.speaker_id
+        text_encoded = self.text_encoded.expand(bs, -1)
+        mel_posterior, _ = self.model.infer(z_s, speaker_id, text_encoded)
+        audio = self.waveglow.infer(mel_posterior, sigma=self.waveglow_sigma)
+        audio = self.denoiser(audio, strength=self.denoiser_strength)
+        return audio
+
+
 if __name__ == "__main__":
+    config_path = os.path.join(CONFIGS_DIR, "flowtron/config.json")
+    model_path = "../flowtron/models/flowtron_ljs.pt"
+    waveglow_path = "../flowtron/models/waveglow_256channels_universal_v5.pt"
+    dataset_path = "../flowtron/data/surprised_samples/surprised_audiofilelist_text.txt"
+    theta_e_path = os.path.join(DATA_DIR, "z_80_surprised.pt")
+
+    synth = FlowtronSynth(
+        config_path=config_path,
+        model_path=model_path,
+        waveglow_path=waveglow_path,
+        text_dataset_path=dataset_path,
+        theta_e_path=theta_e_path,
+    )
+
+    theta_sig = tr.tensor([0.1, 0.5, 1.0])
+    # theta_sig = tr.tensor([0.001, 0.001, 0.001])
+    theta_e = tr.tensor([0.0, 0.5, 1.0])
+    # theta_e = tr.tensor([1.0, 1.0, 1.0])
+    # theta_sig = tr.tensor([0.5])
+    # theta_e = tr.tensor([0.2])
+    seed = tr.tensor([43])
+    # seed = tr.tensor([123, 456, 789])
+
+    with tr.no_grad():
+        audio = synth(theta_sig, theta_e, seed)
+
+    for idx, a in enumerate(audio):
+        save_path = os.path.join(OUT_DIR, f"flowtron_{idx}.wav")
+        torchaudio.save(save_path, a, synth.sr)
+
+    exit()
+
     sr = 2**13
     duration = 2**2
     grain_duration = 2**2

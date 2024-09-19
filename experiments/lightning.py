@@ -71,11 +71,11 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.run_name = run_name
         log.info(f"Run name: {self.run_name}")
 
-        if type(self.loss_func) not in {SCRAPLLoss, AdaptiveSCRAPLLoss}:
+        if type(self.loss_func) in {SCRAPLLoss, AdaptiveSCRAPLLoss}:
+            assert self.grad_multiplier is not None, "Grad multiplier is required"
+        else:
             # TODO(cm): check JTFS
-            assert (
-                self.grad_multiplier is None
-            ), "Grad multiplier is only for SCRAPL and JTFS"
+            assert (self.grad_multiplier is None), "Grad multiplier is only for SCRAPL"
             assert not use_pathwise_adam, "Pathwise ADAM is only for SCRAPL"
             assert vr_algo is None, "VR is only for SCRAPL"
 
@@ -96,10 +96,11 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.loss_name = self.loss_func.__class__.__name__
         self.l1 = nn.L1Loss()
         self.global_n = 0
-        self.val_l1_s = defaultdict(list)
+        self.val_maes = defaultdict(list)
 
         if use_pathwise_adam or vr_algo:
-            log.info(f"Pathwise ADAM: {use_pathwise_adam}")
+            log.info(f"Pathwise ADAM: {use_pathwise_adam}, "
+                     f"grad multiplier: {grad_multiplier:.0e}")
             if vr_algo:
                 log.info(f"Using {self.vr_algo.upper()} with decay {self.vr_beta}")
             n_paths = self.loss_func.n_paths
@@ -267,6 +268,8 @@ class SCRAPLLightingModule(pl.LightningModule):
                 delta_t = curr_t - prev_t
                 prev_path_grad /= self.vr_beta**delta_t
             # Calculate SAGA grad
+            # alpha = 0.9
+            # saga_grad = alpha * (grad - prev_path_grad) + (1.0 - alpha) * prev_avg_grad
             saga_grad = grad - prev_path_grad + prev_avg_grad
             # Update current path grad
             prev_path_grads[path_idx, ...] = grad
@@ -334,8 +337,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         density_mae = self.l1(theta_density_hat, theta_density)
         slope_mae = self.l1(theta_slope_hat, theta_slope)
         if stage == "val":
-            self.val_l1_s["l1_d"].append(density_mae.detach().cpu())
-            self.val_l1_s["l1_s"].append(slope_mae.detach().cpu() / 2.0)  # Normalize
+            self.val_maes["l1_d"].append(density_mae.detach().cpu())
+            self.val_maes["l1_s"].append(slope_mae.detach().cpu() / 2.0)  # Normalize
 
         if self.use_p_loss:
             density_loss = self.loss_func(theta_density_hat, theta_density)
@@ -420,10 +423,11 @@ class SCRAPLLightingModule(pl.LightningModule):
         return self.step(batch, stage="test")
 
     def on_validation_epoch_end(self) -> None:
-        for name, l1_s in self.val_l1_s.items():
-            if len(l1_s) > 1:
-                l1_var = tr.stack(l1_s, dim=0).var(dim=0)
+        for name, maes in self.val_maes.items():
+            if len(maes) > 1:
+                l1_var = tr.stack(maes, dim=0).var(dim=0)
                 self.log(f"val/{name}_var", l1_var, prog_bar=False)
+        self.val_maes.clear()
 
     @staticmethod
     def calc_cqt(x: T, cqt: CQT, cqt_eps: float = 1e-3) -> T:
