@@ -8,7 +8,6 @@ import torch as tr
 import torch.nn as nn
 import torchaudio
 from torch import Tensor as T
-from tqdm import tqdm
 
 from data import get_text_embedding
 from denoiser import Denoiser
@@ -197,6 +196,8 @@ class FlowtronSynth(nn.Module):
             log.info(f"Using Flowtron cache directory: {self.cache_dir}")
             os.makedirs(self.cache_dir, exist_ok=True)
         self.use_cache = cache_dir is not None
+        if self.use_cache:
+            assert self.waveglow_seed is not None, f"Caching requires a Waveglow seed!"
 
         self.rand_gen_cpu = tr.Generator(device="cpu")
         self.rand_gen_gpu = None
@@ -302,22 +303,40 @@ class FlowtronSynth(nn.Module):
 
     def _forward_cached(self, theta_sig: T, theta_e: T, seed: T) -> T:
         assert theta_sig.shape == theta_e.shape == seed.shape
-        audios = []
-        for sig, e, s in tqdm(zip(theta_sig, theta_e, seed)):
-            cache_name = f"flowtron_{s.item()}_{sig.item():.6f}_{e.item():.6f}.wav"
+        idx_to_audio = {}
+        uncached_indices = []
+        for idx, (sig, e, s) in enumerate(zip(theta_sig, theta_e, seed)):
+            cache_name = (f"flowtron_{self.waveglow_seed}_{s.item()}"
+                          f"_{sig.item():.6f}_{e.item():.6f}.wav")
             cache_path = os.path.join(self.cache_dir, cache_name)
             if os.path.isfile(cache_path):
+                log.debug(f"Cache hit: {cache_path}")
                 audio, sr = torchaudio.load(cache_path)
                 assert sr == self.sr
-                audio = audio.unsqueeze(0)
+                audio = audio.to(theta_sig.device)
+                idx_to_audio[idx] = audio
             else:
-                audio = self._forward(sig.view(1), e.view(1), s.view(1))
-                audio_2 = self._forward(sig.view(1), e.view(1), s.view(1))
-                log.info(f"audio.max(): {audio.max()}, audio_2.max(): {audio_2.max()}")
-                assert tr.allclose(audio, audio_2)
-                torchaudio.save(cache_path, audio.squeeze(0), self.sr)
-            audios.append(audio)
-        audio = tr.cat(audios, dim=0)
+                uncached_indices.append(idx)
+        if uncached_indices:
+            uncached_sig = theta_sig[uncached_indices]
+            uncached_e = theta_e[uncached_indices]
+            uncached_s = seed[uncached_indices]
+            audio = self._forward(uncached_sig, uncached_e, uncached_s).detach()
+            for idx, a, sig, e, s in zip(uncached_indices,
+                                         audio,
+                                         uncached_sig,
+                                         uncached_e,
+                                         uncached_s):
+                idx_to_audio[idx] = a
+                cache_name = (f"flowtron_{self.waveglow_seed}_{s.item()}"
+                              f"_{sig.item():.6f}_{e.item():.6f}.wav")
+                cache_path = os.path.join(self.cache_dir, cache_name)
+                assert not os.path.isfile(cache_path)
+                torchaudio.save(cache_path, a.cpu(), self.sr)
+        bs = theta_sig.size(0)
+        assert len(idx_to_audio) == bs
+        audio = [idx_to_audio[idx] for idx in range(bs)]
+        audio = tr.stack(audio, dim=0)
         return audio
 
     def forward(self, theta_sig: T, theta_e: T, seed: Optional[T] = None) -> T:
