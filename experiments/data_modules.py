@@ -75,6 +75,9 @@ class ChirpTextureDataModule(pl.LightningDataModule):
             df["fold"] = folds
             del df["unique_theta_idx"]
 
+        # df["density"] = 0.01
+        # df["slope"] = -1.0
+
         # Shuffle such that batches in validation and test contain a variety of
         # different theta values. This makes the visualization callbacks more diverse.
         df = df.sample(frac=1, random_state=tr.random.initial_seed()).reset_index(

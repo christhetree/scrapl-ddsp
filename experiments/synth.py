@@ -7,7 +7,7 @@ import numpy as np
 import torch as tr
 import torch.nn as nn
 import torchaudio
-from torch import Tensor as T
+from torch import Tensor as T, Generator
 
 from data import get_text_embedding
 from denoiser import Denoiser
@@ -175,7 +175,9 @@ class FlowtronSynth(nn.Module):
         model_path: str,
         waveglow_path: str,
         theta_e_path: str,
-        text: str = "What is going on?!",
+        default_text: str = "What is going on?!",
+        wordlist_path: Optional[str] = None,
+        n_words: int = 4,
         n_frames: int = 128,
         max_sigma: float = 1.0,
         waveglow_sigma: float = 0.75,
@@ -184,7 +186,8 @@ class FlowtronSynth(nn.Module):
         waveglow_seed: Optional[int] = None,
     ):
         super().__init__()
-        self.text = text
+        self.default_text = default_text
+        self.n_words = n_words
         self.n_frames = n_frames
         self.max_sigma = max_sigma
         self.waveglow_sigma = waveglow_sigma
@@ -234,6 +237,7 @@ class FlowtronSynth(nn.Module):
         self.waveglow = waveglow
         self.denoiser = denoiser
 
+        # Text embedding init
         self.text_cleaners = self.data_config["text_cleaners"]
         cmudict_path = self.data_config["cmudict_path"]
         assert os.path.isfile(cmudict_path)
@@ -241,17 +245,34 @@ class FlowtronSynth(nn.Module):
         self.cmudict = CMUDict(cmudict_path, keep_ambiguous=keep_ambiguous)
         self.p_arpabet = self.data_config["p_arpabet"]
 
-        # TODO(cm): make dynamic
-        text_encoded = get_text_embedding(
-            text, self.text_cleaners, self.cmudict, self.p_arpabet, self.rand_gen_cpu
-        )
-        self.register_buffer("text_encoded", text_encoded)
+        self.wordlist = []
+        if wordlist_path is not None:
+            assert not self.use_cache, "Wordlist is not supported with caching"
+            with open(wordlist_path, "r") as f:
+                self.wordlist = json.load(f)
+            log.info(f"Wordlist contains {len(self.wordlist)} words")
+
+        if not self.wordlist:
+            log.info(f"Using default text: {self.default_text}")
+            default_text_emb = self.get_text_embedding(
+                self.default_text, self.rand_gen_cpu
+            )
+            self.register_buffer("default_text_emb", default_text_emb)
+
+        # Other init
         self.register_buffer("speaker_id", tr.tensor([0]).long())
 
         theta_e_mu = tr.load(theta_e_path)
         assert theta_e_mu.shape == (self.z_dim, 1)
         self.register_buffer("theta_e_mu", theta_e_mu)
         # self.register_buffer("z", tr.zeros((1, self.z_dim, self.n_frames)))
+
+    def get_text_embedding(self, text: str, rand_gen: Generator) -> T:
+        # TODO(cm): add rand_gen back
+        text_encoded = get_text_embedding(
+            text, self.text_cleaners, self.cmudict, self.p_arpabet
+        ).to(rand_gen.device)
+        return text_encoded
 
     def get_rand_gen(self, device: str) -> tr.Generator:
         if device == "cpu":
@@ -285,11 +306,21 @@ class FlowtronSynth(nn.Module):
         z_s = tr.stack(z_s, dim=0)
 
         bs = z_s.size(0)
-        # Prepare speaker_id and text_encoded
+        # Prepare speaker_id
         speaker_id = self.speaker_id.expand(bs)
-        text_encoded = self.text_encoded.expand(bs, -1)
+        # Prepare text embedding
+        if self.wordlist:
+            # TODO(cm): use text_rand_gen?
+            words = tr.randint(0, len(self.wordlist), (self.n_words,))
+            words = [self.wordlist[w] for w in words]
+            text = " ".join(words)
+            # log.info(f"Random text: {text}")
+            text_emb = self.get_text_embedding(text, rand_gen)
+        else:
+            text_emb = self.default_text_emb
+        text_emb = text_emb.expand(bs, -1)
         # Calc Mel posterior
-        mel_posterior, _ = self.model.infer(z_s, speaker_id, text_encoded)
+        mel_posterior, _ = self.model.infer(z_s, speaker_id, text_emb)
         # Calc audio from Mel posterior
         waveglow_rand_gen = self.get_waveglow_rand_gen(device=mel_posterior.device.type)
         if self.waveglow_seed is not None:
@@ -306,8 +337,10 @@ class FlowtronSynth(nn.Module):
         idx_to_audio = {}
         uncached_indices = []
         for idx, (sig, e, s) in enumerate(zip(theta_sig, theta_e, seed)):
-            cache_name = (f"flowtron_{self.waveglow_seed}_{s.item()}"
-                          f"_{sig.item():.6f}_{e.item():.6f}.wav")
+            cache_name = (
+                f"flowtron_{self.waveglow_seed}_{s.item()}"
+                f"_{sig.item():.6f}_{e.item():.6f}.wav"
+            )
             cache_path = os.path.join(self.cache_dir, cache_name)
             if os.path.isfile(cache_path):
                 log.debug(f"Cache hit: {cache_path}")
@@ -322,14 +355,14 @@ class FlowtronSynth(nn.Module):
             uncached_e = theta_e[uncached_indices]
             uncached_s = seed[uncached_indices]
             audio = self._forward(uncached_sig, uncached_e, uncached_s).detach()
-            for idx, a, sig, e, s in zip(uncached_indices,
-                                         audio,
-                                         uncached_sig,
-                                         uncached_e,
-                                         uncached_s):
+            for idx, a, sig, e, s in zip(
+                uncached_indices, audio, uncached_sig, uncached_e, uncached_s
+            ):
                 idx_to_audio[idx] = a
-                cache_name = (f"flowtron_{self.waveglow_seed}_{s.item()}"
-                              f"_{sig.item():.6f}_{e.item():.6f}.wav")
+                cache_name = (
+                    f"flowtron_{self.waveglow_seed}_{s.item()}"
+                    f"_{sig.item():.6f}_{e.item():.6f}.wav"
+                )
                 cache_path = os.path.join(self.cache_dir, cache_name)
                 assert not os.path.isfile(cache_path)
                 torchaudio.save(cache_path, a.cpu(), self.sr)
@@ -370,8 +403,8 @@ if __name__ == "__main__":
     # theta_e = tr.tensor([1.0, 1.0, 1.0])
     # theta_sig = tr.tensor([0.5])
     # theta_e = tr.tensor([0.2])
-    seed = tr.tensor([43])
-    # seed = tr.tensor([123, 456, 789])
+    # seed = tr.tensor([43])
+    seed = tr.tensor([123, 456, 789])
 
     with tr.no_grad():
         audio = synth(theta_sig, theta_e, seed)

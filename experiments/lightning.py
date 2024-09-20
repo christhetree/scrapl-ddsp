@@ -332,7 +332,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         if self.use_p_loss:
             density_loss = self.loss_func(theta_density_hat, theta_density)
             slope_loss = self.loss_func(theta_slope_hat, theta_slope)
-            loss = density_loss + slope_loss
+            # TODO(cm): change everything to 0to1 amounts
+            loss = density_loss + (slope_loss / 2.0)
             self.log(
                 f"{stage}/p_loss_{self.loss_name}", loss, prog_bar=True, sync_dist=True
             )

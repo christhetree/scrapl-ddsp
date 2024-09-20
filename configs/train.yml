@@ -15,7 +15,10 @@ custom:
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
 #  dataset_name: chirp_32_32_meso_unique2
-  dataset_name: flowtron_16_16
+  dataset_name: flowtron_16_16_rand_text
+#  dataset_name: flowtron_16_16_train_rand_seed
+#  dataset_name: flowtron_256_1
+#  dataset_name: flowtron_1_256
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: true
@@ -23,10 +26,10 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [5]
+  devices: [4]
 #  max_epochs: 200
   max_epochs: 300
-  num_sanity_val_steps: 0
+  num_sanity_val_steps: 2
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 4
 #  gradient_clip_val: 0.5
@@ -40,9 +43,12 @@ data:
     num_workers: 4
 #    n_densities: 32
     n_densities: 16
-#    n_densities: 3
+#    n_densities: 256
+#    n_densities: 1
 #    n_slopes: 32
     n_slopes: 16
+#    n_slopes: 1
+#    n_slopes: 256
 #    n_slopes: 3
     n_seeds_per_theta: 5
 #    n_seeds_per_theta: 1
