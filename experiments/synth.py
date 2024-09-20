@@ -8,6 +8,7 @@ import torch as tr
 import torch.nn as nn
 import torchaudio
 from torch import Tensor as T
+from tqdm import tqdm
 
 from data import get_text_embedding
 from denoiser import Denoiser
@@ -180,6 +181,8 @@ class FlowtronSynth(nn.Module):
         max_sigma: float = 1.0,
         waveglow_sigma: float = 0.75,
         denoiser_strength: float = 0.01,
+        cache_dir: Optional[str] = None,
+        waveglow_seed: Optional[int] = None,
     ):
         super().__init__()
         self.text = text
@@ -187,12 +190,23 @@ class FlowtronSynth(nn.Module):
         self.max_sigma = max_sigma
         self.waveglow_sigma = waveglow_sigma
         self.denoiser_strength = denoiser_strength
-        self.Q = 12  # TODO(cm): tmp
+        self.cache_dir = cache_dir
+        self.waveglow_seed = waveglow_seed
+
+        if self.cache_dir is not None:
+            log.info(f"Using Flowtron cache directory: {self.cache_dir}")
+            os.makedirs(self.cache_dir, exist_ok=True)
+        self.use_cache = cache_dir is not None
 
         self.rand_gen_cpu = tr.Generator(device="cpu")
         self.rand_gen_gpu = None
         if tr.cuda.is_available():
             self.rand_gen_gpu = tr.Generator(device="cuda")
+
+        self.waveglow_rand_gen_cpu = tr.Generator(device="cpu")
+        self.waveglow_rand_gen_gpu = None
+        if tr.cuda.is_available():
+            self.waveglow_rand_gen_gpu = tr.Generator(device="cuda")
 
         with open(config_path, "r") as f:
             config = json.load(f)
@@ -201,7 +215,9 @@ class FlowtronSynth(nn.Module):
         self.sr = self.data_config["sampling_rate"]
         self.z_dim = self.model_config["n_mel_channels"]
         self.hop_len = self.data_config["hop_length"]
+        self.Q = 12  # TODO(cm): tmp
 
+        log.info(f"Started loading Flowtron models")
         state_dict = tr.load(model_path, map_location="cpu")["state_dict"]
         model = Flowtron(**self.model_config)
         model.load_state_dict(state_dict, strict=False)
@@ -211,6 +227,7 @@ class FlowtronSynth(nn.Module):
         waveglow.eval()
         denoiser = Denoiser(waveglow)
         denoiser.eval()
+        log.info(f"Finished loading Flowtron models")
 
         self.model = model
         self.waveglow = waveglow
@@ -241,17 +258,24 @@ class FlowtronSynth(nn.Module):
         else:
             return self.rand_gen_gpu
 
-    def forward(self, theta_sig: T, theta_e: T, seed: Optional[T] = None) -> T:
+    def get_waveglow_rand_gen(self, device: str) -> tr.Generator:
+        if device == "cpu":
+            return self.waveglow_rand_gen_cpu
+        else:
+            return self.waveglow_rand_gen_gpu
+
+    def _forward(self, theta_sig: T, theta_e: T, seed: Optional[T] = None) -> T:
         assert theta_sig.ndim == theta_e.ndim == 1
         rand_gen = self.get_rand_gen(device=self.speaker_id.device.type)
         if seed is not None:
-            assert seed.ndim == 0 or seed.shape == (1,)
-            rand_gen.manual_seed(int(seed.item()))
+            assert seed.shape == theta_sig.shape
 
         z_s = []
-        for sig_0to1, e_0to1 in zip(theta_sig, theta_e):
+        for idx, (sig_0to1, e_0to1) in enumerate(zip(theta_sig, theta_e)):
             assert 0 < sig_0to1 <= 1
             assert 0 <= e_0to1 <= 1
+            if seed is not None:
+                rand_gen.manual_seed(int(seed[idx].item()))
             sig = sig_0to1 * self.max_sigma
             mu = e_0to1 * self.theta_e_mu
             mu = mu.view(-1, 1).expand(-1, self.n_frames)
@@ -260,15 +284,49 @@ class FlowtronSynth(nn.Module):
         z_s = tr.stack(z_s, dim=0)
 
         bs = z_s.size(0)
+        # Prepare speaker_id and text_encoded
         speaker_id = self.speaker_id.expand(bs)
         text_encoded = self.text_encoded.expand(bs, -1)
+        # Calc Mel posterior
         mel_posterior, _ = self.model.infer(z_s, speaker_id, text_encoded)
-        audio = self.waveglow.infer(mel_posterior, sigma=self.waveglow_sigma)
-        audio = self.denoiser(audio, strength=self.denoiser_strength)
+        # Calc audio from Mel posterior
+        waveglow_rand_gen = self.get_waveglow_rand_gen(device=mel_posterior.device.type)
+        if self.waveglow_seed is not None:
+            waveglow_rand_gen.manual_seed(self.waveglow_seed)
+        audio = self.waveglow.infer(
+            mel_posterior, sigma=self.waveglow_sigma, rand_gen=waveglow_rand_gen
+        )
+        # Denoise audio
+        audio_denoised = self.denoiser(audio, strength=self.denoiser_strength)
+        return audio_denoised
+
+    def _forward_cached(self, theta_sig: T, theta_e: T, seed: T) -> T:
+        assert theta_sig.shape == theta_e.shape == seed.shape
+        audios = []
+        for sig, e, s in tqdm(zip(theta_sig, theta_e, seed)):
+            cache_name = f"flowtron_{s.item()}_{sig.item():.6f}_{e.item():.6f}.wav"
+            cache_path = os.path.join(self.cache_dir, cache_name)
+            if os.path.isfile(cache_path):
+                audio, sr = torchaudio.load(cache_path)
+                assert sr == self.sr
+                audio = audio.unsqueeze(0)
+            else:
+                audio = self._forward(sig.view(1), e.view(1), s.view(1))
+                audio_2 = self._forward(sig.view(1), e.view(1), s.view(1))
+                log.info(f"audio.max(): {audio.max()}, audio_2.max(): {audio_2.max()}")
+                assert tr.allclose(audio, audio_2)
+                torchaudio.save(cache_path, audio.squeeze(0), self.sr)
+            audios.append(audio)
+        audio = tr.cat(audios, dim=0)
         return audio
 
+    def forward(self, theta_sig: T, theta_e: T, seed: Optional[T] = None) -> T:
+        if self.use_cache:
+            return self._forward_cached(theta_sig, theta_e, seed)
+        else:
+            return self._forward(theta_sig, theta_e, seed)
+
     def make_x_from_theta(self, theta_sig: T, theta_e: T, seed: T) -> T:
-        seed = seed[0]
         theta_e = (theta_e + 1.0) / 2.0  # TODO(cm): tmp
         audio = self.forward(theta_sig, theta_e, seed)
         return audio

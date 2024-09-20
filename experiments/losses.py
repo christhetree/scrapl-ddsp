@@ -214,12 +214,12 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         # plt.colorbar()
         # plt.title("Sx_target - Sx")
         # plt.show()
-        Sx.register_hook(
-            functools.partial(self.save_mean_abs_Sx_grad, path_idx=path_idx)
-        )
-        dist = MakeLogitsGradFromEnergy.apply(
-            self.logits, path_idx, dist, Sx, Sx_target, self.target_path_energies
-        )
+        # Sx.register_hook(
+        #     functools.partial(self.save_mean_abs_Sx_grad, path_idx=path_idx)
+        # )
+        # dist = MakeLogitsGradFromEnergy.apply(
+        #     self.logits, path_idx, dist, Sx, Sx_target, self.target_path_energies
+        # )
         return dist
 
 

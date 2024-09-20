@@ -8,3 +8,5 @@ init_args:
   max_sigma: 1.0
   waveglow_sigma: 0.75
   denoiser_strength: 0.01
+  cache_dir: ../out/flowtron_cache
+  waveglow_seed: 42

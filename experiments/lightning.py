@@ -291,22 +291,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         else:
             raise NotImplementedError
 
-    # def sag_hook(
-    #     self,
-    #     grad: T,
-    #     batch_indices: T,
-    #     path_idx: int,
-    #     path_grads: T,
-    #     decay_val: float = 1.0,
-    # ) -> T:
-    #     assert path_idx is not None
-    #     if decay_val != 1.0:
-    #         path_grads.mul_(decay_val)
-    #     path_grads[batch_indices, path_idx, ...] = grad
-    #     grad = path_grads[batch_indices, ...]
-    #     grad = tr.mean(grad, dim=1)
-    #     return grad
-
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         theta_density, theta_slope, seed, batch_indices = batch
         batch_size = theta_density.size(0)
