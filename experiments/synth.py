@@ -9,10 +9,11 @@ import torch.nn as nn
 import torchaudio
 from torch import Tensor as T
 
-from experiments.paths import OUT_DIR, CONFIGS_DIR, DATA_DIR
-from data import Data
-from flowtron import Flowtron
+from data import get_text_embedding
 from denoiser import Denoiser
+from experiments.paths import OUT_DIR, CONFIGS_DIR, DATA_DIR, MODELS_DIR
+from flowtron import Flowtron
+from text.cmudict import CMUDict
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -127,6 +128,7 @@ class ChirpTextureSynth(nn.Module):
         assert theta_density.ndim == theta_slope.ndim == 0
         rand_gen = self.get_rand_gen(device=self.grain_support.device.type)
         if seed is not None:
+            assert seed.ndim == 0 or seed.shape == (1,)
             rand_gen.manual_seed(int(seed.item()))
 
         # Create chirplet grains
@@ -150,23 +152,20 @@ class ChirpTextureSynth(nn.Module):
         x = x / tr.norm(x, p=2)  # TODO
         return x
 
+    def make_x_from_theta(self, theta_density: T, theta_slope: T, seed: T) -> T:
+        # TODO(cm): add batch support to synth
+        x = []
+        for idx in range(theta_density.size(0)):
+            curr_x = self.forward(theta_density[idx], theta_slope[idx], seed[idx])
+            x.append(curr_x)
+        x = tr.stack(x, dim=0).unsqueeze(1)  # Unsqueeze channel dim
+        return x
+
     @staticmethod
     def make_hann_window(n_samples: int) -> T:
         x = tr.arange(n_samples)
         y = tr.sin(tr.pi * x / n_samples) ** 2
         return y
-
-
-def make_x_from_theta(
-    synth: ChirpTextureSynth, theta_density: T, theta_slope: T, seed: T
-) -> T:
-    # TODO(cm): add batch support to synth
-    x = []
-    for idx in range(theta_density.size(0)):
-        curr_x = synth(theta_density[idx], theta_slope[idx], seed[idx])
-        x.append(curr_x)
-    x = tr.stack(x, dim=0).unsqueeze(1)  # Unsqueeze channel dim
-    return x
 
 
 class FlowtronSynth(nn.Module):
@@ -175,7 +174,6 @@ class FlowtronSynth(nn.Module):
         config_path: str,
         model_path: str,
         waveglow_path: str,
-        text_dataset_path: str,
         theta_e_path: str,
         text: str = "What is going on?!",
         n_frames: int = 128,
@@ -189,6 +187,7 @@ class FlowtronSynth(nn.Module):
         self.max_sigma = max_sigma
         self.waveglow_sigma = waveglow_sigma
         self.denoiser_strength = denoiser_strength
+        self.Q = 12  # TODO(cm): tmp
 
         self.rand_gen_cpu = tr.Generator(device="cpu")
         self.rand_gen_gpu = None
@@ -201,6 +200,7 @@ class FlowtronSynth(nn.Module):
         self.model_config = config["model_config"]
         self.sr = self.data_config["sampling_rate"]
         self.z_dim = self.model_config["n_mel_channels"]
+        self.hop_len = self.data_config["hop_length"]
 
         state_dict = tr.load(model_path, map_location="cpu")["state_dict"]
         model = Flowtron(**self.model_config)
@@ -216,13 +216,17 @@ class FlowtronSynth(nn.Module):
         self.waveglow = waveglow
         self.denoiser = denoiser
 
-        dataset_kwargs = {
-            k: v
-            for k, v in self.data_config.items()
-            if k not in ["training_files", "validation_files"]
-        }
-        self.text_dataset = Data(text_dataset_path, **dataset_kwargs)
-        text_encoded = self.text_dataset.get_text(text)[None]
+        self.text_cleaners = self.data_config["text_cleaners"]
+        cmudict_path = self.data_config["cmudict_path"]
+        assert os.path.isfile(cmudict_path)
+        keep_ambiguous = self.data_config["keep_ambiguous"]
+        self.cmudict = CMUDict(cmudict_path, keep_ambiguous=keep_ambiguous)
+        self.p_arpabet = self.data_config["p_arpabet"]
+
+        # TODO(cm): make dynamic
+        text_encoded = get_text_embedding(
+            text, self.text_cleaners, self.cmudict, self.p_arpabet, self.rand_gen_cpu
+        )
         self.register_buffer("text_encoded", text_encoded)
         self.register_buffer("speaker_id", tr.tensor([0]).long())
 
@@ -241,6 +245,7 @@ class FlowtronSynth(nn.Module):
         assert theta_sig.ndim == theta_e.ndim == 1
         rand_gen = self.get_rand_gen(device=self.speaker_id.device.type)
         if seed is not None:
+            assert seed.ndim == 0 or seed.shape == (1,)
             rand_gen.manual_seed(int(seed.item()))
 
         z_s = []
@@ -256,26 +261,29 @@ class FlowtronSynth(nn.Module):
 
         bs = z_s.size(0)
         speaker_id = self.speaker_id.expand(bs)
-        # speaker_id = self.speaker_id
         text_encoded = self.text_encoded.expand(bs, -1)
         mel_posterior, _ = self.model.infer(z_s, speaker_id, text_encoded)
         audio = self.waveglow.infer(mel_posterior, sigma=self.waveglow_sigma)
         audio = self.denoiser(audio, strength=self.denoiser_strength)
         return audio
 
+    def make_x_from_theta(self, theta_sig: T, theta_e: T, seed: T) -> T:
+        seed = seed[0]
+        theta_e = (theta_e + 1.0) / 2.0  # TODO(cm): tmp
+        audio = self.forward(theta_sig, theta_e, seed)
+        return audio
+
 
 if __name__ == "__main__":
     config_path = os.path.join(CONFIGS_DIR, "flowtron/config.json")
-    model_path = "../flowtron/models/flowtron_ljs.pt"
-    waveglow_path = "../flowtron/models/waveglow_256channels_universal_v5.pt"
-    dataset_path = "../flowtron/data/surprised_samples/surprised_audiofilelist_text.txt"
+    model_path = os.path.join(MODELS_DIR, "flowtron_ljs.pt")
+    waveglow_path = os.path.join(MODELS_DIR, "waveglow_256channels_universal_v5.pt")
     theta_e_path = os.path.join(DATA_DIR, "z_80_surprised.pt")
 
     synth = FlowtronSynth(
         config_path=config_path,
         model_path=model_path,
         waveglow_path=waveglow_path,
-        text_dataset_path=dataset_path,
         theta_e_path=theta_e_path,
     )
 

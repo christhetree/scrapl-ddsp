@@ -11,11 +11,11 @@ custom:
 #  model_name: scrapl_1e8_sfadamw_1e-5_b0.9
 #  model_name: scrapl_1e8_sag_b0.9_sgd_1e-4
 #  model_name: scrapl_1e8_pwa_sgd_1e-4
-  model_name: scrapl_1e8_saga_a0.9_sgd_1e-4
+  model_name: scrapl_1e8_saga_sgd_1e-4
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
   dataset_name: chirp_32_32_meso_unique2
-  cpu_batch_size: 3
+  cpu_batch_size: 1
   use_wandb_cpu: false
   use_wandb_gpu: true
 
@@ -51,7 +51,8 @@ model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
     model: ../configs/models/spectral_2dcnn.yml
-    synth: ../configs/synths/chirp_texture_8khz.yml
+#    synth: ../configs/synths/chirp_texture_8khz.yml
+    synth: ../configs/flowtron/flowtron_synth.yml
 
 #    loss_func: auraloss.freq.MultiResolutionSTFTLoss
 #    loss_func: ../configs/losses/rand_mss.yml

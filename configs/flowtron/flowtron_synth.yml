@@ -1,0 +1,10 @@
+class_path: experiments.synth.FlowtronSynth
+init_args:
+  config_path: ../configs/flowtron/config.json
+  model_path: ../models/flowtron_ljs.pt
+  waveglow_path: ../models/waveglow_256channels_universal_v5.pt
+  theta_e_path: ../data/z_80_surprised.pt
+  n_frames: 128
+  max_sigma: 1.0
+  waveglow_sigma: 0.75
+  denoiser_strength: 0.01

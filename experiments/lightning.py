@@ -12,7 +12,7 @@ from torch import Tensor as T
 from torch import nn
 
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss
-from experiments.synth import ChirpTextureSynth, make_x_from_theta
+from experiments.synth import ChirpTextureSynth
 from experiments.util import ReadOnlyTensorDict
 
 logging.basicConfig()
@@ -24,7 +24,7 @@ class SCRAPLLightingModule(pl.LightningModule):
     def __init__(
         self,
         model: nn.Module,
-        synth: ChirpTextureSynth,
+        synth: nn.Module,
         loss_func: nn.Module,
         grad_multiplier: Optional[float] = 1e8,
         use_pathwise_adam: bool = True,
@@ -75,7 +75,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             assert self.grad_multiplier is not None, "Grad multiplier is required"
         else:
             # TODO(cm): check JTFS
-            assert (self.grad_multiplier is None), "Grad multiplier is only for SCRAPL"
+            assert self.grad_multiplier is None, "Grad multiplier is only for SCRAPL"
             assert not use_pathwise_adam, "Pathwise ADAM is only for SCRAPL"
             assert vr_algo is None, "VR is only for SCRAPL"
 
@@ -99,14 +99,16 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.val_maes = defaultdict(list)
 
         if use_pathwise_adam or vr_algo:
-            log.info(f"Pathwise ADAM: {use_pathwise_adam}, "
-                     f"grad multiplier: {grad_multiplier:.0e}")
+            log.info(
+                f"Pathwise ADAM: {use_pathwise_adam}, "
+                f"grad multiplier: {grad_multiplier:.0e}"
+            )
             if vr_algo:
                 log.info(f"Using {self.vr_algo.upper()} with decay {self.vr_beta}")
             n_paths = self.loss_func.n_paths
             self.paths_seen = set()
             prev_path_grads = {}
-            for idx, p in enumerate(self.parameters()):
+            for idx, p in enumerate(self.model.parameters()):
                 prev_path_grads[idx] = tr.zeros((n_paths, *p.shape))
                 p.register_hook(
                     functools.partial(
@@ -126,8 +128,11 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.register_buffer("path_betas", tr.full((n_paths,), paths_beta))
         elif grad_multiplier is not None:
             log.info("Not using VR or pathwise ADAM, adding grad multiplier hook")
-            for p in self.parameters():
+            for p in self.model.parameters():
                 p.register_hook(self.grad_multiplier_hook)
+
+        for p in self.synth.parameters():
+            p.requires_grad = False
 
     @staticmethod
     def adam_grad_norm(
@@ -323,7 +328,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             seed_hat = tr.randint_like(seed, low=seed_range, high=2 * seed_range)
 
         with tr.no_grad():
-            x = make_x_from_theta(self.synth, theta_density, theta_slope, seed)
+            x = self.synth.make_x_from_theta(theta_density, theta_slope, seed)
             U = self.calc_U(x)
 
         U_hat = None
@@ -348,8 +353,8 @@ class SCRAPLLightingModule(pl.LightningModule):
                 f"{stage}/p_loss_{self.loss_name}", loss, prog_bar=True, sync_dist=True
             )
         else:
-            x_hat = make_x_from_theta(
-                self.synth, theta_density_hat, theta_slope_hat, seed_hat
+            x_hat = self.synth.make_x_from_theta(
+                theta_density_hat, theta_slope_hat, seed_hat
             )
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
@@ -365,10 +370,10 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         with tr.no_grad():
             if x is None and self.log_x:
-                x = make_x_from_theta(self.synth, theta_density, theta_slope, seed)
+                x = self.synth.make_x_from_theta(theta_density, theta_slope, seed)
             if x_hat is None and self.log_x_hat:
-                x_hat = make_x_from_theta(
-                    self.synth, theta_density_hat, theta_slope_hat, seed_hat
+                x_hat = self.synth.make_x_from_theta(
+                    theta_density_hat, theta_slope_hat, seed_hat
                 )
                 U_hat = self.calc_U(x_hat)
 
