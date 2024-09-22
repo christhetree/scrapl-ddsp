@@ -2,3 +2,8 @@
 	path = flowtron
 	url = git@github.com:christhetree/flowtron.git
 	branch = cm--scrapl
+
+[submodule "hifigan"]
+	path = hifigan
+	url = git@github.com:christhetree/hifigan.git
+    branch = cm--scrapl

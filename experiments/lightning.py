@@ -29,7 +29,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         grad_multiplier: Optional[float] = 1e8,
         use_pathwise_adam: bool = True,
         vr_algo: Optional[str] = None,
-        vr_beta: float = 0.99,
+        vr_beta: float = 1.0,
         use_p_loss: bool = False,
         use_train_rand_seed: bool = False,
         use_val_rand_seed: bool = False,
@@ -47,6 +47,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.synth = synth
         self.loss_func = loss_func
         self.grad_multiplier = grad_multiplier
+        if use_pathwise_adam:
+            assert self.trainer.accumulate_grad_batches == 1, \
+                "Pathwise ADAM does not support gradient accumulation"
         self.use_pathwise_adam = use_pathwise_adam
         if vr_algo is not None:
             assert vr_algo in ["sag", "saga", "none"]
@@ -56,8 +59,16 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.vr_algo = vr_algo
         self.vr_beta = vr_beta
         self.use_p_loss = use_p_loss
+        if use_train_rand_seed:
+            log.info("Using a random seed for training data samples")
         self.use_train_rand_seed = use_train_rand_seed
+        if use_val_rand_seed:
+            log.info("Using a random seed for validation data samples")
         self.use_val_rand_seed = use_val_rand_seed
+        if use_rand_seed_hat:
+            log.info("============== MESOSCALE ============== ")
+        else:
+            log.info("============== MICROSCALE ============== ")
         self.use_rand_seed_hat = use_rand_seed_hat
         self.J_cqt = J_cqt
         self.feature_type = feature_type
@@ -293,6 +304,7 @@ class SCRAPLLightingModule(pl.LightningModule):
 
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         theta_density, theta_slope, seed, batch_indices = batch
+        theta_slope = (theta_slope + 1.0) / 2.0  # TODO(cm): tmp
         batch_size = theta_density.size(0)
         if stage == "train":
             self.global_n = (
@@ -312,8 +324,11 @@ class SCRAPLLightingModule(pl.LightningModule):
             seed_hat = tr.randint_like(seed, low=seed_range, high=2 * seed_range)
 
         with tr.no_grad():
-            x = self.synth.make_x_from_theta(theta_density, theta_slope, seed)
+            # TODO(cm): tmp
+            x = self.synth.make_x_from_theta(theta_density, theta_slope, seed, use_cache=True)
+            # x = self.synth.make_x_from_theta(theta_density, theta_slope, seed, use_cache=False)
             U = self.calc_U(x)
+            # U = x
 
         U_hat = None
         x_hat = None
@@ -327,13 +342,13 @@ class SCRAPLLightingModule(pl.LightningModule):
         slope_mae = self.l1(theta_slope_hat, theta_slope)
         if stage == "val":
             self.val_maes["l1_d"].append(density_mae.detach().cpu())
-            self.val_maes["l1_s"].append(slope_mae.detach().cpu() / 2.0)  # Normalize
+            self.val_maes["l1_s"].append(slope_mae.detach().cpu())
 
         if self.use_p_loss:
             density_loss = self.loss_func(theta_density_hat, theta_density)
             slope_loss = self.loss_func(theta_slope_hat, theta_slope)
             # TODO(cm): change everything to 0to1 amounts
-            loss = density_loss + (slope_loss / 2.0)
+            loss = density_loss + slope_loss
             self.log(
                 f"{stage}/p_loss_{self.loss_name}", loss, prog_bar=True, sync_dist=True
             )
@@ -343,13 +358,14 @@ class SCRAPLLightingModule(pl.LightningModule):
             )
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
+                # U_hat = x_hat
             loss = self.loss_func(x_hat, x)
             self.log(f"{stage}/{self.loss_name}", loss, prog_bar=True, sync_dist=True)
 
         self.log(f"{stage}/l1_d", density_mae, prog_bar=True, sync_dist=True)
         self.log(f"{stage}/l1_s", slope_mae, prog_bar=True, sync_dist=True)
         # Slope has twice the range of density so we normalize it first before averaging
-        theta_mae = (density_mae + (slope_mae / 2)) / 2
+        theta_mae = (density_mae + slope_mae) / 2
         self.log(f"{stage}/l1_theta", theta_mae, prog_bar=True, sync_dist=True)
         self.log(f"{stage}/loss", loss, prog_bar=False, sync_dist=True)
 
@@ -397,11 +413,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         return out_dict
 
     def training_step(self, batch: (T, T, T), batch_idx: int) -> Dict[str, T]:
-        if not (
-            isinstance(self.loss_func, JTFSTLoss)
-            or isinstance(self.loss_func, SCRAPLLoss)
-        ):
-            assert self.trainer.accumulate_grad_batches == 1
         return self.step(batch, stage="train")
 
     def validation_step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:

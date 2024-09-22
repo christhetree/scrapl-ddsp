@@ -7,13 +7,14 @@ import numpy as np
 import torch as tr
 import torch.nn as nn
 import torchaudio
-from torch import Tensor as T, Generator
+from torch import Tensor as T
 
-from data import get_text_embedding
-from denoiser import Denoiser
 from experiments.paths import OUT_DIR, CONFIGS_DIR, DATA_DIR, MODELS_DIR
-from flowtron import Flowtron
-from text.cmudict import CMUDict
+from flowtron.data import get_text_embedding
+from flowtron.flowtron import Flowtron
+from flowtron.text.cmudict import CMUDict
+from hifigan.env import AttrDict
+from hifigan.models import Generator
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -173,7 +174,7 @@ class FlowtronSynth(nn.Module):
         self,
         config_path: str,
         model_path: str,
-        waveglow_path: str,
+        vocoder_path: str,
         theta_e_path: str,
         default_text: str = "What is going on?!",
         wordlist_path: Optional[str] = None,
@@ -198,9 +199,6 @@ class FlowtronSynth(nn.Module):
         if self.cache_dir is not None:
             log.info(f"Using Flowtron cache directory: {self.cache_dir}")
             os.makedirs(self.cache_dir, exist_ok=True)
-        self.use_cache = cache_dir is not None
-        if self.use_cache:
-            assert self.waveglow_seed is not None, f"Caching requires a Waveglow seed!"
 
         self.rand_gen_cpu = tr.Generator(device="cpu")
         self.rand_gen_gpu = None
@@ -221,21 +219,50 @@ class FlowtronSynth(nn.Module):
         self.hop_len = self.data_config["hop_length"]
         self.Q = 12  # TODO(cm): tmp
 
-        log.info(f"Started loading Flowtron models")
+        log.info(f"Loading Flowtron")
         state_dict = tr.load(model_path, map_location="cpu")["state_dict"]
         model = Flowtron(**self.model_config)
         model.load_state_dict(state_dict, strict=False)
         model.eval()
-
-        waveglow = tr.load(waveglow_path, map_location="cpu")["model"]
-        waveglow.eval()
-        denoiser = Denoiser(waveglow)
-        denoiser.eval()
-        log.info(f"Finished loading Flowtron models")
-
+        # model.encoder.lstm.train()
+        # for flow in model.flows:
+        #     if isinstance(flow, AR_Step):
+        #         flow.lstm.train()
+        #         flow.attention_lstm.train()
+        #     elif isinstance(flow, AR_Back_Step):
+        #         flow.ar_step.lstm.train()
+        #         flow.ar_step.attention_lstm.train()
+        #     else:
+        #         raise ValueError(f"Unknown flow type: {type(flow)}")
         self.model = model
-        self.waveglow = waveglow
-        self.denoiser = denoiser
+
+        # waveglow = tr.load(waveglow_path, map_location="cpu")["model"]
+        # waveglow.eval()
+        # self.waveglow = waveglow
+        # denoiser = Denoiser(waveglow)
+        # denoiser.eval()
+        # self.denoiser = denoiser
+
+        # vocoder = tr.hub.load('descriptinc/melgan-neurips', 'load_melgan')
+        # vocoder = tr.hub.load('seungwonpark/melgan', 'melgan')
+        # vocoder = vocoder.mel2wav
+        # assert vocoder.hop_length == self.hop_len
+        # vocoder.eval()
+        # self.vocoder = vocoder
+
+        log.info(f"Loading Vocoder")
+        vocoder_state_dict = tr.load(vocoder_path, map_location="cpu")["generator"]
+        vocoder_config_path = os.path.join(MODELS_DIR, "hifigan_t2_v3_config.json")
+        with open(vocoder_config_path, "r") as f:
+            vocoder_config = json.load(f)
+            hyperparams = AttrDict(vocoder_config)
+        vocoder = Generator(hyperparams)
+        vocoder.load_state_dict(vocoder_state_dict)
+        vocoder.eval()
+        vocoder.remove_weight_norm()
+        self.vocoder = vocoder
+
+        log.info(f"Finished loading models")
 
         # Text embedding init
         self.text_cleaners = self.data_config["text_cleaners"]
@@ -247,7 +274,6 @@ class FlowtronSynth(nn.Module):
 
         self.wordlist = []
         if wordlist_path is not None:
-            assert not self.use_cache, "Wordlist is not supported with caching"
             with open(wordlist_path, "r") as f:
                 self.wordlist = json.load(f)
             log.info(f"Wordlist contains {len(self.wordlist)} words")
@@ -264,10 +290,15 @@ class FlowtronSynth(nn.Module):
 
         theta_e_mu = tr.load(theta_e_path)
         assert theta_e_mu.shape == (self.z_dim, 1)
+        theta_e_mu = theta_e_mu.repeat(1, self.n_frames)
         self.register_buffer("theta_e_mu", theta_e_mu)
-        # self.register_buffer("z", tr.zeros((1, self.z_dim, self.n_frames)))
+        self.register_buffer("mu_tmp", tr.zeros_like(theta_e_mu))
+        self.register_buffer("sig_tmp", tr.ones_like(theta_e_mu))
 
-    def get_text_embedding(self, text: str, rand_gen: Generator) -> T:
+        # Testing
+        self.register_buffer("z_tmp", tr.normal(self.mu_tmp, self.sig_tmp))
+
+    def get_text_embedding(self, text: str, rand_gen: tr.Generator) -> T:
         # TODO(cm): add rand_gen back
         text_encoded = get_text_embedding(
             text, self.text_cleaners, self.cmudict, self.p_arpabet
@@ -300,8 +331,9 @@ class FlowtronSynth(nn.Module):
                 rand_gen.manual_seed(int(seed[idx].item()))
             sig = sig_0to1 * self.max_sigma
             mu = e_0to1 * self.theta_e_mu
-            mu = mu.view(-1, 1).expand(-1, self.n_frames)
-            z = tr.normal(mu, sig, generator=rand_gen)
+            # z = tr.normal(self.mu_tmp, self.sig_tmp, generator=rand_gen)
+            z = self.z_tmp
+            z = z * sig + mu
             z_s.append(z)
         z_s = tr.stack(z_s, dim=0)
 
@@ -322,15 +354,25 @@ class FlowtronSynth(nn.Module):
         # Calc Mel posterior
         mel_posterior, _ = self.model.infer(z_s, speaker_id, text_emb)
         # Calc audio from Mel posterior
-        waveglow_rand_gen = self.get_waveglow_rand_gen(device=mel_posterior.device.type)
-        if self.waveglow_seed is not None:
-            waveglow_rand_gen.manual_seed(self.waveglow_seed)
-        audio = self.waveglow.infer(
-            mel_posterior, sigma=self.waveglow_sigma, rand_gen=waveglow_rand_gen
-        )
-        # Denoise audio
-        audio_denoised = self.denoiser(audio, strength=self.denoiser_strength)
-        return audio_denoised
+        # audio = self.vocoder(mel_posterior)
+        # waveglow_rand_gen = self.get_waveglow_rand_gen(device=mel_posterior.device.type)
+        # if self.waveglow_seed is not None:
+        #     waveglow_rand_gen.manual_seed(self.waveglow_seed)
+        # audio = self.waveglow.infer(
+        #     mel_posterior, sigma=self.waveglow_sigma, rand_gen=waveglow_rand_gen
+        # )
+        audio = self.vocoder(mel_posterior)
+        # audio_2 = self.vocoder(mel_posterior)
+        # assert tr.allclose(audio, audio_2)
+        # log.info(f"Vocoder is deterministic")
+
+        # # Denoise audio
+        # audio_denoised = self.denoiser(audio, strength=self.denoiser_strength)
+        # return audio_denoised
+        return audio
+        # return audio.unsqueeze(1)
+        # return mel_posterior
+        # return z_s
 
     def _forward_cached(self, theta_sig: T, theta_e: T, seed: T) -> T:
         assert theta_sig.shape == theta_e.shape == seed.shape
@@ -343,7 +385,7 @@ class FlowtronSynth(nn.Module):
             )
             cache_path = os.path.join(self.cache_dir, cache_name)
             if os.path.isfile(cache_path):
-                log.debug(f"Cache hit: {cache_path}")
+                # log.info(f"Cache hit: {cache_path}")
                 audio, sr = torchaudio.load(cache_path)
                 assert sr == self.sr
                 audio = audio.to(theta_sig.device)
@@ -372,15 +414,26 @@ class FlowtronSynth(nn.Module):
         audio = tr.stack(audio, dim=0)
         return audio
 
-    def forward(self, theta_sig: T, theta_e: T, seed: Optional[T] = None) -> T:
-        if self.use_cache:
+    def forward(
+        self,
+        theta_sig: T,
+        theta_e: T,
+        seed: Optional[T] = None,
+        use_cache: bool = False,
+    ) -> T:
+        if use_cache:
+            assert not self.wordlist, "Caching is not supported with wordlist"
+            assert self.waveglow_seed is not None, f"Caching requires a Waveglow seed"
             return self._forward_cached(theta_sig, theta_e, seed)
         else:
             return self._forward(theta_sig, theta_e, seed)
 
-    def make_x_from_theta(self, theta_sig: T, theta_e: T, seed: T) -> T:
-        theta_e = (theta_e + 1.0) / 2.0  # TODO(cm): tmp
-        audio = self.forward(theta_sig, theta_e, seed)
+    def make_x_from_theta(
+        self, theta_sig: T, theta_e: T, seed: T, use_cache: bool = False
+    ) -> T:
+        assert theta_e.min() >= 0.0
+        assert theta_e.max() <= 1.0
+        audio = self.forward(theta_sig, theta_e, seed, use_cache)
         return audio
 
 
@@ -393,7 +446,7 @@ if __name__ == "__main__":
     synth = FlowtronSynth(
         config_path=config_path,
         model_path=model_path,
-        waveglow_path=waveglow_path,
+        vocoder_path=waveglow_path,
         theta_e_path=theta_e_path,
     )
 

@@ -3,23 +3,23 @@ seed_everything: 44
 custom:
   project_name: scrapl
 #  model_name: testing
-  model_name: ploss_mse
-#  model_name: mss
-#  model_name: jtfst
+#  model_name: ploss_mse_adamw_1e-4_b0.9
+#  model_name: mse_adamw_1e-4_b0.9
+  model_name: mss_adamw_1e-4_b0.9
+#  model_name: jtfst_adamw_1e-4_b0.9
 #  model_name: clap_adamw_1e-4_b0.9
 #  model_name: vggish_adamw_1e-4_b0.9
 #  model_name: scrapl_1e8_sfadamw_1e-5_b0.9
 #  model_name: scrapl_1e8_sag_b0.9_sgd_1e-4
 #  model_name: scrapl_1e8_pwa_sgd_1e-4
-#  model_name: scrapl_1e8_saga_sgd_1e-4
+#  model_name: scrapl_1e8_saga_sgd_1e-4_bs8
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
 #  dataset_name: chirp_32_32_meso_unique2
-  dataset_name: flowtron_16_16_rand_text
-#  dataset_name: flowtron_16_16_train_rand_seed
-#  dataset_name: flowtron_256_1
-#  dataset_name: flowtron_1_256
+#  dataset_name: flowtron_16_16_5_micro_unique2_hifigan_t2_v3
+  dataset_name: flowtron_32_32_const_z_hifigan_t2_v3
   cpu_batch_size: 3
+#  use_wandb_cpu: true
   use_wandb_cpu: false
   use_wandb_gpu: true
 
@@ -41,17 +41,17 @@ data:
 #    batch_size: 8
 
     num_workers: 4
-#    n_densities: 32
-    n_densities: 16
+    n_densities: 32
+#    n_densities: 16
 #    n_densities: 256
 #    n_densities: 1
-#    n_slopes: 32
-    n_slopes: 16
+    n_slopes: 32
+#    n_slopes: 16
 #    n_slopes: 1
 #    n_slopes: 256
 #    n_slopes: 3
-    n_seeds_per_theta: 5
-#    n_seeds_per_theta: 1
+#    n_seeds_per_theta: 5
+    n_seeds_per_theta: 1
     n_folds: 5
     use_unique_seeds: true
 #    use_unique_seeds: false
@@ -65,7 +65,7 @@ model:
 #    synth: ../configs/synths/chirp_texture_8khz.yml
     synth: ../configs/flowtron/flowtron_synth.yml
 
-#    loss_func: auraloss.freq.MultiResolutionSTFTLoss
+    loss_func: auraloss.freq.MultiResolutionSTFTLoss
 #    loss_func: ../configs/losses/rand_mss.yml
 #    loss_func: ../configs/losses/jtfst_dtfa.yml
 #    loss_func: ../configs/losses/scrapl_dtfa.yml
@@ -84,9 +84,9 @@ model:
 #    vr_beta: 0.99
     vr_beta: 1.00
 
-#    use_p_loss: false
-    use_p_loss: true
-    loss_func: torch.nn.MSELoss
+    use_p_loss: false
+#    use_p_loss: true
+#    loss_func: torch.nn.MSELoss
 
     use_train_rand_seed: false
 #    use_train_rand_seed: true

@@ -86,6 +86,7 @@ def plot_scalogram(
             x_axis="time",
             x_coords=x_coords,
             y_axis="cqt_hz",
+            # y_axis="mel",
             y_coords=np.array(y_coords),
             cmap=cmap,
             vmin=vmin,

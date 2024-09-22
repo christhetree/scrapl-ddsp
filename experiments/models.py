@@ -102,5 +102,5 @@ class Spectral2DCNN(nn.Module):
         x = self.fc_slope_act(x)
         x = self.do(x)
         slope_hat = self.out_slope(x)
-        slope_hat = tr.tanh(slope_hat).squeeze(1)
+        slope_hat = tr.sigmoid(slope_hat).squeeze(1)
         return density_hat, slope_hat
