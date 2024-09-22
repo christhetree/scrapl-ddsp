@@ -5,19 +5,20 @@ custom:
 #  model_name: testing
 #  model_name: ploss_mse_adamw_1e-4_b0.9
 #  model_name: mse_adamw_1e-4_b0.9
-  model_name: mss_adamw_1e-4_b0.9
+#  model_name: mss_adamw_1e-4_b0.9
 #  model_name: jtfst_adamw_1e-4_b0.9
 #  model_name: clap_adamw_1e-4_b0.9
 #  model_name: vggish_adamw_1e-4_b0.9
-#  model_name: scrapl_1e8_sfadamw_1e-5_b0.9
+  model_name: scrapl_sfadamw_1e-4
 #  model_name: scrapl_1e8_sag_b0.9_sgd_1e-4
 #  model_name: scrapl_1e8_pwa_sgd_1e-4
-#  model_name: scrapl_1e8_saga_sgd_1e-4_bs8
+#  model_name: scrapl_1e8_saga_sgd_1e-4
 #  dataset_name: chirp_32_32
 #  dataset_name: chirp_32_32_micro
 #  dataset_name: chirp_32_32_meso_unique2
-#  dataset_name: flowtron_16_16_5_micro_unique2_hifigan_t2_v3
-  dataset_name: flowtron_32_32_const_z_hifigan_t2_v3
+#  dataset_name: testing
+  dataset_name: flowtron_16_16_5_micro_hifigan_t2_v3
+#  dataset_name: flowtron_32_32_const_z_hifigan_t2_v3
   cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
@@ -26,10 +27,10 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [4]
+  devices: [5]
 #  max_epochs: 200
   max_epochs: 300
-  num_sanity_val_steps: 2
+  num_sanity_val_steps: 1
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 4
 #  gradient_clip_val: 0.5
@@ -41,17 +42,17 @@ data:
 #    batch_size: 8
 
     num_workers: 4
-    n_densities: 32
-#    n_densities: 16
+#    n_densities: 32
+    n_densities: 16
 #    n_densities: 256
 #    n_densities: 1
-    n_slopes: 32
-#    n_slopes: 16
+#    n_slopes: 32
+    n_slopes: 16
 #    n_slopes: 1
 #    n_slopes: 256
-#    n_slopes: 3
-#    n_seeds_per_theta: 5
-    n_seeds_per_theta: 1
+#    n_slopes: 8
+    n_seeds_per_theta: 5
+#    n_seeds_per_theta: 1
     n_folds: 5
     use_unique_seeds: true
 #    use_unique_seeds: false
@@ -106,9 +107,9 @@ model:
 
 #    run_name: sag_b0.99_sgd_1e-4_cont_t_lrs99_p15
 
-optimizer: ../configs/opt/adam_w.yml
+#optimizer: ../configs/opt/adam_w.yml
 #optimizer: ../configs/opt/sgd.yml
-#optimizer: ../configs/opt/sf_adam_w.yml
+optimizer: ../configs/opt/sf_adam_w.yml
 #optimizer: ../configs/opt/sf_sgd.yml
 
 #lr_scheduler: ../configs/opt/exp_scheduler.yml

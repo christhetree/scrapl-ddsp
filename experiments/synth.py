@@ -181,20 +181,14 @@ class FlowtronSynth(nn.Module):
         n_words: int = 4,
         n_frames: int = 128,
         max_sigma: float = 1.0,
-        waveglow_sigma: float = 0.75,
-        denoiser_strength: float = 0.01,
         cache_dir: Optional[str] = None,
-        waveglow_seed: Optional[int] = None,
     ):
         super().__init__()
         self.default_text = default_text
         self.n_words = n_words
         self.n_frames = n_frames
         self.max_sigma = max_sigma
-        self.waveglow_sigma = waveglow_sigma
-        self.denoiser_strength = denoiser_strength
         self.cache_dir = cache_dir
-        self.waveglow_seed = waveglow_seed
 
         if self.cache_dir is not None:
             log.info(f"Using Flowtron cache directory: {self.cache_dir}")
@@ -204,11 +198,6 @@ class FlowtronSynth(nn.Module):
         self.rand_gen_gpu = None
         if tr.cuda.is_available():
             self.rand_gen_gpu = tr.Generator(device="cuda")
-
-        self.waveglow_rand_gen_cpu = tr.Generator(device="cpu")
-        self.waveglow_rand_gen_gpu = None
-        if tr.cuda.is_available():
-            self.waveglow_rand_gen_gpu = tr.Generator(device="cuda")
 
         with open(config_path, "r") as f:
             config = json.load(f)
@@ -224,31 +213,7 @@ class FlowtronSynth(nn.Module):
         model = Flowtron(**self.model_config)
         model.load_state_dict(state_dict, strict=False)
         model.eval()
-        # model.encoder.lstm.train()
-        # for flow in model.flows:
-        #     if isinstance(flow, AR_Step):
-        #         flow.lstm.train()
-        #         flow.attention_lstm.train()
-        #     elif isinstance(flow, AR_Back_Step):
-        #         flow.ar_step.lstm.train()
-        #         flow.ar_step.attention_lstm.train()
-        #     else:
-        #         raise ValueError(f"Unknown flow type: {type(flow)}")
         self.model = model
-
-        # waveglow = tr.load(waveglow_path, map_location="cpu")["model"]
-        # waveglow.eval()
-        # self.waveglow = waveglow
-        # denoiser = Denoiser(waveglow)
-        # denoiser.eval()
-        # self.denoiser = denoiser
-
-        # vocoder = tr.hub.load('descriptinc/melgan-neurips', 'load_melgan')
-        # vocoder = tr.hub.load('seungwonpark/melgan', 'melgan')
-        # vocoder = vocoder.mel2wav
-        # assert vocoder.hop_length == self.hop_len
-        # vocoder.eval()
-        # self.vocoder = vocoder
 
         log.info(f"Loading Vocoder")
         vocoder_state_dict = tr.load(vocoder_path, map_location="cpu")["generator"]
@@ -261,7 +226,6 @@ class FlowtronSynth(nn.Module):
         vocoder.eval()
         vocoder.remove_weight_norm()
         self.vocoder = vocoder
-
         log.info(f"Finished loading models")
 
         # Text embedding init
@@ -289,17 +253,17 @@ class FlowtronSynth(nn.Module):
         self.register_buffer("speaker_id", tr.tensor([0]).long())
 
         theta_e_mu = tr.load(theta_e_path)
-        assert theta_e_mu.shape == (self.z_dim, 1)
-        theta_e_mu = theta_e_mu.repeat(1, self.n_frames)
+        assert theta_e_mu.shape == (self.z_dim, self.n_frames)
+        # theta_e_mu = theta_e_mu.view(-1, 1).repeat(1, self.n_frames)
         self.register_buffer("theta_e_mu", theta_e_mu)
         self.register_buffer("mu_tmp", tr.zeros_like(theta_e_mu))
         self.register_buffer("sig_tmp", tr.ones_like(theta_e_mu))
 
         # Testing
-        self.register_buffer("z_tmp", tr.normal(self.mu_tmp, self.sig_tmp))
+        # self.register_buffer("z_tmp", tr.normal(self.mu_tmp, self.sig_tmp))
 
     def get_text_embedding(self, text: str, rand_gen: tr.Generator) -> T:
-        # TODO(cm): add rand_gen back
+        # TODO(cm): add rand_gen back and look into p_arpabet
         text_encoded = get_text_embedding(
             text, self.text_cleaners, self.cmudict, self.p_arpabet
         ).to(rand_gen.device)
@@ -311,12 +275,6 @@ class FlowtronSynth(nn.Module):
         else:
             return self.rand_gen_gpu
 
-    def get_waveglow_rand_gen(self, device: str) -> tr.Generator:
-        if device == "cpu":
-            return self.waveglow_rand_gen_cpu
-        else:
-            return self.waveglow_rand_gen_gpu
-
     def _forward(self, theta_sig: T, theta_e: T, seed: Optional[T] = None) -> T:
         assert theta_sig.ndim == theta_e.ndim == 1
         rand_gen = self.get_rand_gen(device=self.speaker_id.device.type)
@@ -324,20 +282,18 @@ class FlowtronSynth(nn.Module):
             assert seed.shape == theta_sig.shape
 
         z_s = []
-        for idx, (sig_0to1, e_0to1) in enumerate(zip(theta_sig, theta_e)):
-            assert 0 < sig_0to1 <= 1
-            assert 0 <= e_0to1 <= 1
+        bs = theta_sig.size(0)
+        for idx in range(bs):
             if seed is not None:
                 rand_gen.manual_seed(int(seed[idx].item()))
-            sig = sig_0to1 * self.max_sigma
-            mu = e_0to1 * self.theta_e_mu
-            # z = tr.normal(self.mu_tmp, self.sig_tmp, generator=rand_gen)
-            z = self.z_tmp
-            z = z * sig + mu
+            z = tr.normal(self.mu_tmp, self.sig_tmp, generator=rand_gen)
+            # z = self.z_tmp
             z_s.append(z)
         z_s = tr.stack(z_s, dim=0)
+        mu = theta_e.view(-1, 1, 1) * self.theta_e_mu
+        sig = theta_sig.view(-1, 1, 1) * self.max_sigma
+        z_s = z_s * sig + mu
 
-        bs = z_s.size(0)
         # Prepare speaker_id
         speaker_id = self.speaker_id.expand(bs)
         # Prepare text embedding
@@ -354,35 +310,18 @@ class FlowtronSynth(nn.Module):
         # Calc Mel posterior
         mel_posterior, _ = self.model.infer(z_s, speaker_id, text_emb)
         # Calc audio from Mel posterior
-        # audio = self.vocoder(mel_posterior)
-        # waveglow_rand_gen = self.get_waveglow_rand_gen(device=mel_posterior.device.type)
-        # if self.waveglow_seed is not None:
-        #     waveglow_rand_gen.manual_seed(self.waveglow_seed)
-        # audio = self.waveglow.infer(
-        #     mel_posterior, sigma=self.waveglow_sigma, rand_gen=waveglow_rand_gen
-        # )
         audio = self.vocoder(mel_posterior)
         # audio_2 = self.vocoder(mel_posterior)
         # assert tr.allclose(audio, audio_2)
         # log.info(f"Vocoder is deterministic")
-
-        # # Denoise audio
-        # audio_denoised = self.denoiser(audio, strength=self.denoiser_strength)
-        # return audio_denoised
         return audio
-        # return audio.unsqueeze(1)
-        # return mel_posterior
-        # return z_s
 
     def _forward_cached(self, theta_sig: T, theta_e: T, seed: T) -> T:
         assert theta_sig.shape == theta_e.shape == seed.shape
         idx_to_audio = {}
         uncached_indices = []
         for idx, (sig, e, s) in enumerate(zip(theta_sig, theta_e, seed)):
-            cache_name = (
-                f"flowtron_{self.waveglow_seed}_{s.item()}"
-                f"_{sig.item():.6f}_{e.item():.6f}.wav"
-            )
+            cache_name = f"flowtron_{s.item()}_{sig.item():.6f}_{e.item():.6f}.wav"
             cache_path = os.path.join(self.cache_dir, cache_name)
             if os.path.isfile(cache_path):
                 # log.info(f"Cache hit: {cache_path}")
@@ -401,10 +340,7 @@ class FlowtronSynth(nn.Module):
                 uncached_indices, audio, uncached_sig, uncached_e, uncached_s
             ):
                 idx_to_audio[idx] = a
-                cache_name = (
-                    f"flowtron_{self.waveglow_seed}_{s.item()}"
-                    f"_{sig.item():.6f}_{e.item():.6f}.wav"
-                )
+                cache_name = f"flowtron_{s.item()}_{sig.item():.6f}_{e.item():.6f}.wav"
                 cache_path = os.path.join(self.cache_dir, cache_name)
                 assert not os.path.isfile(cache_path)
                 torchaudio.save(cache_path, a.cpu(), self.sr)
@@ -423,7 +359,6 @@ class FlowtronSynth(nn.Module):
     ) -> T:
         if use_cache:
             assert not self.wordlist, "Caching is not supported with wordlist"
-            assert self.waveglow_seed is not None, f"Caching requires a Waveglow seed"
             return self._forward_cached(theta_sig, theta_e, seed)
         else:
             return self._forward(theta_sig, theta_e, seed)

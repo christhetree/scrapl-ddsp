@@ -2,15 +2,12 @@ class_path: experiments.synth.FlowtronSynth
 init_args:
   config_path: ../configs/flowtron/config.json
   model_path: ../models/flowtron_ljs.pt
-#  vocoder_path: ../models/waveglow_256channels_universal_v5.pt
   vocoder_path: ../models/hifigan_t2_v3_generator.pt
-  theta_e_path: ../data/z_80_surprised.pt
-  default_text: "What is going on?!"
+#  theta_e_path: ../out/z_female_angry_24_tv.pt
+  theta_e_path: ../out/z_female_surprised_24_tv.pt
+  default_text: "what is going on"
 #  wordlist_path: ../data/en_common_words_1k.json
   n_words: 4
   n_frames: 128
   max_sigma: 1.0
-  waveglow_sigma: 0.75
-  denoiser_strength: 0.01
-  cache_dir: ../out/flowtron_cache_hifigan_t2_v3_const_z
-  waveglow_seed: 42
+  cache_dir: ../out/flowtron_cache_hifigan_t2_v3

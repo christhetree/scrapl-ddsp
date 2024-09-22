@@ -47,9 +47,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.synth = synth
         self.loss_func = loss_func
         self.grad_multiplier = grad_multiplier
-        if use_pathwise_adam:
-            assert self.trainer.accumulate_grad_batches == 1, \
-                "Pathwise ADAM does not support gradient accumulation"
+        # if use_pathwise_adam:
+        #     assert self.trainer.accumulate_grad_batches == 1, \
+        #         "Pathwise ADAM does not support gradient accumulation"
         self.use_pathwise_adam = use_pathwise_adam
         if vr_algo is not None:
             assert vr_algo in ["sag", "saga", "none"]
