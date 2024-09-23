@@ -3,11 +3,12 @@ init_args:
   config_path: ../configs/flowtron/config.json
   model_path: ../models/flowtron_ljs.pt
   vocoder_path: ../models/hifigan_t2_v3_generator.pt
-#  theta_e_path: ../out/z_female_angry_24_tv.pt
-  theta_e_path: ../out/z_female_surprised_24_tv.pt
+  theta_d_path: ../data/z_female_angry_24_tv.pt
+  theta_s_path: ../data/z_female_surprised_24_tv.pt
   default_text: "what is going on"
 #  wordlist_path: ../data/en_common_words_1k.json
   n_words: 4
   n_frames: 128
   max_sigma: 1.0
-  cache_dir: ../out/flowtron_cache_hifigan_t2_v3
+#  cache_dir: ../out/flowtron_cache_hifigan_t2_v3_const_z_anger_surprise
+#  cache_dir: ../out/flowtron_cache_hifigan_t2_v3_anger_surprise_sig_seed

@@ -175,8 +175,9 @@ class FlowtronSynth(nn.Module):
         config_path: str,
         model_path: str,
         vocoder_path: str,
-        theta_e_path: str,
-        default_text: str = "What is going on?!",
+        theta_d_path: str,
+        theta_s_path: str,
+        default_text: str = "what is going on",
         wordlist_path: Optional[str] = None,
         n_words: int = 4,
         n_frames: int = 128,
@@ -252,15 +253,16 @@ class FlowtronSynth(nn.Module):
         # Other init
         self.register_buffer("speaker_id", tr.tensor([0]).long())
 
-        theta_e_mu = tr.load(theta_e_path)
-        assert theta_e_mu.shape == (self.z_dim, self.n_frames)
-        # theta_e_mu = theta_e_mu.view(-1, 1).repeat(1, self.n_frames)
-        self.register_buffer("theta_e_mu", theta_e_mu)
-        self.register_buffer("mu_tmp", tr.zeros_like(theta_e_mu))
-        self.register_buffer("sig_tmp", tr.ones_like(theta_e_mu))
+        theta_d_mu = tr.load(theta_d_path)
+        assert theta_d_mu.shape == (self.z_dim, self.n_frames)
+        self.register_buffer("theta_d_mu", theta_d_mu)
+        theta_s_mu = tr.load(theta_s_path)
+        assert theta_s_mu.shape == (self.z_dim, self.n_frames)
+        self.register_buffer("theta_s_mu", theta_s_mu)
 
-        # Testing
-        # self.register_buffer("z_tmp", tr.normal(self.mu_tmp, self.sig_tmp))
+        self.register_buffer("mu_tmp", tr.zeros_like(theta_s_mu))
+        self.register_buffer("sig_tmp", tr.ones_like(theta_s_mu))
+        self.register_buffer("z_tmp", tr.normal(self.mu_tmp, self.sig_tmp))
 
     def get_text_embedding(self, text: str, rand_gen: tr.Generator) -> T:
         # TODO(cm): add rand_gen back and look into p_arpabet
@@ -275,23 +277,33 @@ class FlowtronSynth(nn.Module):
         else:
             return self.rand_gen_gpu
 
-    def _forward(self, theta_sig: T, theta_e: T, seed: Optional[T] = None) -> T:
-        assert theta_sig.ndim == theta_e.ndim == 1
-        rand_gen = self.get_rand_gen(device=self.speaker_id.device.type)
+    def _forward(self, theta_d: T, theta_s: T, seed: Optional[T] = None) -> T:
+        assert theta_d.ndim == theta_s.ndim == 1
+        # rand_gen = self.get_rand_gen(device=self.speaker_id.device.type)
+        rand_gen = self.get_rand_gen("cpu")
         if seed is not None:
-            assert seed.shape == theta_sig.shape
+            assert seed.shape == theta_d.shape
 
         z_s = []
-        bs = theta_sig.size(0)
+        bs = theta_d.size(0)
+        sigs = []
         for idx in range(bs):
             if seed is not None:
                 rand_gen.manual_seed(int(seed[idx].item()))
-            z = tr.normal(self.mu_tmp, self.sig_tmp, generator=rand_gen)
-            # z = self.z_tmp
+            sig = tr.rand((1,), generator=rand_gen) * self.max_sigma
+            sigs.append(sig)
+            # z = tr.normal(self.mu_tmp, self.sig_tmp, generator=rand_gen)
+            z = self.z_tmp
             z_s.append(z)
         z_s = tr.stack(z_s, dim=0)
-        mu = theta_e.view(-1, 1, 1) * self.theta_e_mu
-        sig = theta_sig.view(-1, 1, 1) * self.max_sigma
+        mu_probs = tr.softmax(tr.stack([theta_d, theta_s], dim=1), dim=1)
+        mu_d = theta_d.view(-1, 1, 1) * self.theta_d_mu * mu_probs[:, 0].view(-1, 1, 1)
+        mu_s = theta_s.view(-1, 1, 1) * self.theta_s_mu * mu_probs[:, 1].view(-1, 1, 1)
+        mu = mu_d + mu_s
+        # sig = theta_d.view(-1, 1, 1) * self.max_sigma
+        # sig = 0.5
+        sig = tr.cat(sigs, dim=0).view(-1, 1, 1)
+        sig = sig.to(mu.device)
         z_s = z_s * sig + mu
 
         # Prepare speaker_id
@@ -318,8 +330,10 @@ class FlowtronSynth(nn.Module):
 
     def _forward_cached(self, theta_sig: T, theta_e: T, seed: T) -> T:
         assert theta_sig.shape == theta_e.shape == seed.shape
+        bs = theta_sig.size(0)
         idx_to_audio = {}
         uncached_indices = []
+        # uncached_indices = list(range(bs))
         for idx, (sig, e, s) in enumerate(zip(theta_sig, theta_e, seed)):
             cache_name = f"flowtron_{s.item()}_{sig.item():.6f}_{e.item():.6f}.wav"
             cache_path = os.path.join(self.cache_dir, cache_name)
@@ -344,7 +358,11 @@ class FlowtronSynth(nn.Module):
                 cache_path = os.path.join(self.cache_dir, cache_name)
                 assert not os.path.isfile(cache_path)
                 torchaudio.save(cache_path, a.cpu(), self.sr)
-        bs = theta_sig.size(0)
+                # if os.path.isfile(cache_path):
+                #     audio_cached, sr = torchaudio.load(cache_path)
+                #     assert sr == self.sr
+                #     audio_cached = audio_cached.to(theta_sig.device)
+                #     assert tr.allclose(a, audio_cached, atol=1e-4)
         assert len(idx_to_audio) == bs
         audio = [idx_to_audio[idx] for idx in range(bs)]
         audio = tr.stack(audio, dim=0)
@@ -358,6 +376,7 @@ class FlowtronSynth(nn.Module):
         use_cache: bool = False,
     ) -> T:
         if use_cache:
+            assert False  # TODO(cm): tmp
             assert not self.wordlist, "Caching is not supported with wordlist"
             return self._forward_cached(theta_sig, theta_e, seed)
         else:
@@ -382,7 +401,7 @@ if __name__ == "__main__":
         config_path=config_path,
         model_path=model_path,
         vocoder_path=waveglow_path,
-        theta_e_path=theta_e_path,
+        theta_s_path=theta_e_path,
     )
 
     theta_sig = tr.tensor([0.1, 0.5, 1.0])

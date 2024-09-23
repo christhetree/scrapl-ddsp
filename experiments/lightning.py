@@ -3,7 +3,7 @@ import logging
 import os
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import pytorch_lightning as pl
 import torch as tr
@@ -82,11 +82,11 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.run_name = run_name
         log.info(f"Run name: {self.run_name}")
 
-        if type(self.loss_func) in {SCRAPLLoss, AdaptiveSCRAPLLoss}:
+        if type(self.loss_func) in {SCRAPLLoss, AdaptiveSCRAPLLoss, JTFSTLoss}:
             assert self.grad_multiplier is not None, "Grad multiplier is required"
         else:
-            # TODO(cm): check JTFS
-            assert self.grad_multiplier is None, "Grad multiplier is only for SCRAPL"
+            assert self.grad_multiplier is None, "Grad multiplier is only for JTFS"
+        if type(self.loss_func) not in {SCRAPLLoss, AdaptiveSCRAPLLoss}:
             assert not use_pathwise_adam, "Pathwise ADAM is only for SCRAPL"
             assert vr_algo is None, "VR is only for SCRAPL"
 
@@ -188,6 +188,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         return grad_hat, m, v
 
     def grad_multiplier_hook(self, grad: T) -> T:
+        # log.info(f"grad.abs().max() = {grad.abs().max()}")
         if not self.training:
             log.warning("grad_multiplier_hook called during eval")
             return grad
@@ -324,11 +325,8 @@ class SCRAPLLightingModule(pl.LightningModule):
             seed_hat = tr.randint_like(seed, low=seed_range, high=2 * seed_range)
 
         with tr.no_grad():
-            # TODO(cm): tmp
-            x = self.synth.make_x_from_theta(theta_density, theta_slope, seed, use_cache=True)
-            # x = self.synth.make_x_from_theta(theta_density, theta_slope, seed, use_cache=False)
+            x = self.synth.make_x_from_theta(theta_density, theta_slope, seed)
             U = self.calc_U(x)
-            # U = x
 
         U_hat = None
         x_hat = None
@@ -426,9 +424,21 @@ class SCRAPLLightingModule(pl.LightningModule):
     def on_validation_epoch_end(self) -> None:
         for name, maes in self.val_maes.items():
             if len(maes) > 1:
-                l1_var = tr.stack(maes, dim=0).var(dim=0)
-                self.log(f"val/{name}_var", l1_var, prog_bar=False)
-        self.val_maes.clear()
+                l1_tv = self.calc_total_variation(maes, norm_by_len=True)
+                self.log(f"val/{name}_tv", l1_tv, prog_bar=False)
+
+    @staticmethod
+    def calc_total_variation(x: List[T], norm_by_len: bool = True) -> T:
+        diffs = tr.stack(
+            [tr.abs(x[idx + 1] - x[idx])
+             for idx in range(len(x) - 1)],
+            dim=0,
+        )
+        assert diffs.ndim == 1
+        if norm_by_len:
+            return diffs.mean()
+        else:
+            return diffs.sum()
 
     @staticmethod
     def calc_cqt(x: T, cqt: CQT, cqt_eps: float = 1e-3) -> T:
