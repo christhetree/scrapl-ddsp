@@ -3,6 +3,7 @@ import os
 from typing import Optional, Dict, Any
 
 import torch as tr
+import wandb
 import yaml
 from jsonargparse import lazy_instance
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
@@ -174,11 +175,21 @@ class CustomLightningCLI(LightningCLI):
         if (use_gpu and self.config.fit.custom.use_wandb_gpu) or (
             not use_gpu and self.config.fit.custom.use_wandb_cpu
         ):
+            # Used directly by the callbacks
+            wandb.init(
+                dir="wandb_logs",
+                project=self.config.fit.custom.project_name,
+                name=f"{self.config.fit.custom.model_name}__"
+                     f"{self.config.fit.custom.dataset_name}",
+            )
+            wandb.define_metric("*", step_metric="global_step")
+
+            # Used by lightning to log to wandb
             wandb_logger = WandbLogger(
                 save_dir="wandb_logs",
                 project=self.config.fit.custom.project_name,
                 name=f"{self.config.fit.custom.model_name}__"
-                f"{self.config.fit.custom.dataset_name}",
+                     f"{self.config.fit.custom.dataset_name}",
             )
             self.trainer.loggers.append(wandb_logger)
         else:

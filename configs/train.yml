@@ -12,11 +12,10 @@ custom:
 #  model_name: scrapl_1e8_sag_b0.9_sgd_1e-4
 #  model_name: scrapl_pwa_sgd_1e-4
 #  model_name: scrapl_1e8_saga_sgd_1e-4
-#  dataset_name: chirp_32_32
-#  dataset_name: chirp_32_32_micro
-#  dataset_name: chirp_32_32_meso_unique2
+#  dataset_name: chirp_32_32_5_micro
+  dataset_name: chirp_32_32_5_meso
 #  dataset_name: testing
-  dataset_name: flowtron_16_16_5_hifigan_t2_v3_as_sig_seed_micro
+#  dataset_name: flowtron_16_16_5_hifigan_t2_v3_as_sig_seed_micro
 #  dataset_name: flowtron_16_16_5_hifigan_t2_v3_as_sig0.5
   cpu_batch_size: 3
 #  use_wandb_cpu: true
@@ -29,7 +28,7 @@ trainer:
   devices: [5]
 #  max_epochs: 200
   max_epochs: 300
-  num_sanity_val_steps: 2
+  num_sanity_val_steps: 5
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 8
 #  gradient_clip_val: 0.5
@@ -41,12 +40,12 @@ data:
 #    batch_size: 4
 
     num_workers: 4
-#    n_d: 32
-    n_d: 16
+    n_d: 32
+#    n_d: 16
 #    n_d: 256
 #    n_d: 1
-#    n_s: 32
-    n_s: 16
+    n_s: 32
+#    n_s: 16
 #    n_s: 1
 #    n_s: 256
 #    n_s: 8
@@ -93,8 +92,8 @@ model:
     use_val_rand_seed: false
 #    use_val_rand_seed: true
 
-    use_rand_seed_hat: false
-#    use_rand_seed_hat: true
+#    use_rand_seed_hat: false
+    use_rand_seed_hat: true
 
     feature_type: cqt
     J_cqt: 5
