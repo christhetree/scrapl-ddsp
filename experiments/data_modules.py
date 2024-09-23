@@ -15,12 +15,12 @@ log = logging.getLogger(__name__)
 log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
-class ChirpTextureDataModule(pl.LightningDataModule):
+class ThetaDSDataModule(pl.LightningDataModule):
     def __init__(
         self,
         batch_size: int,
-        n_densities: int,
-        n_slopes: int,
+        n_d: int,
+        n_s: int,
         n_seeds_per_theta: int = 1,
         n_folds: int = 5,
         use_unique_seeds: bool = True,
@@ -29,8 +29,8 @@ class ChirpTextureDataModule(pl.LightningDataModule):
     ):
         super().__init__()
         self.batch_size = batch_size
-        self.n_densities = n_densities
-        self.n_slopes = n_slopes
+        self.n_d = n_d
+        self.n_s = n_s
         self.n_seeds_per_theta = n_seeds_per_theta
         assert n_folds >= 3, "n_folds must be at least 3."
         self.n_folds = n_folds
@@ -38,25 +38,23 @@ class ChirpTextureDataModule(pl.LightningDataModule):
             log.info(f"Using a unique seed for each theta combination.")
         self.use_unique_seeds = use_unique_seeds
         if use_unique_theta_in_val_test:
-            log.info(
-                f"Theta combinations are unique in validation and test sets."
-            )
+            log.info(f"Theta combinations are unique in validation and test sets.")
         self.use_unique_theta_in_val_test = use_unique_theta_in_val_test
         self.num_workers = num_workers
 
-        slope_idx = np.arange(n_slopes)
-        density_idx = np.arange(n_densities)
+        d_idx = np.arange(n_d)
+        s_idx = np.arange(n_s)
         if use_unique_theta_in_val_test:
             seeds = np.arange(n_seeds_per_theta)
         else:
             seeds = np.arange(n_seeds_per_theta * n_folds)
 
-        theta_idx = list(itertools.product(density_idx, slope_idx, seeds))
-        df_idx = pd.DataFrame(theta_idx, columns=["density_idx", "slope_idx", "seed"])
-        densities = np.linspace(0, 1, n_densities + 2)[1:-1]
-        slopes = np.linspace(-1, 1, n_slopes + 2)[1:-1]
-        thetas = list(itertools.product(densities, slopes, seeds))
-        df = pd.DataFrame(thetas, columns=["density", "slope", "seeds_tmp"])
+        theta_idx = list(itertools.product(d_idx, s_idx, seeds))
+        df_idx = pd.DataFrame(theta_idx, columns=["d_idx", "s_idx", "seed"])
+        d_s = np.linspace(0, 1, n_d + 2)[1:-1]
+        s_s = np.linspace(0, 1, n_s + 2)[1:-1]
+        thetas = list(itertools.product(d_s, s_s, seeds))
+        df = pd.DataFrame(thetas, columns=["d", "s", "seeds_tmp"])
         del df["seeds_tmp"]
         df = df_idx.merge(df, left_index=True, right_index=True)
 
@@ -70,7 +68,7 @@ class ChirpTextureDataModule(pl.LightningDataModule):
 
         # Ensure unseen theta combinations in validation and test sets if requested
         if use_unique_theta_in_val_test:
-            df["unique_theta_idx"] = df["density_idx"] * n_slopes + df["slope_idx"]
+            df["unique_theta_idx"] = df["d_idx"] * n_s + df["s_idx"]
             folds = df["unique_theta_idx"] % n_folds
             df["fold"] = folds
             del df["unique_theta_idx"]

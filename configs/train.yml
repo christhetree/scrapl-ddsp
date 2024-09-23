@@ -35,21 +35,21 @@ trainer:
 #  gradient_clip_val: 0.5
 
 data:
-  class_path: experiments.data_modules.ChirpTextureDataModule
+  class_path: experiments.data_modules.ThetaDSDataModule
   init_args:
     batch_size: 32
 #    batch_size: 4
 
     num_workers: 4
-#    n_densities: 32
-    n_densities: 16
-#    n_densities: 256
-#    n_densities: 1
-#    n_slopes: 32
-    n_slopes: 16
-#    n_slopes: 1
-#    n_slopes: 256
-#    n_slopes: 8
+#    n_d: 32
+    n_d: 16
+#    n_d: 256
+#    n_d: 1
+#    n_s: 32
+    n_s: 16
+#    n_s: 1
+#    n_s: 256
+#    n_s: 8
     n_seeds_per_theta: 5
 #    n_seeds_per_theta: 1
     n_folds: 5
@@ -62,8 +62,8 @@ model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
     model: ../configs/models/spectral_2dcnn.yml
-#    synth: ../configs/synths/chirp_texture_8khz.yml
-    synth: ../configs/flowtron/flowtron_synth.yml
+    synth: ../configs/synths/chirp_texture_8khz.yml
+#    synth: ../configs/flowtron/flowtron_synth.yml
 
     loss_func: auraloss.freq.MultiResolutionSTFTLoss
 #    loss_func: ../configs/losses/rand_mss.yml
@@ -102,7 +102,7 @@ model:
     log_x: true
 #    log_x_hat: true
     log_x_hat: false
-    log_val_grads: false
+    log_val_grads: true
 
 #    run_name: sag_b0.99_sgd_1e-4_cont_t_lrs99_p15
 

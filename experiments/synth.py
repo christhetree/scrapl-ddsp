@@ -84,7 +84,6 @@ class ChirpTextureSynth(nn.Module):
     def sample_onsets(self, rand_gen: tr.Generator) -> T:
         # TODO(cm): add support for edge padding
         onsets = self.onsets.uniform_(generator=rand_gen)
-        # onsets.fill_(0.5)  # TODO(cm): tmp
         onsets = onsets * (self.n_samples - self.grain_n_samples)
         onsets = onsets.long()
         return onsets
@@ -153,8 +152,14 @@ class ChirpTextureSynth(nn.Module):
         x = x / tr.norm(x, p=2)  # TODO
         return x
 
-    def make_x_from_theta(self, theta_density: T, theta_slope: T, seed: T) -> T:
+    def make_x_from_theta(self, theta_d_0to1: T, theta_s_0to1: T, seed: T) -> T:
         # TODO(cm): add batch support to synth
+        assert theta_d_0to1.min() >= 0.0
+        assert theta_d_0to1.max() <= 1.0
+        assert theta_s_0to1.min() >= 0.0
+        assert theta_s_0to1.max() <= 1.0
+        theta_density = theta_d_0to1
+        theta_slope = theta_s_0to1 * 2.0 - 1.0
         x = []
         for idx in range(theta_density.size(0)):
             curr_x = self.forward(theta_density[idx], theta_slope[idx], seed[idx])
@@ -328,33 +333,37 @@ class FlowtronSynth(nn.Module):
         # log.info(f"Vocoder is deterministic")
         return audio
 
-    def _forward_cached(self, theta_sig: T, theta_e: T, seed: T) -> T:
-        assert theta_sig.shape == theta_e.shape == seed.shape
-        bs = theta_sig.size(0)
+    def _forward_cached(self, theta_d: T, theta_s: T, seed: T) -> T:
+        assert theta_d.shape == theta_s.shape == seed.shape
+        bs = theta_d.size(0)
         idx_to_audio = {}
         uncached_indices = []
         # uncached_indices = list(range(bs))
-        for idx, (sig, e, s) in enumerate(zip(theta_sig, theta_e, seed)):
-            cache_name = f"flowtron_{s.item()}_{sig.item():.6f}_{e.item():.6f}.wav"
+        for idx, (theta_d, theta_s, s) in enumerate(zip(theta_d, theta_s, seed)):
+            cache_name = (
+                f"flowtron_{s.item()}_{theta_d.item():.6f}_{theta_s.item():.6f}.wav"
+            )
             cache_path = os.path.join(self.cache_dir, cache_name)
             if os.path.isfile(cache_path):
                 # log.info(f"Cache hit: {cache_path}")
                 audio, sr = torchaudio.load(cache_path)
                 assert sr == self.sr
-                audio = audio.to(theta_sig.device)
+                audio = audio.to(theta_d.device)
                 idx_to_audio[idx] = audio
             else:
                 uncached_indices.append(idx)
         if uncached_indices:
-            uncached_sig = theta_sig[uncached_indices]
-            uncached_e = theta_e[uncached_indices]
-            uncached_s = seed[uncached_indices]
-            audio = self._forward(uncached_sig, uncached_e, uncached_s).detach()
-            for idx, a, sig, e, s in zip(
-                uncached_indices, audio, uncached_sig, uncached_e, uncached_s
+            uncached_d = theta_d[uncached_indices]
+            uncached_s = theta_s[uncached_indices]
+            uncached_seed = seed[uncached_indices]
+            audio = self._forward(uncached_d, uncached_s, uncached_seed).detach()
+            for idx, a, theta_d, theta_s, s in zip(
+                uncached_indices, audio, uncached_d, uncached_s, uncached_seed
             ):
                 idx_to_audio[idx] = a
-                cache_name = f"flowtron_{s.item()}_{sig.item():.6f}_{e.item():.6f}.wav"
+                cache_name = (
+                    f"flowtron_{s.item()}_{theta_d.item():.6f}_{theta_s.item():.6f}.wav"
+                )
                 cache_path = os.path.join(self.cache_dir, cache_name)
                 assert not os.path.isfile(cache_path)
                 torchaudio.save(cache_path, a.cpu(), self.sr)
@@ -370,24 +379,26 @@ class FlowtronSynth(nn.Module):
 
     def forward(
         self,
-        theta_sig: T,
-        theta_e: T,
+        theta_d: T,
+        theta_s: T,
         seed: Optional[T] = None,
         use_cache: bool = False,
     ) -> T:
         if use_cache:
             assert False  # TODO(cm): tmp
             assert not self.wordlist, "Caching is not supported with wordlist"
-            return self._forward_cached(theta_sig, theta_e, seed)
+            return self._forward_cached(theta_d, theta_s, seed)
         else:
-            return self._forward(theta_sig, theta_e, seed)
+            return self._forward(theta_d, theta_s, seed)
 
     def make_x_from_theta(
-        self, theta_sig: T, theta_e: T, seed: T, use_cache: bool = False
+        self, theta_d_0to1: T, theta_s_0to1: T, seed: T, use_cache: bool = False
     ) -> T:
-        assert theta_e.min() >= 0.0
-        assert theta_e.max() <= 1.0
-        audio = self.forward(theta_sig, theta_e, seed, use_cache)
+        assert theta_d_0to1.min() >= 0.0
+        assert theta_d_0to1.max() <= 1.0
+        assert theta_s_0to1.min() >= 0.0
+        assert theta_s_0to1.max() <= 1.0
+        audio = self.forward(theta_d_0to1, theta_s_0to1, seed, use_cache)
         return audio
 
 

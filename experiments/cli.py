@@ -14,11 +14,7 @@ from experiments.callbacks import (
     LogAudioCallback,
     LogScalogramCallback,
     LogGradientCallback,
-    SaveTargetPathEnergiesCallback,
-    SavePathCountsCallback,
-    SaveSCRAPLLogitsCallback,
-    SaveMeanAbsSxGradsCallback,
-    SaveThetaGradsCallback, ConsoleLRMonitor,
+    ConsoleLRMonitor,
 )
 from experiments.paths import CONFIGS_DIR
 
@@ -44,13 +40,8 @@ class CustomLightningCLI(LightningCLI):
                 verbose=False,
             ),
             LogScalogramCallback(),
-            # LogGradientCallback(),
-            # LogAudioCallback(),
-            # SaveSCRAPLLogitsCallback(),
-            # SavePathCountsCallback(),
-            # SaveTargetPathEnergiesCallback(),
-            # SaveMeanAbsSxGradsCallback(),
-            # SaveThetaGradsCallback(),
+            LogGradientCallback(),
+            LogAudioCallback(),
         ],
         "logger": {
             "class_path": "pytorch_lightning.loggers.TensorBoardLogger",

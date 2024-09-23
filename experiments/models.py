@@ -74,13 +74,13 @@ class Spectral2DCNN(nn.Module):
         self.fc_act = nn.PReLU()
         self.do = nn.Dropout(p=dropout_prob)
 
-        self.fc_density = nn.Linear(latent_dim, latent_dim // 2)
-        self.fc_density_act = nn.PReLU()
-        self.out_density = nn.Linear(latent_dim // 2, 1)
+        self.fc_d = nn.Linear(latent_dim, latent_dim // 2)
+        self.fc_d_act = nn.PReLU()
+        self.out_d = nn.Linear(latent_dim // 2, 1)
 
-        self.fc_slope = nn.Linear(latent_dim, latent_dim // 2)
-        self.fc_slope_act = nn.PReLU()
-        self.out_slope = nn.Linear(latent_dim // 2, 1)
+        self.fc_s = nn.Linear(latent_dim, latent_dim // 2)
+        self.fc_s_act = nn.PReLU()
+        self.out_s = nn.Linear(latent_dim // 2, 1)
 
     def forward(self, x: T) -> (T, T):
         assert x.ndim == 3
@@ -92,15 +92,15 @@ class Spectral2DCNN(nn.Module):
         x = self.do(x)
         latent = x
 
-        x = self.fc_density(latent)
-        x = self.fc_density_act(x)
+        x = self.fc_d(latent)
+        x = self.fc_d_act(x)
         x = self.do(x)
-        density_hat = self.out_density(x)
-        density_hat = tr.sigmoid(density_hat).squeeze(1)
+        d_hat = self.out_d(x)
+        d_hat = tr.sigmoid(d_hat).squeeze(1)
 
-        x = self.fc_slope(latent)
-        x = self.fc_slope_act(x)
+        x = self.fc_s(latent)
+        x = self.fc_s_act(x)
         x = self.do(x)
-        slope_hat = self.out_slope(x)
-        slope_hat = tr.sigmoid(slope_hat).squeeze(1)
-        return density_hat, slope_hat
+        s_hat = self.out_s(x)
+        s_hat = tr.sigmoid(s_hat).squeeze(1)
+        return d_hat, s_hat

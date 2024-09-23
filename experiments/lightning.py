@@ -107,7 +107,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.loss_name = self.loss_func.__class__.__name__
         self.l1 = nn.L1Loss()
         self.global_n = 0
-        self.val_maes = defaultdict(list)
+        self.val_l1_s = defaultdict(list)
 
         if use_pathwise_adam or vr_algo:
             log.info(
@@ -304,9 +304,8 @@ class SCRAPLLightingModule(pl.LightningModule):
             raise NotImplementedError
 
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
-        theta_density, theta_slope, seed, batch_indices = batch
-        theta_slope = (theta_slope + 1.0) / 2.0  # TODO(cm): tmp
-        batch_size = theta_density.size(0)
+        theta_d_0to1, theta_s_0to1, seed, batch_indices = batch
+        batch_size = theta_d_0to1.size(0)
         if stage == "train":
             self.global_n = (
                 self.global_step * self.trainer.accumulate_grad_batches * batch_size
@@ -325,54 +324,52 @@ class SCRAPLLightingModule(pl.LightningModule):
             seed_hat = tr.randint_like(seed, low=seed_range, high=2 * seed_range)
 
         with tr.no_grad():
-            x = self.synth.make_x_from_theta(theta_density, theta_slope, seed)
+            x = self.synth.make_x_from_theta(theta_d_0to1, theta_s_0to1, seed)
             U = self.calc_U(x)
 
         U_hat = None
         x_hat = None
 
-        theta_density_hat, theta_slope_hat = self.model(U)
+        theta_d_0to1_hat, theta_s_0to1_hat = self.model(U)
         if stage == "train":
-            theta_density_hat.retain_grad()
-            theta_slope_hat.retain_grad()
+            theta_d_0to1_hat.retain_grad()
+            theta_s_0to1_hat.retain_grad()
 
-        density_mae = self.l1(theta_density_hat, theta_density)
-        slope_mae = self.l1(theta_slope_hat, theta_slope)
+        l1_d = self.l1(theta_d_0to1_hat, theta_d_0to1)
+        l1_s = self.l1(theta_s_0to1_hat, theta_s_0to1)
         if stage == "val":
-            self.val_maes["l1_d"].append(density_mae.detach().cpu())
-            self.val_maes["l1_s"].append(slope_mae.detach().cpu())
+            self.val_l1_s["l1_d"].append(l1_d.detach().cpu())
+            self.val_l1_s["l1_s"].append(l1_s.detach().cpu())
 
         if self.use_p_loss:
-            density_loss = self.loss_func(theta_density_hat, theta_density)
-            slope_loss = self.loss_func(theta_slope_hat, theta_slope)
-            # TODO(cm): change everything to 0to1 amounts
-            loss = density_loss + slope_loss
+            loss_d = self.loss_func(theta_d_0to1_hat, theta_d_0to1)
+            loss_s = self.loss_func(theta_s_0to1_hat, theta_s_0to1)
+            loss = loss_d + loss_s
             self.log(
                 f"{stage}/p_loss_{self.loss_name}", loss, prog_bar=True, sync_dist=True
             )
         else:
             x_hat = self.synth.make_x_from_theta(
-                theta_density_hat, theta_slope_hat, seed_hat
+                theta_d_0to1_hat, theta_s_0to1_hat, seed_hat
             )
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
-                # U_hat = x_hat
             loss = self.loss_func(x_hat, x)
             self.log(f"{stage}/{self.loss_name}", loss, prog_bar=True, sync_dist=True)
 
-        self.log(f"{stage}/l1_d", density_mae, prog_bar=True, sync_dist=True)
-        self.log(f"{stage}/l1_s", slope_mae, prog_bar=True, sync_dist=True)
+        self.log(f"{stage}/l1_d", l1_d, prog_bar=True, sync_dist=True)
+        self.log(f"{stage}/l1_s", l1_s, prog_bar=True, sync_dist=True)
         # Slope has twice the range of density so we normalize it first before averaging
-        theta_mae = (density_mae + slope_mae) / 2
+        theta_mae = (l1_d + l1_s) / 2
         self.log(f"{stage}/l1_theta", theta_mae, prog_bar=True, sync_dist=True)
         self.log(f"{stage}/loss", loss, prog_bar=False, sync_dist=True)
 
         with tr.no_grad():
             if x is None and self.log_x:
-                x = self.synth.make_x_from_theta(theta_density, theta_slope, seed)
+                x = self.synth.make_x_from_theta(theta_d_0to1, theta_s_0to1, seed)
             if x_hat is None and self.log_x_hat:
                 x_hat = self.synth.make_x_from_theta(
-                    theta_density_hat, theta_slope_hat, seed_hat
+                    theta_d_0to1_hat, theta_s_0to1_hat, seed_hat
                 )
                 U_hat = self.calc_U(x_hat)
 
@@ -401,10 +398,10 @@ class SCRAPLLightingModule(pl.LightningModule):
             "U_hat": U_hat,
             "x": x,
             "x_hat": x_hat,
-            "theta_density": theta_density,
-            "theta_density_hat": theta_density_hat,
-            "theta_slope": theta_slope,
-            "theta_slope_hat": theta_slope_hat,
+            "theta_d": theta_d_0to1,
+            "theta_d_hat": theta_d_0to1_hat,
+            "theta_s": theta_s_0to1,
+            "theta_s_hat": theta_s_0to1_hat,
             "seed": seed,
             "seed_hat": seed_hat,
         }
@@ -422,7 +419,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         return self.step(batch, stage="test")
 
     def on_validation_epoch_end(self) -> None:
-        for name, maes in self.val_maes.items():
+        for name, maes in self.val_l1_s.items():
             if len(maes) > 1:
                 l1_tv = self.calc_total_variation(maes, norm_by_len=True)
                 self.log(f"val/{name}_tv", l1_tv, prog_bar=False)
@@ -430,8 +427,7 @@ class SCRAPLLightingModule(pl.LightningModule):
     @staticmethod
     def calc_total_variation(x: List[T], norm_by_len: bool = True) -> T:
         diffs = tr.stack(
-            [tr.abs(x[idx + 1] - x[idx])
-             for idx in range(len(x) - 1)],
+            [tr.abs(x[idx + 1] - x[idx]) for idx in range(len(x) - 1)],
             dim=0,
         )
         assert diffs.ndim == 1
