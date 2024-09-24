@@ -8,7 +8,7 @@ import torchaudio
 from torch import Tensor as T
 from tqdm import tqdm
 
-from experiments.paths import OUT_DIR, CONFIGS_DIR, MODELS_DIR
+from experiments.paths import OUT_DIR, CONFIGS_DIR, MODELS_DIR, DATA_DIR
 from flowtron.audio_processing import TacotronSTFT
 from flowtron.data import get_text_embedding
 from flowtron.flowtron import Flowtron
@@ -82,10 +82,10 @@ def prepare_ravdess_data(
 
 if __name__ == "__main__":
     # ravdess_dir = os.path.join(DATA_DIR, "ravdess")
-    # gender = "female"
+    # gender = "male"
     # # emotion = "surprised"
-    # # emotion = "neutral"
-    # emotion = "calm"
+    # emotion = "neutral"
+    # # emotion = "calm"
     # # emotion = "happy"
     # # emotion = "disgust"
     # # emotion = "fearful"
@@ -97,13 +97,16 @@ if __name__ == "__main__":
     config_path = os.path.join(CONFIGS_DIR, "flowtron/config.json")
     model_path = os.path.join(MODELS_DIR, "flowtron_ljs.pt")
     # dataset_name = "female_angry_14"
-    # dataset_name = "female_angry_24"
+    dataset_name = "female_angry_24"
+    # dataset_name = "female_sad_22"
     # dataset_name = "female_fearful_24"
     # dataset_name = "female_surprised"
     # dataset_name = "female_surprised_14"
-    dataset_name = "female_surprised_24"
+    # dataset_name = "female_surprised_24"
     # dataset_name = "female_disgust_24"
     # dataset_name = "female_happy_24"
+    # dataset_name = "male_neutral_21"
+    # dataset_name = "male_neutral_23"
     dataset_path = os.path.join(OUT_DIR, dataset_name)
     n_frames = 128
 
@@ -161,14 +164,15 @@ if __name__ == "__main__":
         z_multiplier = intensity_idx / 2.0
 
         speaker_id = tr.tensor([0]).long()
-        # text_emb_p0 = idx_to_text_emb_p0[sentence_idx]
-        text_emb_p1 = idx_to_text_emb_p1[sentence_idx]
+        text_emb_p0 = idx_to_text_emb_p0[sentence_idx]
+        # text_emb_p1 = idx_to_text_emb_p1[sentence_idx]
         mel = stft.mel_spectrogram(audio)
         log.info(f"mel.shape = {mel.shape}")
         out_lens = tr.tensor([mel.size(-1)]).long()
 
         # for text_emb in [text_emb_p0, text_emb_p1]:
-        for text_emb in [text_emb_p1]:
+        for text_emb in [text_emb_p0]:
+        # for text_emb in [text_emb_p1]:
             text_emb = text_emb.unsqueeze(0)
             in_lens = tr.tensor([text_emb.size(-1)]).long()
             with tr.no_grad():
@@ -179,7 +183,7 @@ if __name__ == "__main__":
                 z = z.repeat(1, 1, n_repeats)
                 z = z[..., :n_frames]
                 # z = z.mean(dim=0)
-                z *= z_multiplier
+                # z *= z_multiplier
             z_s.append(z)
 
     log.info(f"len(z_s) = {len(z_s)}")
@@ -187,4 +191,6 @@ if __name__ == "__main__":
     log.info(f"z.shape before mean = {z.shape}")
     z = z.mean(dim=0)
     log.info(f"z.shape after mean = {z.shape}")
-    tr.save(z, os.path.join(OUT_DIR, f"z_{dataset_name}_tv.pt"))
+    tr.save(z, os.path.join(OUT_DIR, f"z_{dataset_name}_tv_a0.pt"))
+    # z = z.view(-1, 1).repeat(1, n_frames)
+    # tr.save(z, os.path.join(OUT_DIR, f"z_{dataset_name}_a0.pt"))

@@ -27,7 +27,7 @@
         "training_files": "filelists/ljs_audiopaths_text_sid_train_filelist.txt",
         "validation_files": "filelists/ljs_audiopaths_text_sid_val_filelist.txt",
         "text_cleaners": ["flowtron_cleaners"],
-        "p_arpabet": 0.5,
+        "p_arpabet": 0.0,
         "cmudict_path": "../data/cmudict_dictionary",
         "sampling_rate": 22050,
         "filter_length": 1024,

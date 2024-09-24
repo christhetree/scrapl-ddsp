@@ -105,7 +105,7 @@ class ThetaDSDataModule(pl.LightningDataModule):
         return DataLoader(
             self.val_ds,
             batch_size=self.batch_size,
-            shuffle=False,
+            shuffle=True,  # For more diversity in visualization callbacks
             num_workers=self.num_workers,
             drop_last=True,
         )

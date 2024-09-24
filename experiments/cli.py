@@ -42,7 +42,7 @@ class CustomLightningCLI(LightningCLI):
             ),
             LogScalogramCallback(),
             LogGradientCallback(),
-            LogAudioCallback(),
+            # LogAudioCallback(),
         ],
         "logger": {
             "class_path": "pytorch_lightning.loggers.TensorBoardLogger",

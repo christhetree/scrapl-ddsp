@@ -3,9 +3,9 @@ init_args:
   config_path: ../configs/flowtron/config.json
   model_path: ../models/flowtron_ljs.pt
   vocoder_path: ../models/hifigan_t2_v3_generator.pt
-  theta_d_path: ../data/z_female_angry_24_tv.pt
-  theta_s_path: ../data/z_female_surprised_24_tv.pt
-  default_text: "what is going on"
+  theta_d_path: ../data/z_male_neutral_21_tv_a0.pt
+  theta_s_path: ../data/z_female_surprised_24_tv_a0.pt
+  default_text: "Pigs are flying!"
 #  wordlist_path: ../data/en_common_words_1k.json
   n_words: 4
   n_frames: 128

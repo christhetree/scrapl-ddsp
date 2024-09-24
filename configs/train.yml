@@ -5,18 +5,22 @@ custom:
 #  model_name: testing
 #  model_name: ploss_mse_adamw_1e-4
 #  model_name: mse_adamw_1e-4
-  model_name: mss_adamw_1e-4
-#  model_name: jtfst_adamw_1e-3_neg
-#  model_name: clap_adamw_1e-4
+#  model_name: mss_adamw_1e-4
+#  model_name: jtfst_adamw_1e-4
+  model_name: scat_1d_o1_J12_Q24_T64_adamw_1e-4
+#  model_name: clap_p1_adamw_1e-4
 #  model_name: scrapl_adamw_1e-4
-#  model_name: scrapl_1e8_sag_b0.9_sgd_1e-4
+#  model_name: scrapl_sag_b0.9_sgd_1e-4
 #  model_name: scrapl_pwa_sgd_1e-4
-#  model_name: scrapl_1e8_saga_sgd_1e-4
+#  model_name: scrapl_saga_p1_gc0.5_sgd_1e-4
 #  dataset_name: chirp_32_32_5_micro
-  dataset_name: chirp_32_32_5_meso
+#  dataset_name: chirp_32_32_5_meso
 #  dataset_name: testing
-#  dataset_name: flowtron_16_16_5_hifigan_t2_v3_as_sig_seed_micro
-#  dataset_name: flowtron_16_16_5_hifigan_t2_v3_as_sig0.5
+#  dataset_name: flowtron_32_32_1_hifigan_MS_fixed_z
+#  dataset_name: flowtron_16_16_5_hifigan_MS
+  dataset_name: flowtron_16_16_5_hifigan_MS_micro
+#  dataset_name: flowtron_32_32_10_hifigan_MS_micro_no_unique_seed
+#  dataset_name: flowtron_16_16_5_hifigan_MS_meso
   cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
@@ -40,12 +44,12 @@ data:
 #    batch_size: 4
 
     num_workers: 4
-    n_d: 32
-#    n_d: 16
+#    n_d: 32
+    n_d: 16
 #    n_d: 256
 #    n_d: 1
-    n_s: 32
-#    n_s: 16
+#    n_s: 32
+    n_s: 16
 #    n_s: 1
 #    n_s: 256
 #    n_s: 8
@@ -61,10 +65,11 @@ model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
     model: ../configs/models/spectral_2dcnn.yml
-    synth: ../configs/synths/chirp_texture_8khz.yml
-#    synth: ../configs/flowtron/flowtron_synth.yml
+#    synth: ../configs/synths/chirp_texture_8khz.yml
+    synth: ../configs/flowtron/flowtron_synth.yml
 
-    loss_func: auraloss.freq.MultiResolutionSTFTLoss
+#    loss_func: ../configs/losses/mss.yml
+    loss_func: ../configs/losses/scat_1d_dtfa.yml
 #    loss_func: ../configs/losses/rand_mss.yml
 #    loss_func: ../configs/losses/jtfst_dtfa.yml
 #    loss_func: ../configs/losses/scrapl_dtfa.yml
@@ -92,8 +97,8 @@ model:
     use_val_rand_seed: false
 #    use_val_rand_seed: true
 
-#    use_rand_seed_hat: false
-    use_rand_seed_hat: true
+    use_rand_seed_hat: false
+#    use_rand_seed_hat: true
 
     feature_type: cqt
     J_cqt: 5
@@ -102,6 +107,7 @@ model:
 #    log_x_hat: true
     log_x_hat: false
     log_val_grads: true
+#    log_val_grads: false
 
 #    run_name: sag_b0.99_sgd_1e-4_cont_t_lrs99_p15
 

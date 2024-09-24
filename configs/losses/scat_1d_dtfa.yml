@@ -1,0 +1,9 @@
+class_path: experiments.losses.Scat1DLoss
+init_args:
+  shape: 32768
+  J: 12
+  Q1: 24
+  Q2: 1
+  T: 64
+  max_order: 1
+  p: 2

@@ -7,11 +7,12 @@ import numpy as np
 import torch as tr
 import torch.nn as nn
 import torchaudio
+import yaml
 from torch import Tensor as T
 
 from experiments.paths import OUT_DIR, CONFIGS_DIR, DATA_DIR, MODELS_DIR
 from flowtron.data import get_text_embedding
-from flowtron.flowtron import Flowtron
+from flowtron.flowtron import Flowtron, AR_Step, AR_Back_Step
 from flowtron.text.cmudict import CMUDict
 from hifigan.env import AttrDict
 from hifigan.models import Generator
@@ -219,6 +220,16 @@ class FlowtronSynth(nn.Module):
         model = Flowtron(**self.model_config)
         model.load_state_dict(state_dict, strict=False)
         model.eval()
+        # model.encoder.lstm.train()
+        # for flow in model.flows:
+        #     if isinstance(flow, AR_Step):
+        #         flow.lstm.train()
+        #         flow.attention_lstm.train()
+        #     elif isinstance(flow, AR_Back_Step):
+        #         flow.ar_step.lstm.train()
+        #         flow.ar_step.attention_lstm.train()
+        #     else:
+        #         raise ValueError(f"Unknown flow type: {type(flow)}")
         self.model = model
 
         log.info(f"Loading Vocoder")
@@ -267,7 +278,7 @@ class FlowtronSynth(nn.Module):
 
         self.register_buffer("mu_tmp", tr.zeros_like(theta_s_mu))
         self.register_buffer("sig_tmp", tr.ones_like(theta_s_mu))
-        self.register_buffer("z_tmp", tr.normal(self.mu_tmp, self.sig_tmp))
+        # self.register_buffer("z_tmp", tr.normal(self.mu_tmp, self.sig_tmp))
 
     def get_text_embedding(self, text: str, rand_gen: tr.Generator) -> T:
         # TODO(cm): add rand_gen back and look into p_arpabet
@@ -284,43 +295,51 @@ class FlowtronSynth(nn.Module):
 
     def _forward(self, theta_d: T, theta_s: T, seed: Optional[T] = None) -> T:
         assert theta_d.ndim == theta_s.ndim == 1
-        # rand_gen = self.get_rand_gen(device=self.speaker_id.device.type)
-        rand_gen = self.get_rand_gen("cpu")
+        rand_gen = self.get_rand_gen(device=self.speaker_id.device.type)
+        # rand_gen = self.get_rand_gen("cpu")
         if seed is not None:
             assert seed.shape == theta_d.shape
 
         z_s = []
         bs = theta_d.size(0)
-        sigs = []
+        # sigs = []
         for idx in range(bs):
             if seed is not None:
                 rand_gen.manual_seed(int(seed[idx].item()))
-            sig = tr.rand((1,), generator=rand_gen) * self.max_sigma
-            sigs.append(sig)
-            # z = tr.normal(self.mu_tmp, self.sig_tmp, generator=rand_gen)
-            z = self.z_tmp
+            # sig = tr.rand((1,), generator=rand_gen) * self.max_sigma
+            # sig = tr.tensor([0.5])
+            # sigs.append(sig)
+            z = tr.normal(self.mu_tmp, self.sig_tmp, generator=rand_gen)
+            # z = self.z_tmp
             z_s.append(z)
         z_s = tr.stack(z_s, dim=0)
-        mu_probs = tr.softmax(tr.stack([theta_d, theta_s], dim=1), dim=1)
-        mu_d = theta_d.view(-1, 1, 1) * self.theta_d_mu * mu_probs[:, 0].view(-1, 1, 1)
-        mu_s = theta_s.view(-1, 1, 1) * self.theta_s_mu * mu_probs[:, 1].view(-1, 1, 1)
-        mu = mu_d + mu_s
+        # mu_probs = tr.softmax(tr.stack([theta_d, theta_s], dim=1), dim=1)
+        # mu_d = theta_d.view(-1, 1, 1) * self.theta_d_mu * mu_probs[:, 0].view(-1, 1, 1)
+        # mu_s = theta_s.view(-1, 1, 1) * self.theta_s_mu * mu_probs[:, 1].view(-1, 1, 1)
+        # mu = mu_d + mu_s
+        theta_d = theta_d.view(-1, 1, 1)
+        theta_s = theta_s.view(-1, 1, 1)
+        mu_d = theta_d * self.theta_d_mu
+        mu_s = theta_s * self.theta_s_mu
+        mu = (mu_d + mu_s) * 0.75
+        # mu = (mu_d + mu_s) / 2.0
         # sig = theta_d.view(-1, 1, 1) * self.max_sigma
-        # sig = 0.5
-        sig = tr.cat(sigs, dim=0).view(-1, 1, 1)
-        sig = sig.to(mu.device)
+        sig = 0.5
+        # sig = tr.cat(sigs, dim=0).view(-1, 1, 1)
+        # sig = sig.to(mu.device)
         z_s = z_s * sig + mu
 
         # Prepare speaker_id
         speaker_id = self.speaker_id.expand(bs)
         # Prepare text embedding
         if self.wordlist:
-            # TODO(cm): use text_rand_gen?
-            words = tr.randint(0, len(self.wordlist), (self.n_words,))
+            if seed is not None:
+                rand_gen.manual_seed(int(seed[0].item()))
+            words = tr.randint(0, len(self.wordlist), (self.n_words,), generator=rand_gen)
             words = [self.wordlist[w] for w in words]
             text = " ".join(words)
             # log.info(f"Random text: {text}")
-            text_emb = self.get_text_embedding(text, rand_gen)
+            text_emb = self.get_text_embedding(text, rand_gen).to(z_s.device)
         else:
             text_emb = self.default_text_emb
         text_emb = text_emb.expand(bs, -1)
@@ -403,32 +422,42 @@ class FlowtronSynth(nn.Module):
 
 
 if __name__ == "__main__":
-    config_path = os.path.join(CONFIGS_DIR, "flowtron/config.json")
-    model_path = os.path.join(MODELS_DIR, "flowtron_ljs.pt")
-    waveglow_path = os.path.join(MODELS_DIR, "waveglow_256channels_universal_v5.pt")
-    theta_e_path = os.path.join(DATA_DIR, "z_80_surprised.pt")
+    # # seed = 41  # 0.24
+    # # seed = 568  # 0.75
+    # # seed = 1040  # 0.55
+    # # seed = 391  # 0.99
+    # seed = 867  # 0.37
+    # generator = tr.Generator(device="cpu")
+    # generator.manual_seed(seed)
+    # derp = tr.rand((1,), generator=generator)
+    # log.info(f"Seed {seed}: {derp}")
+    # generator.manual_seed(seed)
+    # derp = tr.rand((1,), generator=generator)
+    # log.info(f"Seed {seed}: {derp}")
+    # exit()
 
-    synth = FlowtronSynth(
-        config_path=config_path,
-        model_path=model_path,
-        vocoder_path=waveglow_path,
-        theta_s_path=theta_e_path,
-    )
+    config_path = os.path.join(CONFIGS_DIR, "flowtron/flowtron_synth.yml")
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+    synth = FlowtronSynth(**config["init_args"])
 
-    theta_sig = tr.tensor([0.1, 0.5, 1.0])
-    # theta_sig = tr.tensor([0.001, 0.001, 0.001])
-    theta_e = tr.tensor([0.0, 0.5, 1.0])
-    # theta_e = tr.tensor([1.0, 1.0, 1.0])
-    # theta_sig = tr.tensor([0.5])
-    # theta_e = tr.tensor([0.2])
-    # seed = tr.tensor([43])
-    seed = tr.tensor([123, 456, 789])
+    # theta_d = tr.tensor([0.01, 0.25, 0.5, 0.75, 1.0])
+    # theta_s = tr.tensor([0.0, 0.25, 0.5, 0.75, 1.0])
+    theta_d = tr.tensor([0.0, 0.25, 0.5, 0.75, 1.0])
+    # theta_d = tr.full_like(theta_s, 0.0)
+    # theta_d = tr.full_like(theta_s, 1.0)
+    theta_s = tr.full_like(theta_d, 0.0)
+    seed = tr.full_like(theta_d, 0).long()
+
+    # theta_s **= 0.5
 
     with tr.no_grad():
-        audio = synth(theta_sig, theta_e, seed)
+        audio = synth(theta_d, theta_s, seed)
 
-    for idx, a in enumerate(audio):
-        save_path = os.path.join(OUT_DIR, f"flowtron_{idx}.wav")
+    for a, curr_d, curr_s, curr_seed in zip(audio, theta_d, theta_s, seed):
+        # save_name = f"flowtron_d{curr_d.item():.2f}_s{curr_s.item():.2f}_{curr_seed.item()}.wav"
+        save_name = f"flowtron_ms_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
+        save_path = os.path.join(OUT_DIR, save_name)
         torchaudio.save(save_path, a, synth.sr)
 
     exit()

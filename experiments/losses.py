@@ -7,7 +7,8 @@ from typing import Union, Any, Optional, List, Dict
 
 import torch as tr
 import torch.nn as nn
-from kymatio.torch import TimeFrequencyScattering
+from kymatio.torch import Scattering1D, TimeFrequencyScattering
+from matplotlib import pyplot as plt
 from msclap import CLAP
 from torch import Tensor as T
 from torch.autograd import Function
@@ -15,6 +16,7 @@ from torch.nn import functional as F
 from torchaudio.transforms import Resample
 
 from experiments import util
+from experiments.paths import OUT_DIR
 from scrapl.torch import TimeFrequencyScrapl
 
 logging.basicConfig()
@@ -65,6 +67,45 @@ class JTFSTLoss(nn.Module):
             dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=-1)
         else:
             dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=(-2, -1))
+        dist = tr.mean(dist)
+        return dist
+
+
+class Scat1DLoss(nn.Module):
+    def __init__(
+        self,
+        shape: int,
+        J: int,
+        Q1: int,
+        Q2: int = 1,
+        T: Optional[Union[str, int]] = None,
+        max_order: int = 1,
+        p: int = 2,
+    ):
+        super().__init__()
+        self.max_order = max_order
+        self.p = p
+        self.scat_1d = Scattering1D(
+            shape=(shape,),
+            J=J,
+            Q=(Q1, Q2),
+            T=T,
+            max_order=max_order,
+        )
+
+    def forward(self, x: T, x_target: T) -> T:
+        assert x.ndim == x_target.ndim == 3
+        assert x.size(1) == x_target.size(1) == 1
+        Sx = self.scat_1d(x)
+        Sx_target = self.scat_1d(x_target)
+        Sx = Sx[:, :, 1:, :]  # Remove the 0th order coefficients
+        Sx_target = Sx_target[:, :, 1:, :]  # Remove the 0th order coefficients
+
+        if self.max_order == 1:
+            dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=(-2, -1))
+        else:
+            dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=-1)
+
         dist = tr.mean(dist)
         return dist
 
@@ -214,12 +255,8 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         # plt.colorbar()
         # plt.title("Sx_target - Sx")
         # plt.show()
-        # Sx.register_hook(
-        #     functools.partial(self.save_mean_abs_Sx_grad, path_idx=path_idx)
-        # )
-        # dist = MakeLogitsGradFromEnergy.apply(
-        #     self.logits, path_idx, dist, Sx, Sx_target, self.target_path_energies
-        # )
+        # plt.savefig(os.path.join(OUT_DIR, f"{self.curr_path_idx}_diff.png"))
+        # plt.close()
         return dist
 
 
