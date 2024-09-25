@@ -187,6 +187,15 @@ class SCRAPLLightingModule(pl.LightningModule):
         # log.info(f"grad_hat.abs().std() {grad_hat.abs().std()}")
         return grad_hat, m, v
 
+    @staticmethod
+    def calc_mag_entropy(x: T, eps: float = 1e-8) -> T:
+        x = x.abs()
+        x = x / (x.sum() + eps)
+        entropy = -x * tr.log(x + eps)
+        entropy = entropy.sum()
+        entropy = entropy / (tr.log(tr.tensor(x.numel())) + eps)
+        return entropy
+
     def grad_multiplier_hook(self, grad: T) -> T:
         # log.info(f"grad.abs().max() = {grad.abs().max()}")
         if not self.training:
@@ -305,6 +314,12 @@ class SCRAPLLightingModule(pl.LightningModule):
 
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         theta_d_0to1, theta_s_0to1, seed, batch_indices = batch
+
+        # with tr.no_grad():
+        #     theta_d_entropy = self.calc_mag_entropy(theta_d_0to1)
+        #     theta_s_entropy = self.calc_mag_entropy(theta_s_0to1)
+        #     log.info(f"theta_d_entropy: {theta_d_entropy:.4f}, theta_s_entropy: {theta_s_entropy:.4f}")
+
         batch_size = theta_d_0to1.size(0)
         if stage == "train":
             self.global_n = (
@@ -335,6 +350,10 @@ class SCRAPLLightingModule(pl.LightningModule):
             theta_d_0to1_hat.retain_grad()
             theta_s_0to1_hat.retain_grad()
 
+        # theta_d_hat_entropy = self.calc_mag_entropy(theta_d_0to1_hat)
+        # theta_s_hat_entropy = self.calc_mag_entropy(theta_s_0to1_hat)
+        # log.info(f"theta_d_hat_entropy: {theta_d_hat_entropy:.4f}, theta_s_hat_entropy: {theta_s_hat_entropy:.4f}")
+
         l1_d = self.l1(theta_d_0to1_hat, theta_d_0to1)
         l1_s = self.l1(theta_s_0to1_hat, theta_s_0to1)
         if stage == "val":
@@ -355,6 +374,9 @@ class SCRAPLLightingModule(pl.LightningModule):
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
             loss = self.loss_func(x_hat, x)
+            # loss_audio = self.loss_func(x_hat, x)
+            # loss_entropy = 1e-3 * ((theta_d_hat_entropy + theta_s_hat_entropy) / 2.0 - 0.93) ** 2.0
+            # loss = loss_audio + loss_entropy
             self.log(f"{stage}/{self.loss_name}", loss, prog_bar=True, sync_dist=True)
 
         self.log(f"{stage}/l1_d", l1_d, prog_bar=True, sync_dist=True)

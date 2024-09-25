@@ -7,3 +7,8 @@
 	path = hifigan
 	url = git@github.com:christhetree/hifigan.git
     branch = cm--scrapl
+
+[submodule "speechbrain"]
+	path = speechbrain
+	url = git@github.com:christhetree/speechbrain.git
+	branch = cm--scrapl

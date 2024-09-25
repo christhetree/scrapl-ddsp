@@ -10,12 +10,13 @@ import torchaudio
 import yaml
 from torch import Tensor as T
 
-from experiments.paths import OUT_DIR, CONFIGS_DIR, DATA_DIR, MODELS_DIR
+from experiments.paths import OUT_DIR, CONFIGS_DIR, MODELS_DIR
 from flowtron.data import get_text_embedding
-from flowtron.flowtron import Flowtron, AR_Step, AR_Back_Step
+from flowtron.flowtron import Flowtron
 from flowtron.text.cmudict import CMUDict
 from hifigan.env import AttrDict
 from hifigan.models import Generator
+from speechbrain.inference import FastSpeech2
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -334,8 +335,11 @@ class FlowtronSynth(nn.Module):
         # Prepare text embedding
         if self.wordlist:
             if seed is not None:
+                # TODO(cm): this is problematic
                 rand_gen.manual_seed(int(seed[0].item()))
-            words = tr.randint(0, len(self.wordlist), (self.n_words,), generator=rand_gen)
+            words = tr.randint(
+                0, len(self.wordlist), (self.n_words,), generator=rand_gen
+            )
             words = [self.wordlist[w] for w in words]
             text = " ".join(words)
             # log.info(f"Random text: {text}")
@@ -421,6 +425,170 @@ class FlowtronSynth(nn.Module):
         return audio
 
 
+class FastSpeech2Synth(nn.Module):
+    def __init__(
+        self,
+        vocoder_path: str,
+        default_text: str = "Pigs are flying!",
+        wordlist_path: Optional[str] = None,
+        n_words: int = 4,
+        n_frames: int = 128,
+        min_pace: float = 0.8,
+        max_pace: float = 1.25,
+        min_pitch_rate: float = 0.5,
+        max_pitch_rate: float = 1.5,
+        min_energy_rate: float = 0.01,
+        max_energy_rate: float = 10.0,
+    ):
+        super().__init__()
+        self.default_text = default_text
+        self.n_words = n_words
+        self.n_frames = n_frames
+        self.register_buffer("min_pace_log", tr.log(tr.tensor(min_pace)))
+        self.register_buffer("max_pace_log", tr.log(tr.tensor(max_pace)))
+        self.register_buffer("min_pitch_rate_log", tr.log(tr.tensor(min_pitch_rate)))
+        self.register_buffer("max_pitch_rate_log", tr.log(tr.tensor(max_pitch_rate)))
+        self.register_buffer("min_energy_rate_log", tr.log(tr.tensor(min_energy_rate)))
+        self.register_buffer("max_energy_rate_log", tr.log(tr.tensor(max_energy_rate)))
+        # self.min_energy_rate_sqrt = min_energy_rate**0.5
+        # self.max_energy_rate_sqrt = max_energy_rate**0.5
+
+        self.rand_gen_cpu = tr.Generator(device="cpu")
+        self.rand_gen_gpu = None
+        if tr.cuda.is_available():
+            self.rand_gen_gpu = tr.Generator(device="cuda")
+
+        self.hop_len = 256  # TODO(cm): tmp
+        self.Q = 12  # TODO(cm): tmp
+
+        log.info(f"Loading FastSpeech2")
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+        if tr.cuda.is_available():
+            run_opts = {"device": "cuda"}
+        else:
+            run_opts = {"device": "cpu"}
+        self.model = FastSpeech2.from_hparams(
+            source="speechbrain/tts-fastspeech2-ljspeech",
+            savedir="pretrained_models/tts-fastspeech2-ljspeech",
+            run_opts=run_opts,
+        )
+        self.model.eval()
+        self.sr = self.model.hparams.sample_rate
+
+        log.info(f"Loading Vocoder")
+        vocoder_state_dict = tr.load(vocoder_path, map_location="cpu")["generator"]
+        vocoder_config_path = os.path.join(MODELS_DIR, "hifigan_t2_v3_config.json")
+        with open(vocoder_config_path, "r") as f:
+            vocoder_config = json.load(f)
+            hyperparams = AttrDict(vocoder_config)
+        vocoder = Generator(hyperparams)
+        vocoder.load_state_dict(vocoder_state_dict)
+        vocoder.eval()
+        vocoder.remove_weight_norm()
+        self.vocoder = vocoder
+        log.info(f"Finished loading models")
+
+        self.wordlist = []
+        if wordlist_path is not None:
+            with open(wordlist_path, "r") as f:
+                self.wordlist = json.load(f)
+            log.info(f"Wordlist contains {len(self.wordlist)} words")
+
+    def get_rand_gen(self, device: str) -> tr.Generator:
+        if device == "cpu":
+            return self.rand_gen_cpu
+        else:
+            return self.rand_gen_gpu
+
+    def forward(
+        self,
+        theta_d: T,
+        theta_s: T,
+        seed: Optional[T] = None,
+    ) -> T:
+        assert theta_d.ndim == theta_s.ndim == 1
+        if theta_d.device != self.model.g2p.device:
+            self.model.g2p.device = theta_d.device
+            for mod in self.model.g2p.mods.values():
+                if hasattr(mod, "to"):
+                    mod.to(theta_d.device)
+
+        # rand_gen = self.get_rand_gen(device=theta_d.device.type)
+        rand_gen = self.rand_gen_cpu
+        if seed is not None:
+            assert seed.shape == theta_d.shape
+
+        bs = theta_d.size(0)
+        if self.wordlist:
+            batch_text = []
+            for idx in range(bs):
+                if seed is not None:
+                    rand_gen.manual_seed(int(seed[idx].item()))
+                words = tr.randint(
+                    0, len(self.wordlist), (self.n_words,), generator=rand_gen
+                )
+                words = [self.wordlist[w] for w in words]
+                text = " ".join(words)
+                # log.info(f"Random text: {text}")
+                batch_text.append(text)
+        else:
+            batch_text = [self.default_text] * bs
+
+        # pace_theta = theta_d
+        # pace = pace_theta * (self.max_pace_log - self.min_pace_log) + self.min_pace_log
+        # pace = tr.exp(pace).view(-1, 1)
+        # log.info(f"pace: {pace}")
+        pace = 1.0
+
+        pitch_rate_theta = theta_d
+        # pitch_rate_theta = theta_s
+        pitch_rate = pitch_rate_theta * (self.max_pitch_rate_log - self.min_pitch_rate_log) + self.min_pitch_rate_log
+        pitch_rate = tr.exp(pitch_rate).view(-1, 1, 1)
+        # log.info(f"pitch_rate: {pitch_rate}")
+        # pitch_rate = 1.0
+
+        energy_rate_theta = theta_s
+        energy_rate = energy_rate_theta * (self.max_energy_rate_log - self.min_energy_rate_log) + self.min_energy_rate_log
+        energy_rate = tr.exp(energy_rate).view(-1, 1, 1)
+        # log.info(f"energy_rate: {energy_rate}")
+        # energy_rate = energy_rate_theta * (self.max_energy_rate_sqrt - self.min_energy_rate_sqrt) + self.min_energy_rate_sqrt
+        # energy_rate = (energy_rate ** 2).view(-1, 1, 1)
+        # energy_rate = 1.0
+
+        mel_posterior, durations, pitch, energy, mel_lens = self.model.encode_text(
+            batch_text,
+            pace=pace,
+            pitch_rate=pitch_rate,
+            energy_rate=energy_rate,
+        )
+        # log.info(f"mel_posterior.shape: {mel_posterior.shape}")
+        if tr.all(mel_lens == mel_lens[0]):
+            mel_len = mel_lens[0]
+            n_repeats = self.n_frames // mel_len + 1
+            mel_posterior = mel_posterior.repeat(1, 1, n_repeats)
+            mel_posterior = mel_posterior[..., : self.n_frames]
+        else:
+            mels = []
+            for idx, mel_len in enumerate(mel_lens):
+                mel = mel_posterior[idx, :, :mel_len]
+                n_repeats = self.n_frames // mel_len + 1
+                mel = mel.repeat(1, n_repeats)
+                mel = mel[..., : self.n_frames]
+                mels.append(mel)
+            mel_posterior = tr.stack(mels, dim=0)
+        audio = self.vocoder(mel_posterior)
+        return audio
+
+    def make_x_from_theta(self, theta_d_0to1: T, theta_s_0to1: T, seed: T) -> T:
+        assert theta_d_0to1.min() >= 0.0
+        assert theta_d_0to1.max() <= 1.0
+        assert theta_s_0to1.min() >= 0.0
+        assert theta_s_0to1.max() <= 1.0
+        audio = self.forward(theta_d_0to1, theta_s_0to1, seed)
+        return audio
+
+
 if __name__ == "__main__":
     # # seed = 41  # 0.24
     # # seed = 568  # 0.75
@@ -436,17 +604,23 @@ if __name__ == "__main__":
     # log.info(f"Seed {seed}: {derp}")
     # exit()
 
-    config_path = os.path.join(CONFIGS_DIR, "flowtron/flowtron_synth.yml")
+    # config_path = os.path.join(CONFIGS_DIR, "flowtron/flowtron_synth.yml")
+    config_path = os.path.join(CONFIGS_DIR, "fastspeech2/fastspeech2_synth.yml")
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
-    synth = FlowtronSynth(**config["init_args"])
+    # synth = FlowtronSynth(**config["init_args"])
+    synth = FastSpeech2Synth(**config["init_args"])
 
-    # theta_d = tr.tensor([0.01, 0.25, 0.5, 0.75, 1.0])
-    # theta_s = tr.tensor([0.0, 0.25, 0.5, 0.75, 1.0])
-    theta_d = tr.tensor([0.0, 0.25, 0.5, 0.75, 1.0])
+    # theta_d = tr.full((1,), 1.0)
+    # theta_d = tr.tensor([0.001, 0.666, 1.0, 1.5])
+    theta_d = tr.tensor([0.0, 0.25, 0.50, 0.75, 1.0])
+    theta_s = tr.tensor([0.0, 0.25, 0.50, 0.75, 1.0])
+    # theta_d = tr.tensor([0.5, 0.75, 1.0, 1.25, 1.5])
+    # theta_s = tr.tensor([0.01, 0.1, 1.0, 5.0, 10.0])
+    # theta_d = tr.tensor([0.1, 1.0, 1.5, 2.0])
     # theta_d = tr.full_like(theta_s, 0.0)
     # theta_d = tr.full_like(theta_s, 1.0)
-    theta_s = tr.full_like(theta_d, 0.0)
+    # theta_s = tr.full_like(theta_d, 1.0)
     seed = tr.full_like(theta_d, 0).long()
 
     # theta_s **= 0.5
@@ -455,8 +629,11 @@ if __name__ == "__main__":
         audio = synth(theta_d, theta_s, seed)
 
     for a, curr_d, curr_s, curr_seed in zip(audio, theta_d, theta_s, seed):
+        log.info(f"a.max(): {a.max().item()}")
         # save_name = f"flowtron_d{curr_d.item():.2f}_s{curr_s.item():.2f}_{curr_seed.item()}.wav"
-        save_name = f"flowtron_ms_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
+        # save_name = f"flowtron_ms_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
+        save_name = f"fs2_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
+        # save_name = f"fs2_energy_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
         save_path = os.path.join(OUT_DIR, save_name)
         torchaudio.save(save_path, a, synth.sr)
 

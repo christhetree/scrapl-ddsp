@@ -7,20 +7,25 @@ custom:
 #  model_name: mse_adamw_1e-4
 #  model_name: mss_adamw_1e-4
 #  model_name: jtfst_adamw_1e-4
-  model_name: scat_1d_o1_J12_Q24_T64_adamw_1e-4
+#  model_name: scat_1d_o1_J12_Q24_T64_adamw_1e-4
 #  model_name: clap_p1_adamw_1e-4
 #  model_name: scrapl_adamw_1e-4
 #  model_name: scrapl_sag_b0.9_sgd_1e-4
 #  model_name: scrapl_pwa_sgd_1e-4
-#  model_name: scrapl_saga_p1_gc0.5_sgd_1e-4
+  model_name: scrapl_saga_sgd_1e-4
 #  dataset_name: chirp_32_32_5_micro
 #  dataset_name: chirp_32_32_5_meso
 #  dataset_name: testing
 #  dataset_name: flowtron_32_32_1_hifigan_MS_fixed_z
 #  dataset_name: flowtron_16_16_5_hifigan_MS
-  dataset_name: flowtron_16_16_5_hifigan_MS_micro
+#  dataset_name: flowtron_16_16_5_hifigan_MS_micro
 #  dataset_name: flowtron_32_32_10_hifigan_MS_micro_no_unique_seed
-#  dataset_name: flowtron_16_16_5_hifigan_MS_meso
+#  dataset_name: flowtron_16_16_5_hifigan_MS_meso_rand_train
+#  dataset_name: fs2_32_32_pace_pitch
+#  dataset_name: fs2_32_32_pace_pitch_4words_meso
+#  dataset_name: fs2_32_32_pace_energy_4words_meso
+  dataset_name: fs2_16_16_5_pitch_energy_4words_micro
+#  dataset_name: fs2_32_32_pitch_energy_4words_meso
   cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
@@ -29,10 +34,10 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [5]
+  devices: [7]
 #  max_epochs: 200
   max_epochs: 300
-  num_sanity_val_steps: 5
+  num_sanity_val_steps: 2
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 8
 #  gradient_clip_val: 0.5
@@ -66,24 +71,25 @@ model:
   init_args:
     model: ../configs/models/spectral_2dcnn.yml
 #    synth: ../configs/synths/chirp_texture_8khz.yml
-    synth: ../configs/flowtron/flowtron_synth.yml
+#    synth: ../configs/flowtron/flowtron_synth.yml
+    synth: ../configs/fastspeech2/fastspeech2_synth.yml
 
 #    loss_func: ../configs/losses/mss.yml
-    loss_func: ../configs/losses/scat_1d_dtfa.yml
+#    loss_func: ../configs/losses/scat_1d_dtfa.yml
 #    loss_func: ../configs/losses/rand_mss.yml
 #    loss_func: ../configs/losses/jtfst_dtfa.yml
 #    loss_func: ../configs/losses/scrapl_dtfa.yml
-#    loss_func: ../configs/losses/scrapl_adaptive.yml
+    loss_func: ../configs/losses/scrapl_adaptive.yml
 #    loss_func: ../configs/losses/clap.yml
 
-    grad_multiplier: null
+#    grad_multiplier: null
 
-#    use_pathwise_adam: True
-    use_pathwise_adam: False
+    use_pathwise_adam: True
+#    use_pathwise_adam: False
 
-    vr_algo: null
+#    vr_algo: null
 #    vr_algo: sag
-#    vr_algo: saga
+    vr_algo: saga
 #    vr_beta: 0.9
 #    vr_beta: 0.99
     vr_beta: 1.00
@@ -111,8 +117,8 @@ model:
 
 #    run_name: sag_b0.99_sgd_1e-4_cont_t_lrs99_p15
 
-optimizer: ../configs/opt/adam_w.yml
-#optimizer: ../configs/opt/sgd.yml
+#optimizer: ../configs/opt/adam_w.yml
+optimizer: ../configs/opt/sgd.yml
 #optimizer: ../configs/opt/sf_adam_w.yml
 #optimizer: ../configs/opt/sf_sgd.yml
 

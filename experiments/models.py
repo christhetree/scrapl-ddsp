@@ -3,6 +3,7 @@ import os
 from typing import Optional, List, Tuple
 
 import torch as tr
+from magic_clamp import magic_clamp
 from torch import Tensor as T
 from torch import nn
 
@@ -97,7 +98,6 @@ class Spectral2DCNN(nn.Module):
         x = self.do(x)
         d_hat = self.out_d(x)
         d_hat = tr.sigmoid(d_hat).squeeze(1)
-        # d_hat = self.out_d(x) * 50
         # d_hat = magic_clamp(d_hat, min_value=0.0, max_value=1.0).squeeze(1)
 
         x = self.fc_s(latent)
@@ -105,6 +105,5 @@ class Spectral2DCNN(nn.Module):
         x = self.do(x)
         s_hat = self.out_s(x)
         s_hat = tr.sigmoid(s_hat).squeeze(1)
-        # s_hat = self.out_s(x) * 50
         # s_hat = magic_clamp(s_hat, min_value=0.0, max_value=1.0).squeeze(1)
         return d_hat, s_hat
