@@ -339,7 +339,9 @@ class SCRAPLLightingModule(pl.LightningModule):
             seed_hat = tr.randint_like(seed, low=seed_range, high=2 * seed_range)
 
         with tr.no_grad():
-            x = self.synth.make_x_from_theta(theta_d_0to1, theta_s_0to1, seed)
+            x = self.synth.make_x_from_theta(
+                theta_d_0to1, theta_s_0to1, seed, seed_words=seed
+            )
             U = self.calc_U(x)
 
         U_hat = None
@@ -369,7 +371,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             )
         else:
             x_hat = self.synth.make_x_from_theta(
-                theta_d_0to1_hat, theta_s_0to1_hat, seed_hat
+                theta_d_0to1_hat, theta_s_0to1_hat, seed_hat, seed_words=seed
             )
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
@@ -388,10 +390,12 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         with tr.no_grad():
             if x is None and self.log_x:
-                x = self.synth.make_x_from_theta(theta_d_0to1, theta_s_0to1, seed)
+                x = self.synth.make_x_from_theta(
+                    theta_d_0to1, theta_s_0to1, seed, seed_words=seed
+                )
             if x_hat is None and self.log_x_hat:
                 x_hat = self.synth.make_x_from_theta(
-                    theta_d_0to1_hat, theta_s_0to1_hat, seed_hat
+                    theta_d_0to1_hat, theta_s_0to1_hat, seed_hat, seed_words=seed
                 )
                 U_hat = self.calc_U(x_hat)
 

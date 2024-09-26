@@ -436,9 +436,9 @@ class FastSpeech2Synth(nn.Module):
         min_pace: float = 0.8,
         max_pace: float = 1.25,
         min_pitch_rate: float = 0.5,
-        max_pitch_rate: float = 1.5,
-        min_energy_rate: float = 0.01,
-        max_energy_rate: float = 10.0,
+        max_pitch_rate: float = 2.0,
+        min_energy_rate: float = 0.125,
+        max_energy_rate: float = 8.0,
     ):
         super().__init__()
         self.default_text = default_text
@@ -450,8 +450,6 @@ class FastSpeech2Synth(nn.Module):
         self.register_buffer("max_pitch_rate_log", tr.log(tr.tensor(max_pitch_rate)))
         self.register_buffer("min_energy_rate_log", tr.log(tr.tensor(min_energy_rate)))
         self.register_buffer("max_energy_rate_log", tr.log(tr.tensor(max_energy_rate)))
-        # self.min_energy_rate_sqrt = min_energy_rate**0.5
-        # self.max_energy_rate_sqrt = max_energy_rate**0.5
 
         self.rand_gen_cpu = tr.Generator(device="cpu")
         self.rand_gen_gpu = None
@@ -459,7 +457,7 @@ class FastSpeech2Synth(nn.Module):
             self.rand_gen_gpu = tr.Generator(device="cuda")
 
         self.hop_len = 256  # TODO(cm): tmp
-        self.Q = 12  # TODO(cm): tmp
+        self.Q = 24  # TODO(cm): tmp
 
         log.info(f"Loading FastSpeech2")
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -506,6 +504,7 @@ class FastSpeech2Synth(nn.Module):
         theta_d: T,
         theta_s: T,
         seed: Optional[T] = None,
+        seed_words: Optional[T] = None,
     ) -> T:
         assert theta_d.ndim == theta_s.ndim == 1
         if theta_d.device != self.model.g2p.device:
@@ -518,11 +517,15 @@ class FastSpeech2Synth(nn.Module):
         rand_gen = self.rand_gen_cpu
         if seed is not None:
             assert seed.shape == theta_d.shape
+        if seed_words is not None:
+            assert seed_words.shape == theta_d.shape
 
         bs = theta_d.size(0)
         if self.wordlist:
             batch_text = []
             for idx in range(bs):
+                # if seed_words is not None:
+                #     rand_gen.manual_seed(int(seed_words[idx].item()))
                 if seed is not None:
                     rand_gen.manual_seed(int(seed[idx].item()))
                 words = tr.randint(
@@ -535,6 +538,20 @@ class FastSpeech2Synth(nn.Module):
         else:
             batch_text = [self.default_text] * bs
 
+        # pace_theta_0to1 = []
+        # for idx in range(bs):
+        #     if seed is not None:
+        #         rand_gen.manual_seed(int(seed[idx].item()))
+        #     pace_0to1 = tr.rand((1,), generator=rand_gen)
+        #     pace_theta_0to1.append(pace_0to1)
+        # pace_theta_0to1 = tr.cat(pace_theta_0to1, dim=0).to(theta_d.device)
+        # pace = (
+        #     pace_theta_0to1 * (self.max_pace_log - self.min_pace_log)
+        #     + self.min_pace_log
+        # )
+        # pace = tr.exp(pace).view(-1, 1)
+        # log.info(f"pace: {pace}")
+
         # pace_theta = theta_d
         # pace = pace_theta * (self.max_pace_log - self.min_pace_log) + self.min_pace_log
         # pace = tr.exp(pace).view(-1, 1)
@@ -542,18 +559,23 @@ class FastSpeech2Synth(nn.Module):
         pace = 1.0
 
         pitch_rate_theta = theta_d
-        # pitch_rate_theta = theta_s
-        pitch_rate = pitch_rate_theta * (self.max_pitch_rate_log - self.min_pitch_rate_log) + self.min_pitch_rate_log
+        # pitch_rate = pitch_rate_theta.view(-1, 1, 1)
+        pitch_rate = (
+            pitch_rate_theta * (self.max_pitch_rate_log - self.min_pitch_rate_log)
+            + self.min_pitch_rate_log
+        )
         pitch_rate = tr.exp(pitch_rate).view(-1, 1, 1)
         # log.info(f"pitch_rate: {pitch_rate}")
         # pitch_rate = 1.0
 
         energy_rate_theta = theta_s
-        energy_rate = energy_rate_theta * (self.max_energy_rate_log - self.min_energy_rate_log) + self.min_energy_rate_log
+        # energy_rate = energy_rate_theta.view(-1, 1, 1)
+        energy_rate = (
+            energy_rate_theta * (self.max_energy_rate_log - self.min_energy_rate_log)
+            + self.min_energy_rate_log
+        )
         energy_rate = tr.exp(energy_rate).view(-1, 1, 1)
         # log.info(f"energy_rate: {energy_rate}")
-        # energy_rate = energy_rate_theta * (self.max_energy_rate_sqrt - self.min_energy_rate_sqrt) + self.min_energy_rate_sqrt
-        # energy_rate = (energy_rate ** 2).view(-1, 1, 1)
         # energy_rate = 1.0
 
         mel_posterior, durations, pitch, energy, mel_lens = self.model.encode_text(
@@ -580,12 +602,14 @@ class FastSpeech2Synth(nn.Module):
         audio = self.vocoder(mel_posterior)
         return audio
 
-    def make_x_from_theta(self, theta_d_0to1: T, theta_s_0to1: T, seed: T) -> T:
+    def make_x_from_theta(
+        self, theta_d_0to1: T, theta_s_0to1: T, seed: T, seed_words: Optional[T] = None
+    ) -> T:
         assert theta_d_0to1.min() >= 0.0
         assert theta_d_0to1.max() <= 1.0
         assert theta_s_0to1.min() >= 0.0
         assert theta_s_0to1.max() <= 1.0
-        audio = self.forward(theta_d_0to1, theta_s_0to1, seed)
+        audio = self.forward(theta_d_0to1, theta_s_0to1, seed, seed_words=seed_words)
         return audio
 
 
@@ -612,14 +636,14 @@ if __name__ == "__main__":
     synth = FastSpeech2Synth(**config["init_args"])
 
     # theta_d = tr.full((1,), 1.0)
-    # theta_d = tr.tensor([0.001, 0.666, 1.0, 1.5])
+    # theta_s = tr.tensor([0.1, 0.5, 1.0, 1.5, 2.0, 4.0, 8.0])
     theta_d = tr.tensor([0.0, 0.25, 0.50, 0.75, 1.0])
     theta_s = tr.tensor([0.0, 0.25, 0.50, 0.75, 1.0])
     # theta_d = tr.tensor([0.5, 0.75, 1.0, 1.25, 1.5])
     # theta_s = tr.tensor([0.01, 0.1, 1.0, 5.0, 10.0])
     # theta_d = tr.tensor([0.1, 1.0, 1.5, 2.0])
     # theta_d = tr.full_like(theta_s, 0.0)
-    # theta_d = tr.full_like(theta_s, 1.0)
+    # theta_d = tr.full_like(theta_s, 0.5)
     # theta_s = tr.full_like(theta_d, 1.0)
     seed = tr.full_like(theta_d, 0).long()
 
@@ -632,7 +656,10 @@ if __name__ == "__main__":
         log.info(f"a.max(): {a.max().item()}")
         # save_name = f"flowtron_d{curr_d.item():.2f}_s{curr_s.item():.2f}_{curr_seed.item()}.wav"
         # save_name = f"flowtron_ms_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
-        save_name = f"fs2_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
+        # save_name = f"fs2_p_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}_t2.wav"
+        save_name = (
+            f"fs2_e_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
+        )
         # save_name = f"fs2_energy_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
         save_path = os.path.join(OUT_DIR, save_name)
         torchaudio.save(save_path, a, synth.sr)
