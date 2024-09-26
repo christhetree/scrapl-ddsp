@@ -433,10 +433,10 @@ class FastSpeech2Synth(nn.Module):
         wordlist_path: Optional[str] = None,
         n_words: int = 4,
         n_frames: int = 128,
-        min_pace: float = 0.8,
-        max_pace: float = 1.25,
-        min_pitch_rate: float = 0.5,
-        max_pitch_rate: float = 2.0,
+        min_pace: float = 0.8889,
+        max_pace: float = 1.125,
+        min_pitch_rate: float = 0.25,
+        max_pitch_rate: float = 4.0,
         min_energy_rate: float = 0.125,
         max_energy_rate: float = 8.0,
     ):
@@ -524,10 +524,10 @@ class FastSpeech2Synth(nn.Module):
         if self.wordlist:
             batch_text = []
             for idx in range(bs):
-                # if seed_words is not None:
-                #     rand_gen.manual_seed(int(seed_words[idx].item()))
-                if seed is not None:
-                    rand_gen.manual_seed(int(seed[idx].item()))
+                if seed_words is not None:
+                    rand_gen.manual_seed(int(seed_words[idx].item()))
+                # if seed is not None:
+                #     rand_gen.manual_seed(int(seed[idx].item()))
                 words = tr.randint(
                     0, len(self.wordlist), (self.n_words,), generator=rand_gen
                 )
@@ -538,25 +538,25 @@ class FastSpeech2Synth(nn.Module):
         else:
             batch_text = [self.default_text] * bs
 
-        # pace_theta_0to1 = []
-        # for idx in range(bs):
-        #     if seed is not None:
-        #         rand_gen.manual_seed(int(seed[idx].item()))
-        #     pace_0to1 = tr.rand((1,), generator=rand_gen)
-        #     pace_theta_0to1.append(pace_0to1)
-        # pace_theta_0to1 = tr.cat(pace_theta_0to1, dim=0).to(theta_d.device)
-        # pace = (
-        #     pace_theta_0to1 * (self.max_pace_log - self.min_pace_log)
-        #     + self.min_pace_log
-        # )
-        # pace = tr.exp(pace).view(-1, 1)
+        pace_theta_0to1 = []
+        for idx in range(bs):
+            if seed is not None:
+                rand_gen.manual_seed(int(seed[idx].item()))
+            pace_0to1 = tr.rand((1,), generator=rand_gen)
+            pace_theta_0to1.append(pace_0to1)
+        pace_theta_0to1 = tr.cat(pace_theta_0to1, dim=0).to(theta_d.device)
+        pace = (
+            pace_theta_0to1 * (self.max_pace_log - self.min_pace_log)
+            + self.min_pace_log
+        )
+        pace = tr.exp(pace).view(-1, 1)
         # log.info(f"pace: {pace}")
 
         # pace_theta = theta_d
         # pace = pace_theta * (self.max_pace_log - self.min_pace_log) + self.min_pace_log
         # pace = tr.exp(pace).view(-1, 1)
         # log.info(f"pace: {pace}")
-        pace = 1.0
+        # pace = 1.0
 
         pitch_rate_theta = theta_d
         # pitch_rate = pitch_rate_theta.view(-1, 1, 1)
@@ -636,18 +636,16 @@ if __name__ == "__main__":
     synth = FastSpeech2Synth(**config["init_args"])
 
     # theta_d = tr.full((1,), 1.0)
-    # theta_s = tr.tensor([0.1, 0.5, 1.0, 1.5, 2.0, 4.0, 8.0])
+    # theta_d = tr.tensor([0.25, 0.5, 1.0, 2.0, 4.0])
     theta_d = tr.tensor([0.0, 0.25, 0.50, 0.75, 1.0])
-    theta_s = tr.tensor([0.0, 0.25, 0.50, 0.75, 1.0])
+    # theta_s = tr.tensor([0.0, 0.25, 0.50, 0.75, 1.0])
     # theta_d = tr.tensor([0.5, 0.75, 1.0, 1.25, 1.5])
     # theta_s = tr.tensor([0.01, 0.1, 1.0, 5.0, 10.0])
     # theta_d = tr.tensor([0.1, 1.0, 1.5, 2.0])
     # theta_d = tr.full_like(theta_s, 0.0)
     # theta_d = tr.full_like(theta_s, 0.5)
-    # theta_s = tr.full_like(theta_d, 1.0)
+    theta_s = tr.full_like(theta_d, 0.5)
     seed = tr.full_like(theta_d, 0).long()
-
-    # theta_s **= 0.5
 
     with tr.no_grad():
         audio = synth(theta_d, theta_s, seed)
@@ -658,7 +656,7 @@ if __name__ == "__main__":
         # save_name = f"flowtron_ms_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
         # save_name = f"fs2_p_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}_t2.wav"
         save_name = (
-            f"fs2_e_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
+            f"fs2_p_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
         )
         # save_name = f"fs2_energy_{curr_seed.item()}_d{curr_d.item():.2f}_s{curr_s.item():.2f}.wav"
         save_path = os.path.join(OUT_DIR, save_name)

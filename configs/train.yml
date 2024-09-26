@@ -8,11 +8,11 @@ custom:
 #  model_name: mss_adamw_1e-4
 #  model_name: jtfs_Q24_adamw_1e-4
 #  model_name: scat_1d_o1_J12_Q24_T64_adamw_1e-4
-  model_name: clap_adamw_1e-4
+#  model_name: clap_adamw_1e-4
 #  model_name: scrapl_adamw_1e-4
 #  model_name: scrapl_sag_b0.9_sgd_1e-4
 #  model_name: scrapl_pwa_sgd_1e-4
-#  model_name: scrapl_Q12_saga_sgd_1e-4
+  model_name: scrapl_saga_sgd_e-4
 #  dataset_name: chirp_32_32_5_micro
 #  dataset_name: chirp_32_32_5_meso
 #  dataset_name: testing
@@ -25,8 +25,8 @@ custom:
 #  dataset_name: fs2_32_32_pace_pitch_4words_meso
 #  dataset_name: fs2_32_32_pace_energy_4words_meso
 #  dataset_name: fs2_16_16_10_pitch_energy_4words_micro
-#  dataset_name: fs2_16_16_10_cqtJ7Q24_4words_micro
-  dataset_name: fs2_16_16_10_cqtJ7Q24_4words_meso
+  dataset_name: fs2_16_16_10_cqtJ7Q24_4words_micro3
+#  dataset_name: fs2_16_16_10_cqtJ7Q24_4words_meso3
   cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
@@ -35,7 +35,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [3]
+  devices: [5]
 #  max_epochs: 200
   max_epochs: 300
   num_sanity_val_steps: 2
@@ -81,17 +81,17 @@ model:
 #    loss_func: ../configs/losses/rand_mss.yml
 #    loss_func: ../configs/losses/jtfst_dtfa.yml
 #    loss_func: ../configs/losses/scrapl_dtfa.yml
-#    loss_func: ../configs/losses/scrapl_adaptive.yml
-    loss_func: ../configs/losses/clap.yml
+    loss_func: ../configs/losses/scrapl_adaptive.yml
+#    loss_func: ../configs/losses/clap.yml
 
-    grad_multiplier: null
+#    grad_multiplier: null
 
-#    use_pathwise_adam: True
-    use_pathwise_adam: False
+    use_pathwise_adam: True
+#    use_pathwise_adam: False
 
-    vr_algo: null
+#    vr_algo: null
 #    vr_algo: sag
-#    vr_algo: saga
+    vr_algo: saga
 #    vr_beta: 0.9
 #    vr_beta: 0.99
     vr_beta: 1.00
@@ -105,8 +105,8 @@ model:
     use_val_rand_seed: false
 #    use_val_rand_seed: true
 
-#    use_rand_seed_hat: false
-    use_rand_seed_hat: true
+    use_rand_seed_hat: false
+#    use_rand_seed_hat: true
 
     feature_type: cqt
     J_cqt: 7
@@ -119,8 +119,8 @@ model:
 
 #    run_name: sag_b0.99_sgd_1e-4_cont_t_lrs99_p15
 
-optimizer: ../configs/opt/adam_w.yml
-#optimizer: ../configs/opt/sgd.yml
+#optimizer: ../configs/opt/adam_w.yml
+optimizer: ../configs/opt/sgd.yml
 #optimizer: ../configs/opt/sf_adam_w.yml
 #optimizer: ../configs/opt/sf_sgd.yml
 

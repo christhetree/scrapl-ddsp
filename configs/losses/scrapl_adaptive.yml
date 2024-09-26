@@ -3,11 +3,15 @@ init_args:
   shape: 32768
   J: 12
   Q1: 8
+#  Q1: 12
   Q2: 2
   J_fr: 3
   Q_fr: 2
   T: null
+#  T: 2048
+#  T: global
   F: null
+#  p: 1
   p: 2
   tau: 1.0
   max_prob: 1.0

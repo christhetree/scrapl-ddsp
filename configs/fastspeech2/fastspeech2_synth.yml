@@ -7,9 +7,9 @@ init_args:
   wordlist_path: ../data/en_common_words_1k.json
   n_words: 4
   n_frames: 128
-  min_pace: 0.8
-  max_pace: 1.25
-  min_pitch_rate: 0.5
-  max_pitch_rate: 2.0
+  min_pace: 0.8889
+  max_pace: 1.125
+  min_pitch_rate: 0.25
+  max_pitch_rate: 4.0
   min_energy_rate: 0.125
   max_energy_rate: 8.0

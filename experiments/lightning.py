@@ -3,7 +3,7 @@ import logging
 import os
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 
 import pytorch_lightning as pl
 import torch as tr
@@ -454,6 +454,12 @@ class SCRAPLLightingModule(pl.LightningModule):
         if l1_tv_s:
             l1_theta_tv = tr.stack(l1_tv_s, dim=0).mean(dim=0)
             self.log(f"val/l1_theta_tv", l1_theta_tv, prog_bar=False)
+
+    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        state_dict = checkpoint["state_dict"]
+        excluded_keys = [k for k in state_dict if k.startswith("synth")]
+        for k in excluded_keys:
+            del state_dict[k]
 
     @staticmethod
     def calc_total_variation(x: List[T], norm_by_len: bool = True) -> T:
