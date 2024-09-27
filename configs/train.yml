@@ -6,13 +6,14 @@ custom:
 #  model_name: ploss_mse_adamw_1e-4
 #  model_name: mse_adamw_1e-4
 #  model_name: mss_adamw_1e-4
-#  model_name: jtfs_Q24_adamw_1e-4
+#  model_name: jtfs_J9_T256_adamw_1e-4
 #  model_name: scat_1d_o1_J12_Q24_T64_adamw_1e-4
 #  model_name: clap_adamw_1e-4
+  model_name: wav2vec2_adamw_1e-4
 #  model_name: scrapl_adamw_1e-4
 #  model_name: scrapl_sag_b0.9_sgd_1e-4
 #  model_name: scrapl_pwa_sgd_1e-4
-  model_name: scrapl_saga_sgd_e-4
+#  model_name: scrapl_J7_Jfr6_saga_sgd_1e-4
 #  dataset_name: chirp_32_32_5_micro
 #  dataset_name: chirp_32_32_5_meso
 #  dataset_name: testing
@@ -30,24 +31,26 @@ custom:
   cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
+#  use_wandb_gpu: false
   use_wandb_gpu: true
 
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [5]
+  devices: [7]
 #  max_epochs: 200
   max_epochs: 300
   num_sanity_val_steps: 2
   accumulate_grad_batches: 1
-#  accumulate_grad_batches: 16
+#  accumulate_grad_batches: 4
 #  gradient_clip_val: 0.5
 
 data:
   class_path: experiments.data_modules.ThetaDSDataModule
   init_args:
     batch_size: 32
-#    batch_size: 2
+#    batch_size: 16
+#    batch_size: 8
 
     num_workers: 4
 #    n_d: 32
@@ -72,26 +75,27 @@ model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
     model: ../configs/models/spectral_2dcnn.yml
-#    synth: ../configs/synths/chirp_texture_8khz.yml
+    synth: ../configs/synths/chirp_texture_8khz.yml
 #    synth: ../configs/flowtron/flowtron_synth.yml
-    synth: ../configs/fastspeech2/fastspeech2_synth.yml
+#    synth: ../configs/fastspeech2/fastspeech2_synth.yml
 
 #    loss_func: ../configs/losses/mss.yml
 #    loss_func: ../configs/losses/scat_1d_dtfa.yml
 #    loss_func: ../configs/losses/rand_mss.yml
 #    loss_func: ../configs/losses/jtfst_dtfa.yml
 #    loss_func: ../configs/losses/scrapl_dtfa.yml
-    loss_func: ../configs/losses/scrapl_adaptive.yml
+#    loss_func: ../configs/losses/scrapl_adaptive.yml
 #    loss_func: ../configs/losses/clap.yml
+    loss_func: ../configs/losses/wav2vec2.yml
 
-#    grad_multiplier: null
+    grad_multiplier: null
 
-    use_pathwise_adam: True
-#    use_pathwise_adam: False
+#    use_pathwise_adam: True
+    use_pathwise_adam: False
 
-#    vr_algo: null
+    vr_algo: null
 #    vr_algo: sag
-    vr_algo: saga
+#    vr_algo: saga
 #    vr_beta: 0.9
 #    vr_beta: 0.99
     vr_beta: 1.00
@@ -109,7 +113,8 @@ model:
 #    use_rand_seed_hat: true
 
     feature_type: cqt
-    J_cqt: 7
+    J_cqt: 5
+#    J_cqt: 7
     cqt_eps: 1e-3
     log_x: true
 #    log_x_hat: true
@@ -119,8 +124,8 @@ model:
 
 #    run_name: sag_b0.99_sgd_1e-4_cont_t_lrs99_p15
 
-#optimizer: ../configs/opt/adam_w.yml
-optimizer: ../configs/opt/sgd.yml
+optimizer: ../configs/opt/adam_w.yml
+#optimizer: ../configs/opt/sgd.yml
 #optimizer: ../configs/opt/sf_adam_w.yml
 #optimizer: ../configs/opt/sf_sgd.yml
 

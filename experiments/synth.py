@@ -154,7 +154,9 @@ class ChirpTextureSynth(nn.Module):
         x = x / tr.norm(x, p=2)  # TODO
         return x
 
-    def make_x_from_theta(self, theta_d_0to1: T, theta_s_0to1: T, seed: T) -> T:
+    def make_x_from_theta(
+        self, theta_d_0to1: T, theta_s_0to1: T, seed: T, seed_words: Optional[T] = None
+    ) -> T:
         # TODO(cm): add batch support to synth
         assert theta_d_0to1.min() >= 0.0
         assert theta_d_0to1.max() <= 1.0

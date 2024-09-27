@@ -1,4 +1,3 @@
-import functools
 import logging
 import os
 from abc import ABC, abstractmethod
@@ -8,15 +7,14 @@ from typing import Union, Any, Optional, List, Dict
 import torch as tr
 import torch.nn as nn
 from kymatio.torch import Scattering1D, TimeFrequencyScattering
-from matplotlib import pyplot as plt
 from msclap import CLAP
 from torch import Tensor as T
 from torch.autograd import Function
 from torch.nn import functional as F
 from torchaudio.transforms import Resample
+from transformers import Wav2Vec2Model, AutoProcessor
 
 from experiments import util
-from experiments.paths import OUT_DIR
 from scrapl.torch import TimeFrequencyScrapl
 
 logging.basicConfig()
@@ -294,8 +292,9 @@ class MakeLogitsGradFromEnergy(Function):
 
 
 class EmbeddingLoss(ABC, nn.Module):
-    def __init__(self, in_sr: int = 44100, p: int = 2):
+    def __init__(self, use_time_varying: bool = True, in_sr: int = 44100, p: int = 2):
         super().__init__()
+        self.use_time_varying = use_time_varying
         self.in_sr = in_sr
         self.p = p
         self.resampler = None
@@ -342,17 +341,28 @@ class EmbeddingLoss(ABC, nn.Module):
         x_target = self.preproc_audio(x_target)
         x_emb = self.get_embedding(x)
         x_target_emb = self.get_embedding(x_target)
+        if self.use_time_varying:
+            assert x_emb.ndim == x_target_emb.ndim == 3
+        elif x_emb.ndim == 3:
+            x_emb = x_emb.mean(dim=1)
+            x_target_emb = x_target_emb.mean(dim=1)
         diff = x_target_emb - x_emb
-        assert diff.ndim == 2
-        dist = tr.linalg.norm(diff, ord=self.p, dim=-1)
+        if self.use_time_varying:
+            assert diff.ndim == 3
+            dist = tr.linalg.norm(diff, ord=self.p, dim=(-2, -1))
+        else:
+            assert diff.ndim == 2
+            dist = tr.linalg.norm(diff, ord=self.p, dim=-1)
         dist = tr.mean(dist)
+        log.info(f"dist = {dist}")
         return dist
 
 
 class ClapEmbeddingLoss(EmbeddingLoss):
     def __init__(self, use_cuda: bool, in_sr: int = 44100, p: int = 2):
         self.model = CLAP(version="2023", use_cuda=use_cuda)
-        super().__init__(in_sr, p)
+        use_time_varying = False  # CLAP is not a time-varying embedding
+        super().__init__(use_time_varying, in_sr, p)
 
     def get_model_sr(self) -> int:
         return self.model.args.sampling_rate
@@ -367,7 +377,50 @@ class ClapEmbeddingLoss(EmbeddingLoss):
         return x_emb
 
 
+class Wav2Vec2EmbeddingLoss(EmbeddingLoss):
+    def __init__(
+        self,
+        model_size: str = "base",
+        normalize: bool = False,
+        eps: float = 1e-8,
+        use_time_varying: bool = True,
+        in_sr: int = 44100,
+        p: int = 2,
+    ):
+        super().__init__(use_time_varying, in_sr, p)
+        self.normalize = normalize
+        self.eps = eps
+        self.model_size = model_size
+        huggingface_id = f"facebook/wav2vec2-{model_size}-960h"
+        self.model = Wav2Vec2Model.from_pretrained(huggingface_id)
+        # self.processor = AutoProcessor.from_pretrained(huggingface_id)
+
+    def get_model_sr(self) -> int:
+        return 16000
+
+    def get_model_n_samples(self) -> int:
+        return -1
+
+    def get_embedding(self, x: T) -> T:
+        x = x.squeeze(1)
+        # x2 = self.processor(x.numpy(), return_tensors="pt").data["input_values"]
+        if self.normalize:
+            mu = tr.mean(x, dim=-1, keepdim=True)
+            std = tr.std(x, dim=-1, keepdim=True)
+            x = (x - mu) / (std + self.eps)
+        # assert tr.allclose(x, x2, atol=1e-3)
+        emb = self.model(x).last_hidden_state
+        # TODO(cm): this results in NaN, look into minimum sample length
+        log.info(f"emb.shape = {emb.shape}, emb.min() = {emb.min().item()}, emb.max() = {emb.max().item()}")
+        return emb
+
+
 if __name__ == "__main__":
+    w2v2_loss = Wav2Vec2Loss()
+    x = tr.randn(3, 1, 4000) * 3.0
+    w2v2_loss.get_embedding(x)
+    exit()
+
     # tr.manual_seed(0)
     n = 10000
     logits = tr.tensor([0.9, 0.1, 0.0])
