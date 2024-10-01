@@ -1,8 +1,8 @@
 class_path: experiments.models.Spectral2DCNN
 init_args:
-  n_bins: 60
+#  n_bins: 60
 #  n_bins: 80
-#  n_bins: 168
+  n_bins: 168
   n_frames: 129
 #  n_frames: 128
   in_ch: 1
