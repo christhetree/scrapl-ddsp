@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import os
 from typing import Optional
 
@@ -11,16 +12,159 @@ import yaml
 from torch import Tensor as T
 
 from experiments.paths import OUT_DIR, CONFIGS_DIR, MODELS_DIR
-from flowtron.data import get_text_embedding
-from flowtron.flowtron import Flowtron
-from flowtron.text.cmudict import CMUDict
-from hifigan.env import AttrDict
-from hifigan.models import Generator
-from speechbrain.inference import FastSpeech2
+
+# from flowtron.data import get_text_embedding
+# from flowtron.flowtron import Flowtron
+# from flowtron.text.cmudict import CMUDict
+# from hifigan.env import AttrDict
+# from hifigan.models import Generator
+# from speechbrain.inference import FastSpeech2
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
+
+
+class ChirpletSynth(nn.Module):
+    def __init__(
+        self,
+        sr: float,
+        n_samples: int,
+        bw_n_samples: int,
+        f0_min_hz: float,
+        f0_max_hz: float,
+        Q: int,
+        hop_len: int,
+        am_hz_min: float = 4.0,
+        am_hz_max: float = 16.0,
+        fm_oct_hz_min: float = 0.5,
+        fm_oct_hz_max: float = 4.0,
+        delta_frac_min: Optional[float] = None,
+        delta_frac_max: Optional[float] = None,
+        sigma0: float = 0.1,
+    ):
+        super().__init__()
+        assert bw_n_samples <= n_samples
+        bw_frac = bw_n_samples / n_samples
+        max_delta_frac = (1.0 - bw_frac) / 2.0
+        if delta_frac_min is None:
+            delta_frac_min = -max_delta_frac
+        if delta_frac_max is None:
+            delta_frac_max = max_delta_frac
+        assert -max_delta_frac <= delta_frac_min <= delta_frac_max <= max_delta_frac
+        assert f0_max_hz >= f0_min_hz
+        self.sr = sr
+        self.n_samples = n_samples
+        self.bw_n_samples = bw_n_samples
+        self.f0_min_hz = f0_min_hz
+        self.f0_max_hz = f0_max_hz
+        self.Q = Q
+        self.hop_len = hop_len
+        self.am_hz_min = am_hz_min
+        self.am_hz_max = am_hz_max
+        self.fm_oct_hz_min = fm_oct_hz_min
+        self.fm_oct_hz_max = fm_oct_hz_max
+        self.delta_frac_min = delta_frac_min
+        self.delta_frac_max = delta_frac_max
+        self.sigma0 = sigma0
+
+        # Derived params
+        self.f0_min_hz_log2 = tr.log2(tr.tensor(f0_min_hz))
+        self.f0_max_hz_log2 = tr.log2(tr.tensor(f0_max_hz))
+        self.f0_hz = None
+        if f0_min_hz == f0_max_hz:
+            self.f0_hz = f0_min_hz
+        self.am_hz_min_log2 = tr.log2(tr.tensor(am_hz_min))
+        self.am_hz_max_log2 = tr.log2(tr.tensor(am_hz_max))
+        self.fm_oct_hz_min_log2 = tr.log2(tr.tensor(fm_oct_hz_min))
+        self.fm_oct_hz_max_log2 = tr.log2(tr.tensor(fm_oct_hz_max))
+        self.delta_min = int(delta_frac_min * n_samples)
+        self.delta_max = int(delta_frac_max * n_samples)
+        self.rand_gen = tr.Generator(device="cpu")
+
+        # Temporal support
+        support = (tr.arange(n_samples) - (n_samples // 2)) / sr
+        self.register_buffer("support", support)
+
+    def forward(self, theta_am_hz: T, theta_fm_hz: T, seed: Optional[T] = None) -> T:
+        assert theta_am_hz.ndim == theta_fm_hz.ndim == 0
+        if seed is not None:
+            assert seed.ndim == 0 or seed.shape == (1,)
+            self.rand_gen.manual_seed(int(seed.item()))
+        delta = tr.randint(
+            self.delta_min, self.delta_max + 1, (1,), generator=self.rand_gen
+        ).item()
+
+        if self.f0_hz is None:
+            f0_hz_log2 = tr.rand((1,), generator=self.rand_gen) * (
+                self.f0_max_hz_log2 - self.f0_min_hz_log2
+            ) + self.f0_min_hz_log2
+            f0_hz = (2 ** f0_hz_log2).item()
+        else:
+            f0_hz = self.f0_hz
+
+        chirplet = self.generate_am_chirp(
+            self.support,
+            f0_hz,
+            theta_am_hz,
+            theta_fm_hz,
+            self.n_samples,
+            self.bw_n_samples,
+            delta,
+            self.sigma0,
+        )
+        return chirplet
+
+    def make_x_from_theta(
+        self, theta_am_hz_0to1: T, theta_fm_hz_0to1: T, seed: T
+    ) -> T:
+        assert theta_am_hz_0to1.ndim == theta_fm_hz_0to1.ndim == 1
+        assert theta_am_hz_0to1.min() >= 0.0
+        assert theta_am_hz_0to1.max() <= 1.0
+        assert theta_fm_hz_0to1.min() >= 0.0
+        assert theta_fm_hz_0to1.max() <= 1.0
+        theta_am_hz_log2 = (
+            theta_am_hz_0to1 * (self.am_hz_max_log2 - self.am_hz_min_log2)
+            + self.am_hz_min_log2
+        )
+        theta_am_hz = 2 ** theta_am_hz_log2
+        theta_fm_hz_log2 = (
+            theta_fm_hz_0to1 * (self.fm_oct_hz_max_log2 - self.fm_oct_hz_min_log2)
+            + self.fm_oct_hz_min_log2
+        )
+        theta_fm_hz = 2 ** theta_fm_hz_log2
+        x = []
+        for idx in range(theta_am_hz.size(0)):
+            curr_x = self.forward(theta_am_hz[idx], theta_fm_hz[idx], seed[idx])
+            x.append(curr_x)
+        x = tr.stack(x, dim=0).unsqueeze(1)  # Unsqueeze channel dim
+        return x
+
+    @staticmethod
+    def generate_am_chirp(
+        support: T,
+        f0_hz: float | T,
+        am_hz: float | T,
+        fm_oct_hz: float | T,
+        n_samples: int,
+        bw_n_samples: int,
+        delta: int = 0,
+        sigma0: float = 0.1,
+    ) -> T:
+        # t = (tr.arange(n_samples) - (n_samples // 2)) / sr
+        assert support.ndim == 1
+        t = support
+        phi = f0_hz / (fm_oct_hz * math.log(2)) * (2 ** (fm_oct_hz * t) - 1)
+        carrier = tr.sin(2 * tr.pi * phi)
+        modulator = tr.sin(2 * tr.pi * am_hz * t)
+        window_std = sigma0 * bw_n_samples / fm_oct_hz
+        window = tr.signal.windows.gaussian(n_samples, std=window_std, sym=True)
+        chirp = carrier * fm_oct_hz * window
+        if am_hz > 0:
+            chirp = chirp * modulator
+        if delta != 0:
+            chirp = tr.roll(chirp, shifts=delta)
+        return chirp
 
 
 class ChirpTextureSynth(nn.Module):
@@ -35,7 +179,6 @@ class ChirpTextureSynth(nn.Module):
         Q: int,
         hop_len: int,
         max_theta_slope: float = 0.95,
-        seed: Optional[int] = None,
     ):
         super().__init__()
         assert n_samples >= grain_n_samples
@@ -70,12 +213,8 @@ class ChirpTextureSynth(nn.Module):
         # TODO(cm): use only one generator, seems to be a PyTorch limitation
         self.rand_gen_cpu = tr.Generator(device="cpu")
         self.rand_gen_gpu = None
-        if seed is not None:
-            self.rand_gen_cpu.manual_seed(seed)
         if tr.cuda.is_available():
             self.rand_gen_gpu = tr.Generator(device="cuda")
-            if seed is not None:
-                self.rand_gen_gpu.manual_seed(seed)
 
     def get_rand_gen(self, device: str) -> tr.Generator:
         if device == "cpu":

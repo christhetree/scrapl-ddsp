@@ -1,5 +1,17 @@
+import logging
+import os
+
 import numpy as np
 import torch as tr
+from matplotlib import pyplot as plt
+from nnAudio.features import CQT
+
+from experiments.plotting import plot_scalogram
+from experiments.synth import ChirpletSynth
+
+logging.basicConfig()
+log = logging.getLogger(__name__)
+log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 def gauss_window(M: float, std: tr.FloatTensor, sym: bool = True):
@@ -92,56 +104,6 @@ def grid2d(x1: float, x2: float, y1: float, y2: float, n: float):
     return X, Y
 
 
-def jtfs_loss(S, x, y):
-    loss = tr.norm(S(x) - S(y), p=2)
-    return loss
-
-
-def _ripple(theta, duration, n_partials, sr, window=False):
-    """Synthesizes a ripple sound.
-    Args:
-        theta: [v, w, f0, fm1]
-            v (float): octaves per second, w / omega
-            omega (float): amount of phase shift at each partial. (Ripple density)
-            w (float): Amplitude modulation frequency in Hz. (Ripple drift)
-            delta (float): Normalized ripple depth. Value must be in
-                the range [0, 1].
-            f0 (float): Frequency of the lowest sinusoid in Hz.
-            fm1 (float): Frequency of the highest sinusoid in Hz.
-        duration (float): Duration of sound in seconds.
-        n_partials (int): Number of sinusoids.
-        sr (int): Sampling rate in Hz.
-
-    Returns:
-        y (tr.tensor): The waveform.
-    """
-    v, w, f0, fm1 = theta
-    device = v.device
-    assert len(v.shape) == 2 and v.shape[1] == 1
-    phi = 0.0
-    # create sinusoids
-    m = int(duration * sr)  # total number of samples
-    t = tr.linspace(0, duration, int(m)).to(device)[None, None, :]
-    i = tr.arange(n_partials).to(device)[None, :]
-    # space f0 and highest partial evenly in log domain (divided by # partials)
-    f = (f0 * (fm1 / f0) ** (i / (n_partials - 1)))[:, :, None]
-    sphi = 0.0  # 2 * tr.pi * tr.rand((1, n_partials, 1))
-    s = tr.sin(2 * tr.pi * f * t + sphi)
-
-    # create envelope
-    x = tr.log2(f / f0[:, :, None])
-    delta = 1.0
-    a = 1.0 + delta * tr.sin(
-        2 * tr.pi * w[:, :, None] * (t + x / (v[:, :, None])) + phi
-    )
-    win = tr.hann_window(duration * sr) if window else 1.0
-    # create the waveform, summing partials
-    y = tr.sum(a * s / tr.sqrt(f), dim=1) * win
-    y = y / tr.max(tr.abs(y))
-
-    return y
-
-
 def ripple(theta, duration, n_partials, sr, window=False):
     """Synthesizes a ripple sound.
     Args:
@@ -185,3 +147,66 @@ def ripple(theta, duration, n_partials, sr, window=False):
     y = y / tr.sum(tr.abs(y))
 
     return y
+
+
+if __name__ == "__main__":
+    sr = 8192
+    dur_sec = 4
+    n_samples = int(dur_sec * sr)
+    bw = 2.0
+    bw_n_samples = int(bw * sr)
+    f0_hz = 512
+    am_hz = 2.0  # 4 to 16 Hz
+    fm_oct_hz = 1.0 # 0.5 to 4 octaves per second
+    delta = 0
+    # delta = 2 ** 12
+
+    theta = tr.tensor([f0_hz, am_hz, fm_oct_hz])
+    x = generate_am_chirp(theta, bw=bw, duration=dur_sec, sr=sr, delta=delta).view(1, -1)
+    log.info(f" x.shape: {x.shape}")
+
+    x2 = ChirpletSynth.generate_am_chirp(f0_hz, am_hz, fm_oct_hz, sr, n_samples, bw_n_samples, delta).view(1, -1)
+    log.info(f"x2.shape: {x2.shape}")
+    # exit()
+
+    # omega = 4.0
+    # am = 1.0
+    # f0_hz = 128
+    # fm1_hz = 2048
+    # n_partials = 8
+    # theta = tr.tensor([omega, am, f0_hz, fm1_hz])
+    # x = ripple(theta, dur_sec, n_partials, sr)
+    # log.info(f"x.shape: {x.shape}")
+
+    J_cqt = 5
+    Q_cqt = 24
+    hop_len = 256
+    eps_cqt = 1e-3
+    cqt_params = {
+        "sr": sr,
+        "bins_per_octave": Q_cqt,
+        "n_bins": J_cqt * Q_cqt,
+        "hop_length": hop_len,
+        "fmin": (0.4 * sr) / (2**J_cqt),
+        "output_format": "Magnitude",
+        "verbose": False,
+    }
+    cqt = CQT(**cqt_params)
+    y_coords = cqt.frequencies
+
+    U = cqt(x)
+    U = tr.log1p(U / eps_cqt)
+    log.info(f"U.shape: {U.shape}")
+
+    fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+    plot_scalogram(ax, U[0], sr, y_coords=y_coords, hop_len=hop_len, title="Chirp 1")
+    plt.show()
+
+    U2 = cqt(x2)
+    U2 = tr.log1p(U2 / eps_cqt)
+    log.info(f"U2.shape: {U2.shape}")
+
+    fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+    plot_scalogram(ax, U2[0], sr, y_coords=y_coords, hop_len=hop_len, title="Chirp 2")
+    plt.show()
+    plt.close()
