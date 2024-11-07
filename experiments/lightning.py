@@ -34,7 +34,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         use_val_rand_seed: bool = False,
         use_rand_seed_hat: bool = False,
         feature_type: str = "cqt",
-        J_cqt: int = 5,
         cqt_eps: float = 1e-3,
         log_x: bool = False,
         log_x_hat: bool = False,
@@ -69,7 +68,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         else:
             log.info("============== MICROSCALE ============== ")
         self.use_rand_seed_hat = use_rand_seed_hat
-        self.J_cqt = J_cqt
         self.feature_type = feature_type
         self.cqt_eps = cqt_eps
         self.log_x = log_x
@@ -95,10 +93,10 @@ class SCRAPLLightingModule(pl.LightningModule):
         cqt_params = {
             "sr": synth.sr,
             "bins_per_octave": synth.Q,
-            "n_bins": J_cqt * synth.Q,
+            "n_bins": synth.J_cqt * synth.Q,
             "hop_length": synth.hop_len,
             # TODO(cm): check this
-            "fmin": (0.4 * synth.sr) / (2**J_cqt),
+            "fmin": (0.4 * synth.sr) / (2**synth.J_cqt),
             "output_format": "Magnitude",
             "verbose": False,
         }

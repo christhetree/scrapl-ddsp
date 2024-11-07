@@ -23,8 +23,9 @@ class ChirpletSynth(nn.Module):
         bw_n_samples: int,
         f0_min_hz: float,
         f0_max_hz: float,
-        Q: int,
-        hop_len: int,
+        J_cqt: int = 5,
+        Q: int = 12,
+        hop_len: int = 256,
         am_hz_min: float = 4.0,
         am_hz_max: float = 16.0,
         fm_oct_hz_min: float = 0.5,
@@ -48,6 +49,7 @@ class ChirpletSynth(nn.Module):
         self.bw_n_samples = bw_n_samples
         self.f0_min_hz = f0_min_hz
         self.f0_max_hz = f0_max_hz
+        self.J_cqt = J_cqt
         self.Q = Q
         self.hop_len = hop_len
         self.am_hz_min = am_hz_min
@@ -166,8 +168,9 @@ class ChirpTextureSynth(nn.Module):
         grain_n_samples: int,
         f0_min_hz: float,
         f0_max_hz: float,
-        Q: int,
-        hop_len: int,
+        J_cqt: int = 5,
+        Q: int = 12,
+        hop_len: int = 256,
         max_theta_slope: float = 0.95,
     ):
         super().__init__()
@@ -179,6 +182,7 @@ class ChirpTextureSynth(nn.Module):
         self.grain_n_samples = grain_n_samples
         self.f0_min_hz = f0_min_hz
         self.f0_max_hz = f0_max_hz
+        self.J_cqt = J_cqt
         self.Q = Q
         self.hop_len = hop_len
         self.max_theta_slope = max_theta_slope  # This prevents instabilities near +/-1

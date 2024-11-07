@@ -60,6 +60,7 @@ class FlowtronSynth(nn.Module):
         self.sr = self.data_config["sampling_rate"]
         self.z_dim = self.model_config["n_mel_channels"]
         self.hop_len = self.data_config["hop_length"]
+        self.J_cqt = 5  # TODO(cm): tmp
         self.Q = 12  # TODO(cm): tmp
 
         log.info(f"Loading Flowtron")
@@ -302,8 +303,9 @@ class FastSpeech2Synth(nn.Module):
         if tr.cuda.is_available():
             self.rand_gen_gpu = tr.Generator(device="cuda")
 
-        self.hop_len = 256  # TODO(cm): tmp
+        self.J_cqt = 7  # TODO(cm): tmp
         self.Q = 24  # TODO(cm): tmp
+        self.hop_len = 256  # TODO(cm): tmp
 
         log.info(f"Loading FastSpeech2")
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
