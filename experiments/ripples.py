@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from nnAudio.features import CQT
 
 from experiments.plotting import plot_scalogram
-from experiments.synth import ChirpletSynth
+from experiments.synths import ChirpletSynth
 
 logging.basicConfig()
 log = logging.getLogger(__name__)

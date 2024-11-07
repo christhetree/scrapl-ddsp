@@ -12,7 +12,6 @@ from torch import Tensor as T
 from torch import nn
 
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss
-from experiments.synth import ChirpTextureSynth
 from experiments.util import ReadOnlyTensorDict
 
 logging.basicConfig()
