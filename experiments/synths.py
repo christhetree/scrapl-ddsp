@@ -20,7 +20,7 @@ class ChirpletSynth(nn.Module):
         self,
         sr: float,
         n_samples: int,
-        bw_n_samples: int,
+        bw_oct: float,  # TODO(cm)
         f0_min_hz: float,
         f0_max_hz: float,
         J_cqt: int = 5,
@@ -30,23 +30,16 @@ class ChirpletSynth(nn.Module):
         am_hz_max: float = 16.0,
         fm_oct_hz_min: float = 0.5,
         fm_oct_hz_max: float = 4.0,
-        delta_frac_min: Optional[float] = None,
-        delta_frac_max: Optional[float] = None,
+        delta_frac_min: float = 0.5,
+        delta_frac_max: float = 0.5,
         sigma0: float = 0.1,
     ):
         super().__init__()
-        assert bw_n_samples <= n_samples
-        bw_frac = bw_n_samples / n_samples
-        max_delta_frac = (1.0 - bw_frac) / 2.0
-        if delta_frac_min is None:
-            delta_frac_min = -max_delta_frac
-        if delta_frac_max is None:
-            delta_frac_max = max_delta_frac
-        assert -max_delta_frac <= delta_frac_min <= delta_frac_max <= max_delta_frac
+        assert -1.0 <= delta_frac_min <= delta_frac_max <= 1.0
         assert f0_max_hz >= f0_min_hz
         self.sr = sr
         self.n_samples = n_samples
-        self.bw_n_samples = bw_n_samples
+        self.bw_oct = bw_oct
         self.f0_min_hz = f0_min_hz
         self.f0_max_hz = f0_max_hz
         self.J_cqt = J_cqt
@@ -61,6 +54,7 @@ class ChirpletSynth(nn.Module):
         self.sigma0 = sigma0
 
         # Derived params
+        self.bw_n_samples = int(bw_oct * sr)
         self.f0_min_hz_log2 = tr.log2(tr.tensor(f0_min_hz))
         self.f0_max_hz_log2 = tr.log2(tr.tensor(f0_max_hz))
         self.f0_hz = None
@@ -72,6 +66,10 @@ class ChirpletSynth(nn.Module):
         self.fm_oct_hz_max_log2 = tr.log2(tr.tensor(fm_oct_hz_max))
         self.delta_min = int(delta_frac_min * n_samples)
         self.delta_max = int(delta_frac_max * n_samples)
+        log.info(f"delta_min: {self.delta_min}, delta_max: {self.delta_max}")
+        self.delta = None
+        if delta_frac_min == delta_frac_max:
+            self.delta = self.delta_min
         self.rand_gen = tr.Generator(device="cpu")
 
         # Temporal support
@@ -83,9 +81,12 @@ class ChirpletSynth(nn.Module):
         if seed is not None:
             assert seed.ndim == 0 or seed.shape == (1,)
             self.rand_gen.manual_seed(int(seed.item()))
-        delta = tr.randint(
-            self.delta_min, self.delta_max + 1, (1,), generator=self.rand_gen
-        ).item()
+        if self.delta is None:
+            delta = tr.randint(
+                self.delta_min, self.delta_max + 1, (1,), generator=self.rand_gen
+            ).item()
+        else:
+            delta = self.delta
 
         if self.f0_hz is None:
             f0_hz_log2 = (
@@ -102,7 +103,6 @@ class ChirpletSynth(nn.Module):
             f0_hz,
             theta_am_hz,
             theta_fm_hz,
-            self.n_samples,
             self.bw_n_samples,
             delta,
             self.sigma0,
@@ -138,24 +138,31 @@ class ChirpletSynth(nn.Module):
         f0_hz: float | T,
         am_hz: float | T,
         fm_oct_hz: float | T,
-        n_samples: int,
         bw_n_samples: int,
         delta: int = 0,
         sigma0: float = 0.1,
     ) -> T:
         # t = (tr.arange(n_samples) - (n_samples // 2)) / sr
         assert support.ndim == 1
+        n_samples = support.size(0)
         t = support
         phi = f0_hz / (fm_oct_hz * math.log(2)) * (2 ** (fm_oct_hz * t) - 1)
         carrier = tr.sin(2 * tr.pi * phi)
         modulator = tr.sin(2 * tr.pi * am_hz * t)
-        window_std = sigma0 * bw_n_samples / fm_oct_hz
-        window = tr.signal.windows.gaussian(n_samples, std=window_std, sym=True)
+        window_std_samples = sigma0 * bw_n_samples / fm_oct_hz
+        window = tr.signal.windows.gaussian(
+            n_samples, std=float(window_std_samples), sym=True
+        )
+        window = window.to(support.device)
         chirp = carrier * fm_oct_hz * window
         if am_hz > 0:
             chirp = chirp * modulator
         if delta != 0:
             chirp = tr.roll(chirp, shifts=delta)
+            if delta > 0:
+                chirp[:delta] = 0.0
+            else:
+                chirp[delta:] = 0.0
         return chirp
 
 
@@ -287,9 +294,7 @@ class ChirpTextureSynth(nn.Module):
         x = x / tr.norm(x, p=2)  # TODO
         return x
 
-    def make_x_from_theta(
-        self, theta_d_0to1: T, theta_s_0to1: T, seed: T, seed_words: Optional[T] = None
-    ) -> T:
+    def make_x_from_theta(self, theta_d_0to1: T, theta_s_0to1: T, seed: T) -> T:
         # TODO(cm): add batch support to synth
         assert theta_d_0to1.min() >= 0.0
         assert theta_d_0to1.max() <= 1.0

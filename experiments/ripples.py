@@ -156,16 +156,19 @@ if __name__ == "__main__":
     bw = 2.0
     bw_n_samples = int(bw * sr)
     f0_hz = 512
-    am_hz = 2.0  # 4 to 16 Hz
-    fm_oct_hz = 1.0 # 0.5 to 4 octaves per second
-    delta = 0
-    # delta = 2 ** 12
+    am_hz = 8.0  # 4 to 16 Hz
+    # fm_oct_hz = 1.414 # 0.5 to 4 octaves per second
+    fm_oct_hz = 0.5 # 0.5 to 4 octaves per second
+    # delta = 0
+    delta = 16000
+    delta = -delta
 
     theta = tr.tensor([f0_hz, am_hz, fm_oct_hz])
     x = generate_am_chirp(theta, bw=bw, duration=dur_sec, sr=sr, delta=delta).view(1, -1)
     log.info(f" x.shape: {x.shape}")
 
-    x2 = ChirpletSynth.generate_am_chirp(f0_hz, am_hz, fm_oct_hz, sr, n_samples, bw_n_samples, delta).view(1, -1)
+    support = (tr.arange(n_samples) - (n_samples // 2)) / sr
+    x2 = ChirpletSynth.generate_am_chirp(support, f0_hz, am_hz, fm_oct_hz, bw_n_samples, delta).view(1, -1)
     log.info(f"x2.shape: {x2.shape}")
     # exit()
 
@@ -179,7 +182,7 @@ if __name__ == "__main__":
     # log.info(f"x.shape: {x.shape}")
 
     J_cqt = 5
-    Q_cqt = 24
+    Q_cqt = 12
     hop_len = 256
     eps_cqt = 1e-3
     cqt_params = {

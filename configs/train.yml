@@ -14,7 +14,9 @@ custom:
 #  model_name: scrapl_sag_b0.9_sgd_1e-4
 #  model_name: scrapl_pwa_sgd_1e-4
 #  model_name: scrapl_sag_sgd_1e-4
-  dataset_name: chirp_32_32_5_micro
+  dataset_name: chirplet_32_32_5_micro
+#  dataset_name: chirplet_32_32_5_meso
+#  dataset_name: chirp_32_32_5_micro
 #  dataset_name: chirp_32_32_5_meso
 #  dataset_name: testing
 #  dataset_name: flowtron_32_32_1_hifigan_MS_fixed_z
@@ -74,7 +76,8 @@ model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
     model: ../configs/models/spectral_2dcnn.yml
-    synth: ../configs/synths/chirp_texture_8khz.yml
+    synth: ../configs/synths/chirplet_8khz.yml
+#    synth: ../configs/synths/chirp_texture_8khz.yml
 #    synth: ../configs/flowtron/flowtron_synth.yml
 #    synth: ../configs/fastspeech2/fastspeech2_synth.yml
 
