@@ -14,7 +14,10 @@ custom:
 #  model_name: scrapl_sag_b0.9_sgd_1e-4
 #  model_name: scrapl_pwa_sgd_1e-4
 #  model_name: scrapl_sag_sgd_1e-4
-  dataset_name: chirplet_32_32_5_micro
+  dataset_name: chirp_32_32_5
+#  dataset_name: chirp_32_32_5_micro
+#  dataset_name: chirp_32_32_5_meso
+#  dataset_name: chirplet_32_32_5_micro
 #  dataset_name: chirplet_32_32_5_meso
 #  dataset_name: chirp_32_32_5_micro
 #  dataset_name: chirp_32_32_5_meso
@@ -39,10 +42,10 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [6]
+  devices: [7]
 #  max_epochs: 200
   max_epochs: 300
-  num_sanity_val_steps: 2
+  num_sanity_val_steps: 1
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 8
 #  gradient_clip_val: 0.5

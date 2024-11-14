@@ -30,12 +30,12 @@ class ChirpletSynth(nn.Module):
         am_hz_max: float = 16.0,
         fm_oct_hz_min: float = 0.5,
         fm_oct_hz_max: float = 4.0,
-        delta_frac_min: float = 0.5,
-        delta_frac_max: float = 0.5,
+        delta_min: int = 0,
+        delta_max: int = 0,
         sigma0: float = 0.1,
     ):
         super().__init__()
-        assert -1.0 <= delta_frac_min <= delta_frac_max <= 1.0
+        assert -n_samples <= delta_min <= delta_max <= n_samples
         assert f0_max_hz >= f0_min_hz
         self.sr = sr
         self.n_samples = n_samples
@@ -49,8 +49,8 @@ class ChirpletSynth(nn.Module):
         self.am_hz_max = am_hz_max
         self.fm_oct_hz_min = fm_oct_hz_min
         self.fm_oct_hz_max = fm_oct_hz_max
-        self.delta_frac_min = delta_frac_min
-        self.delta_frac_max = delta_frac_max
+        self.delta_min = delta_min
+        self.delta_max = delta_max
         self.sigma0 = sigma0
 
         # Derived params
@@ -64,17 +64,17 @@ class ChirpletSynth(nn.Module):
         self.am_hz_max_log2 = tr.log2(tr.tensor(am_hz_max))
         self.fm_oct_hz_min_log2 = tr.log2(tr.tensor(fm_oct_hz_min))
         self.fm_oct_hz_max_log2 = tr.log2(tr.tensor(fm_oct_hz_max))
-        self.delta_min = int(delta_frac_min * n_samples)
-        self.delta_max = int(delta_frac_max * n_samples)
-        log.info(f"delta_min: {self.delta_min}, delta_max: {self.delta_max}")
         self.delta = None
-        if delta_frac_min == delta_frac_max:
+        if delta_min == delta_max:
             self.delta = self.delta_min
         self.rand_gen = tr.Generator(device="cpu")
 
         # Temporal support
         support = (tr.arange(n_samples) - (n_samples // 2)) / sr
         self.register_buffer("support", support)
+        # Window support
+        win_support = self.create_guassian_window_support(n_samples)
+        self.register_buffer("win_support", win_support)
 
     def forward(self, theta_am_hz: T, theta_fm_hz: T, seed: Optional[T] = None) -> T:
         assert theta_am_hz.ndim == theta_fm_hz.ndim == 0
@@ -106,6 +106,7 @@ class ChirpletSynth(nn.Module):
             self.bw_n_samples,
             delta,
             self.sigma0,
+            win_support=self.win_support,
         )
         return chirplet
 
@@ -133,6 +134,35 @@ class ChirpletSynth(nn.Module):
         return x
 
     @staticmethod
+    def create_guassian_window_support(
+        n_samples: int, sym: bool = True, device: Optional[tr.device] = None
+    ) -> T:
+        assert n_samples > 0
+        start = -(n_samples if not sym and n_samples > 1 else n_samples - 1) / 2.0
+        end = start + (n_samples - 1)
+        win_support = tr.linspace(start=start, end=end, steps=n_samples, device=device)
+        return win_support
+
+    @staticmethod
+    def create_guassian_window(
+        std: float,
+        support: Optional[T] = None,
+        n_samples: Optional[int] = None,
+        sym: bool = True,
+        device: Optional[tr.device] = None,
+    ) -> T:
+        assert std > 0, f"std must be positive, got {std}"
+        if support is None:
+            assert n_samples is not None
+            support = ChirpletSynth.create_guassian_window_support(
+                n_samples, sym=sym, device=device
+            )
+        constant = 1.0 / (std * math.sqrt(2.0))
+        window = support * constant
+        window = tr.exp(-(window**2))
+        return window
+
+    @staticmethod
     def generate_am_chirp(
         support: T,
         f0_hz: float | T,
@@ -141,6 +171,7 @@ class ChirpletSynth(nn.Module):
         bw_n_samples: int,
         delta: int = 0,
         sigma0: float = 0.1,
+        win_support: Optional[T] = None,
     ) -> T:
         # t = (tr.arange(n_samples) - (n_samples // 2)) / sr
         assert support.ndim == 1
@@ -149,11 +180,14 @@ class ChirpletSynth(nn.Module):
         phi = f0_hz / (fm_oct_hz * math.log(2)) * (2 ** (fm_oct_hz * t) - 1)
         carrier = tr.sin(2 * tr.pi * phi)
         modulator = tr.sin(2 * tr.pi * am_hz * t)
-        window_std_samples = sigma0 * bw_n_samples / fm_oct_hz
-        window = tr.signal.windows.gaussian(
-            n_samples, std=float(window_std_samples), sym=True
+        window_std = float(sigma0 * bw_n_samples / fm_oct_hz)
+        window = ChirpletSynth.create_guassian_window(
+            window_std,
+            support=win_support,
+            n_samples=n_samples,
+            sym=True,
+            device=support.device,
         )
-        window = window.to(support.device)
         chirp = carrier * fm_oct_hz * window
         if am_hz > 0:
             chirp = chirp * modulator
