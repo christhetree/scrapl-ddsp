@@ -354,7 +354,6 @@ class EmbeddingLoss(ABC, nn.Module):
             assert diff.ndim == 2
             dist = tr.linalg.norm(diff, ord=self.p, dim=-1)
         dist = tr.mean(dist)
-        log.info(f"dist = {dist}")
         return dist
 
 

@@ -73,7 +73,7 @@ class ChirpletSynth(nn.Module):
         support = (tr.arange(n_samples) - (n_samples // 2)) / sr
         self.register_buffer("support", support)
         # Window support
-        win_support = self.create_guassian_window_support(n_samples)
+        win_support = self.create_gaussian_window_support(n_samples)
         self.register_buffer("win_support", win_support)
 
     def forward(self, theta_am_hz: T, theta_fm_hz: T, seed: Optional[T] = None) -> T:
@@ -134,7 +134,7 @@ class ChirpletSynth(nn.Module):
         return x
 
     @staticmethod
-    def create_guassian_window_support(
+    def create_gaussian_window_support(
         n_samples: int, sym: bool = True, device: Optional[tr.device] = None
     ) -> T:
         assert n_samples > 0
@@ -144,7 +144,7 @@ class ChirpletSynth(nn.Module):
         return win_support
 
     @staticmethod
-    def create_guassian_window(
+    def create_gaussian_window(
         std: float,
         support: Optional[T] = None,
         n_samples: Optional[int] = None,
@@ -154,7 +154,7 @@ class ChirpletSynth(nn.Module):
         assert std > 0, f"std must be positive, got {std}"
         if support is None:
             assert n_samples is not None
-            support = ChirpletSynth.create_guassian_window_support(
+            support = ChirpletSynth.create_gaussian_window_support(
                 n_samples, sym=sym, device=device
             )
         constant = 1.0 / (std * math.sqrt(2.0))
@@ -181,7 +181,7 @@ class ChirpletSynth(nn.Module):
         carrier = tr.sin(2 * tr.pi * phi)
         modulator = tr.sin(2 * tr.pi * am_hz * t)
         window_std = float(sigma0 * bw_n_samples / fm_oct_hz)
-        window = ChirpletSynth.create_guassian_window(
+        window = ChirpletSynth.create_gaussian_window(
             window_std,
             support=win_support,
             n_samples=n_samples,

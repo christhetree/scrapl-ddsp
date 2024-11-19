@@ -30,9 +30,11 @@ def calc_lc(
     a: T, b: T, grad_a: T, grad_b: T, elementwise: bool = False, eps: float = 1e-8
 ) -> T:
     assert a.shape == b.shape == grad_a.shape == grad_b.shape
+    delta_coord = tr.abs(a - b)
+    delta_grad = tr.abs(grad_a - grad_b)
+    assert (delta_coord > eps).all()
+    assert (delta_grad > eps).all()
     if elementwise:
-        delta_coord = tr.abs(a - b)
-        delta_grad = tr.abs(grad_a - grad_b)
         lc = delta_grad / (delta_coord + eps)
     else:
         a = a.flatten()

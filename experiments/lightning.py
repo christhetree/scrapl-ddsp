@@ -11,7 +11,7 @@ from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
 
-from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss
+from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss, Scat1DLoss
 from experiments.util import ReadOnlyTensorDict
 
 logging.basicConfig()
@@ -79,7 +79,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.run_name = run_name
         log.info(f"Run name: {self.run_name}")
 
-        if type(self.loss_func) in {SCRAPLLoss, AdaptiveSCRAPLLoss, JTFSTLoss}:
+        if type(self.loss_func) in {SCRAPLLoss, AdaptiveSCRAPLLoss, JTFSTLoss, Scat1DLoss}:
             assert self.grad_multiplier is not None, "Grad multiplier is required"
         else:
             assert self.grad_multiplier is None, "Grad multiplier is only for JTFS"
@@ -89,6 +89,8 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         if hasattr(self.loss_func, "set_resampler"):
             self.loss_func.set_resampler(self.synth.sr)
+        if hasattr(self.loss_func, "in_sr"):
+            assert self.loss_func.in_sr == self.synth.sr
 
         cqt_params = {
             "sr": synth.sr,

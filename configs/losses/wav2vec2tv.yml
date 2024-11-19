@@ -4,5 +4,5 @@ init_args:
 #  model_size: large
   normalize: true
   eps: 1e-8
-  use_time_varying: false
+  use_time_varying: true
   p: 2
