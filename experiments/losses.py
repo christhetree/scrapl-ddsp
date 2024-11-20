@@ -204,7 +204,9 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
             self.register_buffer("probs", probs)
         elif get_path_keys_kw_args is not None:
             log.info(f"Disabling a subset of paths")
-            path_keys = util.get_path_keys(meta=self.meta, **get_path_keys_kw_args)
+            path_keys = util.get_path_keys(
+                meta=self.meta, Q1=Q1, **get_path_keys_kw_args
+            )
             assert path_keys, f"no path keys found for {get_path_keys_kw_args}"
             log.info(f"len(path_keys) = {len(path_keys)}")
             path_indices = []
@@ -366,10 +368,10 @@ class Wav2Vec2EmbeddingLoss(EmbeddingLoss):
 
 
 if __name__ == "__main__":
-    w2v2_loss = Wav2Vec2Loss()
-    x = tr.randn(3, 1, 4000) * 3.0
-    w2v2_loss.get_embedding(x)
-    exit()
+    # w2v2_loss = Wav2Vec2Loss()
+    # x = tr.randn(3, 1, 4000) * 3.0
+    # w2v2_loss.get_embedding(x)
+    # exit()
 
     # tr.manual_seed(0)
     n = 10000

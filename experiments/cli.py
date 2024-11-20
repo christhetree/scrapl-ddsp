@@ -41,7 +41,7 @@ class CustomLightningCLI(LightningCLI):
                 verbose=False,
             ),
             LogScalogramCallback(),
-            # LogGradientCallback(),
+            LogGradientCallback(),
             # LogAudioCallback(),
         ],
         "logger": {

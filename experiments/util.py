@@ -46,12 +46,15 @@ class ReadOnlyTensorDict(nn.Module):
 def get_path_keys(
     meta: Dict[str, Any],
     sr: float,
+    Q1: int,
     am_hz_min: Optional[float] = None,
     am_hz_max: Optional[float] = None,
-    fm_hz_min: Optional[float] = None,
-    fm_hz_max: Optional[float] = None,
+    fm_oct_hz_min: Optional[float] = None,
+    fm_oct_hz_max: Optional[float] = None,
     spins: Optional[Set[int]] = None,
+    ignored_spins: Optional[Set[int]] = None,
     use_complement: bool = False,
+    use_am_fm_union: bool = False,  # Use the AM and FM intersection by default
 ) -> List[Tuple[int, int]]:
     assert len(meta["key"]) == len(meta["order"]), \
         f"len(meta['key']) != len(meta['order'])"
@@ -62,23 +65,39 @@ def get_path_keys(
     for idx, order in enumerate(meta["order"]):
         if order != 2:
             continue
+        spin = meta["spin"][idx]
+        # Ignored spins are specified separately to not include them in the complement
+        if ignored_spins is not None and spin in ignored_spins:
+            continue
+
         k = meta["key"][idx]
         all_keys.append(k)
-
-        spin = meta["spin"][idx]
         if spin not in spins:
             continue
-        am_cf_hz = meta["xi"][idx][1] * sr
-        if am_hz_min is not None and am_cf_hz < am_hz_min:
-            continue
-        if am_hz_max is not None and am_cf_hz > am_hz_max:
-            continue
-        fm_cf_hz = abs(meta["xi_fr"][idx] * sr)  # TODO(cm): figure out what to do here
-        if fm_hz_min is not None and fm_cf_hz < fm_hz_min:
-            continue
-        if fm_hz_max is not None and fm_cf_hz > fm_hz_max:
-            continue
-        keys.append(k)
+
+        satisfies_am = True
+        am_cf_cycles_p_sec = meta["xi"][idx][1] * sr
+        if am_hz_min is not None and am_cf_cycles_p_sec < am_hz_min:
+            satisfies_am = False
+        if am_hz_max is not None and am_cf_cycles_p_sec > am_hz_max:
+            satisfies_am = False
+
+        satisfies_fm = True
+        fm_cf_cycles_p_oct = abs(meta["xi_fr"][idx] * Q1)
+        if fm_cf_cycles_p_oct == 0.0:
+            fm_cf_oct_hz = tr.inf
+        else:
+            fm_cf_oct_hz = am_cf_cycles_p_sec / fm_cf_cycles_p_oct
+        if fm_oct_hz_min is not None and fm_cf_oct_hz < fm_oct_hz_min:
+            satisfies_fm = False
+        if fm_oct_hz_max is not None and fm_cf_oct_hz > fm_oct_hz_max:
+            satisfies_fm = False
+
+        if (use_am_fm_union and (satisfies_am or satisfies_fm)) or (not use_am_fm_union and (satisfies_am and satisfies_fm)):
+            keys.append(k)
+            log.info(f"key = {k}, spin = {spin}, "
+                     f"am_cf_cycles_p_sec = {am_cf_cycles_p_sec:.2f}, "
+                     f"fm_cf_oct_hz = {fm_cf_oct_hz:.2f}")
     if use_complement:
         complement_keys = [k for k in all_keys if k not in keys]
         return complement_keys
