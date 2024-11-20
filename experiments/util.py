@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List, Any, Union, Dict, Tuple, Iterator
+from typing import List, Any, Union, Dict, Tuple, Iterator, Set, Optional
 
 import torch as tr
 import torch.nn.functional as F
@@ -41,6 +41,49 @@ class ReadOnlyTensorDict(nn.Module):
     def items(self) -> Iterator[Tuple[str | int, T]]:
         for k in self.keys:
             yield k, self[k]
+
+
+def get_path_keys(
+    meta: Dict[str, Any],
+    sr: float,
+    am_hz_min: Optional[float] = None,
+    am_hz_max: Optional[float] = None,
+    fm_hz_min: Optional[float] = None,
+    fm_hz_max: Optional[float] = None,
+    spins: Optional[Set[int]] = None,
+    use_complement: bool = False,
+) -> List[Tuple[int, int]]:
+    assert len(meta["key"]) == len(meta["order"]), \
+        f"len(meta['key']) != len(meta['order'])"
+    if spins is None:
+        spins = {-1, 0, 1}
+    all_keys = []
+    keys = []
+    for idx, order in enumerate(meta["order"]):
+        if order != 2:
+            continue
+        k = meta["key"][idx]
+        all_keys.append(k)
+
+        spin = meta["spin"][idx]
+        if spin not in spins:
+            continue
+        am_cf_hz = meta["xi"][idx][1] * sr
+        if am_hz_min is not None and am_cf_hz < am_hz_min:
+            continue
+        if am_hz_max is not None and am_cf_hz > am_hz_max:
+            continue
+        fm_cf_hz = abs(meta["xi_fr"][idx] * sr)  # TODO(cm): figure out what to do here
+        if fm_hz_min is not None and fm_cf_hz < fm_hz_min:
+            continue
+        if fm_hz_max is not None and fm_cf_hz > fm_hz_max:
+            continue
+        keys.append(k)
+    if use_complement:
+        complement_keys = [k for k in all_keys if k not in keys]
+        return complement_keys
+    else:
+        return keys
 
 
 def linear_interpolate_last_dim(x: T, n: int, align_corners: bool = True) -> T:

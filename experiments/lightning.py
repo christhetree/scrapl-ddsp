@@ -440,14 +440,14 @@ class SCRAPLLightingModule(pl.LightningModule):
         return self.step(batch, stage="test")
 
     def on_validation_epoch_end(self) -> None:
-        l1_tv_s = []
+        l1_tv_all = []
         for name, maes in self.val_l1_s.items():
             if len(maes) > 1:
                 l1_tv = self.calc_total_variation(maes, norm_by_len=True)
                 self.log(f"val/{name}_tv", l1_tv, prog_bar=False)
-                l1_tv_s.append(l1_tv)
-        if l1_tv_s:
-            l1_theta_tv = tr.stack(l1_tv_s, dim=0).mean(dim=0)
+                l1_tv_all.append(l1_tv)
+        if l1_tv_all:
+            l1_theta_tv = tr.stack(l1_tv_all, dim=0).mean(dim=0)
             self.log(f"val/l1_theta_tv", l1_theta_tv, prog_bar=False)
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:

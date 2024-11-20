@@ -60,10 +60,22 @@ class ChirpletSynth(nn.Module):
         self.f0_hz = None
         if f0_min_hz == f0_max_hz:
             self.f0_hz = f0_min_hz
-        self.am_hz_min_log2 = tr.log2(tr.tensor(am_hz_min))
-        self.am_hz_max_log2 = tr.log2(tr.tensor(am_hz_max))
-        self.fm_oct_hz_min_log2 = tr.log2(tr.tensor(fm_oct_hz_min))
-        self.fm_oct_hz_max_log2 = tr.log2(tr.tensor(fm_oct_hz_max))
+        self.am_hz_min_log2 = None
+        self.am_hz_max_log2 = None
+        self.am_hz = None
+        if am_hz_min == am_hz_max:
+            self.am_hz = am_hz_min
+        else:
+            self.am_hz_min_log2 = tr.log2(tr.tensor(am_hz_min))
+            self.am_hz_max_log2 = tr.log2(tr.tensor(am_hz_max))
+        self.fm_oct_hz_min_log2 = None
+        self.fm_oct_hz_max_log2 = None
+        self.fm_oct_hz = None
+        if fm_oct_hz_min == fm_oct_hz_max:
+            self.fm_oct_hz = fm_oct_hz_min
+        else:
+            self.fm_oct_hz_min_log2 = tr.log2(tr.tensor(fm_oct_hz_min))
+            self.fm_oct_hz_max_log2 = tr.log2(tr.tensor(fm_oct_hz_max))
         self.delta = None
         if delta_min == delta_max:
             self.delta = self.delta_min
@@ -116,16 +128,23 @@ class ChirpletSynth(nn.Module):
         assert theta_am_hz_0to1.max() <= 1.0
         assert theta_fm_hz_0to1.min() >= 0.0
         assert theta_fm_hz_0to1.max() <= 1.0
-        theta_am_hz_log2 = (
-            theta_am_hz_0to1 * (self.am_hz_max_log2 - self.am_hz_min_log2)
-            + self.am_hz_min_log2
-        )
-        theta_am_hz = 2**theta_am_hz_log2
-        theta_fm_hz_log2 = (
-            theta_fm_hz_0to1 * (self.fm_oct_hz_max_log2 - self.fm_oct_hz_min_log2)
-            + self.fm_oct_hz_min_log2
-        )
-        theta_fm_hz = 2**theta_fm_hz_log2
+
+        if self.am_hz is None:
+            theta_am_hz_log2 = (
+                theta_am_hz_0to1 * (self.am_hz_max_log2 - self.am_hz_min_log2)
+                + self.am_hz_min_log2
+            )
+            theta_am_hz = 2**theta_am_hz_log2
+        else:
+            theta_am_hz = tr.full_like(theta_am_hz_0to1, self.am_hz)
+        if self.fm_oct_hz is None:
+            theta_fm_hz_log2 = (
+                theta_fm_hz_0to1 * (self.fm_oct_hz_max_log2 - self.fm_oct_hz_min_log2)
+                + self.fm_oct_hz_min_log2
+            )
+            theta_fm_hz = 2**theta_fm_hz_log2
+        else:
+            theta_fm_hz = tr.full_like(theta_fm_hz_0to1, self.fm_oct_hz)
         x = []
         for idx in range(theta_am_hz.size(0)):
             curr_x = self.forward(theta_am_hz[idx], theta_fm_hz[idx], seed[idx])
@@ -175,12 +194,18 @@ class ChirpletSynth(nn.Module):
     ) -> T:
         # t = (tr.arange(n_samples) - (n_samples // 2)) / sr
         assert support.ndim == 1
+        assert am_hz >= 0
         n_samples = support.size(0)
         t = support
-        phi = f0_hz / (fm_oct_hz * math.log(2)) * (2 ** (fm_oct_hz * t) - 1)
+        if fm_oct_hz == 0.0:
+            phi = f0_hz * t
+            window_std = float(sigma0 * bw_n_samples)
+        else:
+            phi = f0_hz / (fm_oct_hz * math.log(2)) * (2 ** (fm_oct_hz * t) - 1)
+            window_std = abs(float(sigma0 * bw_n_samples / fm_oct_hz))
         carrier = tr.sin(2 * tr.pi * phi)
-        modulator = tr.sin(2 * tr.pi * am_hz * t)
-        window_std = float(sigma0 * bw_n_samples / fm_oct_hz)
+        # Divide am_hz by 2 since we're using a sinusoid as the modulator
+        modulator = tr.sin(2 * tr.pi * am_hz / 2.0 * t)
         window = ChirpletSynth.create_gaussian_window(
             window_std,
             support=win_support,
@@ -188,7 +213,10 @@ class ChirpletSynth(nn.Module):
             sym=True,
             device=support.device,
         )
-        chirp = carrier * fm_oct_hz * window
+        if fm_oct_hz == 0.0:
+            chirp = carrier * window
+        else:
+            chirp = carrier * fm_oct_hz * window
         if am_hz > 0:
             chirp = chirp * modulator
         if delta != 0:

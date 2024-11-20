@@ -12,6 +12,8 @@ init_args:
   am_hz_max: 16.0
   fm_oct_hz_min: 0.5
   fm_oct_hz_max: 4.0
+#  fm_oct_hz_min: 0.0
+#  fm_oct_hz_max: 0.0
   delta_min: -2048
   delta_max: 2048
   sigma0: 0.1

@@ -7,18 +7,21 @@ custom:
 #  model_name: mse_adamw_1e-4
 #  model_name: mss_adamw_1e-4
 #  model_name: jtfs_adamw_1e-4
-  model_name: scat1d_adamw_1e-4
+#  model_name: scat1d_adamw_1e-4
 #  model_name: scat_1d_o1_J12_Q24_T64_adamw_1e-4
 #  model_name: clap_adamw_1e-4
 #  model_name: wav2vec2tv_adamw_1e-4
 #  model_name: scrapl_adamw_1e-4
 #  model_name: scrapl_pwa_sgd_1e-4
-#  model_name: scrapl_saga_sgd_1e-4
+  model_name: scrapl_saga_sgd_1e-4_b16
+#  model_name: scrapl_saga_sgd_1e-4_b16__am_paths_-101
+#  model_name: scrapl_saga_sgd_1e-4_b16__am_paths_-101_compl
 #  dataset_name: chirp_32_32_5
 #  dataset_name: chirp_32_32_5_micro
 #  dataset_name: chirp_32_32_5_meso
 #  dataset_name: chirplet_32_32_5_micro
   dataset_name: chirplet_32_32_5_meso
+#  dataset_name: chirplet_32_32_5_only_am_meso
 #  dataset_name: chirp_32_32_5_micro
 #  dataset_name: chirp_32_32_5_meso
 #  dataset_name: testing
@@ -36,24 +39,25 @@ custom:
   cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
-  use_wandb_gpu: false
-#  use_wandb_gpu: true
+#  use_wandb_gpu: false
+  use_wandb_gpu: true
 
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [5]
-  max_epochs: 50
+  devices: [6]
+  max_epochs: 25
   num_sanity_val_steps: 1
-#  accumulate_grad_batches: 1
-  accumulate_grad_batches: 8
+  accumulate_grad_batches: 1
+#  accumulate_grad_batches: 8
 #  gradient_clip_val: 0.5
 
 data:
   class_path: experiments.data_modules.ThetaDSDataModule
   init_args:
 #    batch_size: 32
-    batch_size: 4
+    batch_size: 16
+#    batch_size: 4
 
     num_workers: 4
     n_d: 32
@@ -84,11 +88,11 @@ model:
 #    synth: ../configs/fastspeech2/fastspeech2_synth.yml
 
 #    loss_func: ../configs/losses/mss.yml
-    loss_func: ../configs/losses/scat_1d_dtfa.yml
+#    loss_func: ../configs/losses/scat_1d_dtfa.yml
 #    loss_func: ../configs/losses/rand_mss.yml
 #    loss_func: ../configs/losses/jtfst_dtfa.yml
 #    loss_func: ../configs/losses/scrapl_dtfa.yml
-#    loss_func: ../configs/losses/scrapl_adaptive.yml
+    loss_func: ../configs/losses/scrapl_adaptive.yml
 #    loss_func: ../configs/losses/clap.yml
 #    loss_func: ../configs/losses/wav2vec2.yml
 #    loss_func: ../configs/losses/wav2vec2tv.yml
@@ -96,11 +100,11 @@ model:
 #    grad_multiplier: null
     grad_multiplier: 1e8
 
-    use_pathwise_adam: False
-#    use_pathwise_adam: True
+#    use_pathwise_adam: False
+    use_pathwise_adam: True
 
-    vr_algo: null
-#    vr_algo: saga
+#    vr_algo: null
+    vr_algo: saga
 #    vr_algo: sag
     vr_beta: 1.00
 
@@ -121,13 +125,13 @@ model:
     log_x: true
     log_x_hat: true
 #    log_x_hat: false
-    log_val_grads: true
-#    log_val_grads: false
+#    log_val_grads: true
+    log_val_grads: false
 
 #    run_name: sag_b0.99_sgd_1e-4_cont_t_lrs99_p15
 
-optimizer: ../configs/opt/adam_w.yml
-#optimizer: ../configs/opt/sgd.yml
+#optimizer: ../configs/opt/adam_w.yml
+optimizer: ../configs/opt/sgd.yml
 #optimizer: ../configs/opt/sf_adam_w.yml
 #optimizer: ../configs/opt/sf_sgd.yml
 

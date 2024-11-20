@@ -136,9 +136,11 @@ class SCRAPLLoss(nn.Module):
             T=T,
             F=F,
         )
-        scrapl_meta = self.jtfs.meta()
+        self.meta = self.jtfs.meta()
+        if len(self.meta["key"]) != len(self.meta["order"]):
+            self.meta["key"] = self.meta["key"][1:]
         # TODO(cm): check if this is correct
-        self.scrapl_keys = [key for key in scrapl_meta["key"] if len(key) == 2]
+        self.scrapl_keys = [key for key in self.meta["key"] if len(key) == 2]
         self.n_paths = len(self.scrapl_keys)
         log.info(f"number of SCRAPL keys = {self.n_paths}")
         self.path_counts = defaultdict(int)
@@ -188,41 +190,36 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         p: int = 2,
         sample_all_paths_first: bool = False,
         tau: float = 1.0,
-        max_prob: float = 1.0,
-        is_trainable: bool = True,
         probs_path: Optional[str] = None,
+        get_path_keys_kw_args: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(shape, J, Q1, Q2, J_fr, Q_fr, T, F, p, sample_all_paths_first)
         self.tau = tau
-        self.max_prob = max_prob
-        self.is_trainable = is_trainable
-        self.target_path_energies = defaultdict(list)
-        self.path_mean_abs_Sx_grads = defaultdict(list)
-        if is_trainable:
-            self.logits = nn.Parameter(tr.zeros((self.n_paths,)))
-        else:
-            self.register_buffer("logits", tr.zeros((self.n_paths,)))
+        self.get_path_indices_kw_args = get_path_keys_kw_args
+        self.register_buffer("logits", tr.zeros((self.n_paths,)))
         if probs_path is not None:
             log.info(f"Loading probs from {probs_path}")
             probs = tr.load(probs_path)
             assert probs.shape == (self.n_paths,)
             self.register_buffer("probs", probs)
+        elif get_path_keys_kw_args is not None:
+            log.info(f"Disabling a subset of paths")
+            path_keys = util.get_path_keys(meta=self.meta, **get_path_keys_kw_args)
+            assert path_keys, f"no path keys found for {get_path_keys_kw_args}"
+            log.info(f"len(path_keys) = {len(path_keys)}")
+            path_indices = []
+            probs = tr.zeros((self.n_paths,))
+            for k in path_keys:
+                assert k in self.scrapl_keys
+                path_idx = self.scrapl_keys.index(k)
+                path_indices.append(path_idx)
+                probs[path_idx] = 1.0
+            log.info(f"path_indices = {path_indices}")
+            probs /= probs.sum()
+            self.register_buffer("probs", probs)
         else:
             self.probs = None
         self.curr_path_idx = None
-
-    def save_mean_abs_Sx_grad(self, Sx_grad: T, path_idx: int) -> None:
-        # grad_np = Sx_grad[0].squeeze().detach().cpu().numpy()
-        # plt.imshow(grad_np, cmap="bwr", interpolation="none", aspect="auto", vmin=-0.4, vmax=0.4)
-        # plt.imshow(grad_np, cmap="bwr", interpolation="none", aspect="auto")
-        # plt.colorbar()
-        # plt.show()
-        # log.info(f"Sx_grad.min()    = {Sx_grad.min().item()}")
-        # log.info(f"Sx_grad.max()    = {Sx_grad.max().item()}")
-        # log.info(f"Sx_grad.mean()   = {Sx_grad.mean().item()}")
-        mean_abs_Sx_grad = Sx_grad.abs().mean().detach().cpu().item()
-        # log.info(f"mean_abs_Sx_grad = {mean_abs_Sx_grad}")
-        self.path_mean_abs_Sx_grads[path_idx].append(mean_abs_Sx_grad)
 
     def sample_path(self) -> int:
         if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
@@ -233,7 +230,7 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
 
         if self.probs is None:
             with tr.no_grad():
-                probs = util.limited_softmax(self.logits, self.tau, self.max_prob)
+                probs = util.stable_softmax(self.logits, self.tau)
         else:
             probs = self.probs
         path_idx = tr.multinomial(probs, 1).item()
@@ -241,54 +238,6 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         self.path_counts[path_idx] += 1
         self.curr_path_idx = path_idx
         return path_idx
-
-    def forward(self, x: T, x_target: T) -> T:
-        assert x.ndim == x_target.ndim == 3
-        assert x.size(1) == x_target.size(1) == 1
-        path_idx = self.sample_path()
-        dist, Sx, Sx_target = self.calc_dist(x, x_target, path_idx)
-        # Sx_np = Sx[0].squeeze().detach().cpu().numpy()
-        # Sx_target_np = Sx_target[0].squeeze().detach().cpu().numpy()
-        # plt.imshow(Sx_target_np - Sx_np, cmap="bwr", interpolation="none", aspect="auto")
-        # plt.colorbar()
-        # plt.title("Sx_target - Sx")
-        # plt.show()
-        # plt.savefig(os.path.join(OUT_DIR, f"{self.curr_path_idx}_diff.png"))
-        # plt.close()
-        return dist
-
-
-class MakeLogitsGradFromEnergy(Function):
-    @staticmethod
-    def forward(
-        ctx: Any,
-        logits: T,
-        path_idx: int,
-        dist: T,
-        Sx: T,
-        Sx_target: T,
-        target_path_energies: Dict[int, List[float]],
-    ) -> T:
-        ctx.save_for_backward(logits, Sx, Sx_target)
-        ctx.path_idx = path_idx
-        ctx.target_path_energies = target_path_energies
-        return dist
-
-    @staticmethod
-    def backward(ctx: Any, grad_dist: T) -> (T, None, T, None, None, None):
-        logits, Sx, Sx_target = ctx.saved_tensors
-        path_idx = ctx.path_idx
-        target_path_energies = ctx.target_path_energies
-        mean_target_energy = Sx_target.pow(2).mean()
-        target_path_energies[path_idx].append(mean_target_energy.item())
-        # TODO(cm)
-        grad_mag = tr.clip(mean_target_energy, min=1e-20)
-        grad_mag = tr.log10(grad_mag) + 20
-        # log.info(f"grad_mag = {grad_mag}")
-
-        grad_logits = tr.zeros_like(logits)
-        grad_logits[path_idx] = -grad_mag
-        return grad_logits, None, grad_dist, None, None, None
 
 
 class EmbeddingLoss(ABC, nn.Module):
@@ -410,7 +359,9 @@ class Wav2Vec2EmbeddingLoss(EmbeddingLoss):
         # assert tr.allclose(x, x2, atol=1e-3)
         emb = self.model(x).last_hidden_state
         # TODO(cm): this results in NaN, look into minimum sample length
-        log.info(f"emb.shape = {emb.shape}, emb.min() = {emb.min().item()}, emb.max() = {emb.max().item()}")
+        log.info(
+            f"emb.shape = {emb.shape}, emb.min() = {emb.min().item()}, emb.max() = {emb.max().item()}"
+        )
         return emb
 
 

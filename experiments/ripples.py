@@ -156,12 +156,12 @@ if __name__ == "__main__":
     bw = 2.0
     bw_n_samples = int(bw * sr)
     f0_hz = 512
-    am_hz = 8.0  # 4 to 16 Hz
+    am_hz = 1.0  # 4 to 16 Hz
     # fm_oct_hz = 1.414 # 0.5 to 4 octaves per second
-    fm_oct_hz = 0.5 # 0.5 to 4 octaves per second
-    # delta = 0
-    delta = 16000
-    delta = -delta
+    fm_oct_hz = 1.0 # 0.5 to 4 octaves per second
+    delta = 0
+    # delta = 16000
+    # delta = -delta
 
     theta = tr.tensor([f0_hz, am_hz, fm_oct_hz])
     x = generate_am_chirp(theta, bw=bw, duration=dur_sec, sr=sr, delta=delta).view(1, -1)
