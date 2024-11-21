@@ -52,7 +52,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [2]
+  devices: [7]
   max_epochs: 30
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
@@ -135,7 +135,7 @@ model:
 #    log_val_grads: true
     log_val_grads: false
 
-#    run_name: sag_b0.99_sgd_1e-4_cont_t_lrs99_p15
+#    run_name: scrapl_saga_sgd_1e-4_b16__chirplet_32_32_5_only_fm_meso
 
 #optimizer: ../configs/opt/adam_w.yml
 optimizer: ../configs/opt/sgd.yml

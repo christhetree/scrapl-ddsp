@@ -12,6 +12,7 @@ from torch import Tensor as T
 from torch import nn
 
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss, Scat1DLoss
+from experiments.paths import OUT_DIR
 from experiments.util import ReadOnlyTensorDict
 
 logging.basicConfig()
@@ -209,21 +210,23 @@ class SCRAPLLightingModule(pl.LightningModule):
             return grad
 
         path_idx = scrapl.curr_path_idx
+        assert path_idx is not None
         # path_idx = 250
         self.paths_seen.add(path_idx)
         n_paths = scrapl.n_paths
         curr_t = self.global_step + 1
 
-        # if param_idx == 15:
+        # save_param_idx = 15
+        # if param_idx == save_param_idx:
         #     save_path = os.path.join(
-        #         OUT_DIR, f"{self.run_name}_weight_{param_idx}_{curr_t}_{path_idx}.pt"
+        #         OUT_DIR, f"{self.run_name}__w_{param_idx}_{curr_t}_{path_idx}.pt"
         #     )
         #     weight = list(self.parameters())[param_idx]
         #     assert weight.shape == grad.shape
         #     tr.save(weight.detach().cpu(), save_path)
         #
         #     save_path = os.path.join(
-        #         OUT_DIR, f"{self.run_name}_grad_{param_idx}_{curr_t}_{path_idx}.pt"
+        #         OUT_DIR, f"{self.run_name}__g_raw_{param_idx}_{curr_t}_{path_idx}.pt"
         #     )
         #     tr.save(grad.detach().cpu(), save_path)
 
@@ -257,9 +260,9 @@ class SCRAPLLightingModule(pl.LightningModule):
             prev_v_s[path_idx] = v
             prev_t_s[path_idx] = curr_t
 
-        # if param_idx == 15:
+        # if param_idx == save_param_idx:
         #     save_path = os.path.join(
-        #         OUT_DIR, f"{self.run_name}_grad_norm_{param_idx}_{curr_t}_{path_idx}.pt"
+        #         OUT_DIR, f"{self.run_name}__g_adam_{param_idx}_{curr_t}_{path_idx}.pt"
         #     )
         #     tr.save(grad.detach().cpu(), save_path)
 
@@ -298,6 +301,14 @@ class SCRAPLLightingModule(pl.LightningModule):
             saga_grad = grad - prev_path_grad + prev_avg_grad
             # Update current path grad
             prev_path_grads[path_idx, ...] = grad
+
+            # if param_idx == save_param_idx:
+            #     save_path = os.path.join(
+            #         OUT_DIR,
+            #         f"{self.run_name}__g_saga_{param_idx}_{curr_t}_{path_idx}.pt"
+            #     )
+            #     tr.save(saga_grad.detach().cpu(), save_path)
+
             return saga_grad
         else:
             raise ValueError(f"Unknown VR algorithm: {self.vr_algo}")

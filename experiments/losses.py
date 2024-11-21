@@ -196,6 +196,7 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         super().__init__(shape, J, Q1, Q2, J_fr, Q_fr, T, F, p, sample_all_paths_first)
         self.tau = tau
         self.get_path_indices_kw_args = get_path_keys_kw_args
+        self.enabled_path_indices = []
         self.register_buffer("logits", tr.zeros((self.n_paths,)))
         if probs_path is not None:
             log.info(f"Loading probs from {probs_path}")
@@ -216,6 +217,7 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
                 path_idx = self.scrapl_keys.index(k)
                 path_indices.append(path_idx)
                 probs[path_idx] = 1.0
+                self.enabled_path_indices.append(path_idx)
             log.info(f"path_indices = {path_indices}")
             probs /= probs.sum()
             self.register_buffer("probs", probs)

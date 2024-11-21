@@ -239,7 +239,7 @@ def target_range_softmax(
         else:
             curr_tau *= 1.1
         probs = stable_softmax(logits, curr_tau)
-    log.info(f"idx = {idx}")
+    # log.info(f"idx = {idx}")
     if idx == max_iter - 1:
         log.warning(f"target_softmax: max_iter reached: {max_iter}")
     return probs
