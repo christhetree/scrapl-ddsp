@@ -8,10 +8,10 @@ init_args:
   J_cqt: 5
   Q: 12
   hop_len: 256
-  am_hz_min: 4.0
-  am_hz_max: 16.0
-#  am_hz_min: 0.0
-#  am_hz_max: 0.0
+#  am_hz_min: 4.0
+#  am_hz_max: 16.0
+  am_hz_min: 0.0
+  am_hz_max: 0.0
   fm_oct_hz_min: 0.5
   fm_oct_hz_max: 4.0
 #  fm_oct_hz_min: 0.0

@@ -56,12 +56,14 @@ def get_path_keys(
     use_complement: bool = False,
     use_am_fm_union: bool = False,  # Use the AM and FM intersection by default
 ) -> List[Tuple[int, int]]:
-    assert len(meta["key"]) == len(meta["order"]), \
-        f"len(meta['key']) != len(meta['order'])"
+    assert len(meta["key"]) == len(
+        meta["order"]
+    ), f"len(meta['key']) != len(meta['order'])"
     if spins is None:
         spins = {-1, 0, 1}
     all_keys = []
     keys = []
+    key_infos = {}
     for idx, order in enumerate(meta["order"]):
         if order != 2:
             continue
@@ -71,38 +73,43 @@ def get_path_keys(
             continue
 
         k = meta["key"][idx]
-        all_keys.append(k)
-        if spin not in spins:
-            continue
-
-        satisfies_am = True
         am_cf_cycles_p_sec = meta["xi"][idx][1] * sr
-        if am_hz_min is not None and am_cf_cycles_p_sec < am_hz_min:
-            satisfies_am = False
-        if am_hz_max is not None and am_cf_cycles_p_sec > am_hz_max:
-            satisfies_am = False
-
-        satisfies_fm = True
         fm_cf_cycles_p_oct = abs(meta["xi_fr"][idx] * Q1)
         if fm_cf_cycles_p_oct == 0.0:
             fm_cf_oct_hz = tr.inf
         else:
             fm_cf_oct_hz = am_cf_cycles_p_sec / fm_cf_cycles_p_oct
+        key_info = (
+            f"key = {k}, spin = {spin}, "
+            f"am_cf_cycles_p_sec = {am_cf_cycles_p_sec:.2f}, "
+            f"fm_cf_oct_hz = {fm_cf_oct_hz:.2f}"
+        )
+        key_infos[k] = key_info
+        all_keys.append(k)
+
+        if spin not in spins:
+            continue
+        satisfies_am = True
+        if am_hz_min is not None and am_cf_cycles_p_sec < am_hz_min:
+            satisfies_am = False
+        if am_hz_max is not None and am_cf_cycles_p_sec > am_hz_max:
+            satisfies_am = False
+        satisfies_fm = True
         if fm_oct_hz_min is not None and fm_cf_oct_hz < fm_oct_hz_min:
             satisfies_fm = False
         if fm_oct_hz_max is not None and fm_cf_oct_hz > fm_oct_hz_max:
             satisfies_fm = False
-
-        if (use_am_fm_union and (satisfies_am or satisfies_fm)) or (not use_am_fm_union and (satisfies_am and satisfies_fm)):
+        if (use_am_fm_union and (satisfies_am or satisfies_fm)) or (
+            not use_am_fm_union and (satisfies_am and satisfies_fm)
+        ):
             keys.append(k)
-            log.info(f"key = {k}, spin = {spin}, "
-                     f"am_cf_cycles_p_sec = {am_cf_cycles_p_sec:.2f}, "
-                     f"fm_cf_oct_hz = {fm_cf_oct_hz:.2f}")
+
     if use_complement:
         complement_keys = [k for k in all_keys if k not in keys]
-        return complement_keys
-    else:
-        return keys
+        keys = complement_keys
+    for k in keys:
+        log.info(key_infos[k])
+    return keys
 
 
 def linear_interpolate_last_dim(x: T, n: int, align_corners: bool = True) -> T:
