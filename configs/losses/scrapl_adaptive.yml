@@ -14,23 +14,23 @@ init_args:
 #  p: 1
   p: 2
   tau: 1.0
-#  sample_all_paths_first: true
-  sample_all_paths_first: false
+  sample_all_paths_first: true
+#  sample_all_paths_first: false
 #  probs_path: ../data/data_meso_w_p15_norm_mean_elem_F_adj_T_10x.pt
 #  probs_path: ../data/data_meso_w_p15_lc_mean_elem_F_adj_T_10x.pt
 #  probs_path: ../data/data_meso_w_p15_conv_mean_elem_F_adj_T_10x.pt
 #  probs_path: ../data/data_meso_w_p15_ent_mean_elem_F_adj_T_10x.pt
 
-#  get_path_keys_kw_args:
-#    sr: 8192
-##    am_hz_min: 4.0
-##    am_hz_max: 16.0
-#    fm_oct_hz_min: 0.5
-#    fm_oct_hz_max: 4.0
-##    spins: !!set {-1, 0, 1}  # AM only, # AM or FM
-#    spins: !!set {1}  # FM only, AM and FM
-##    spins: !!set {0}
-#    use_complement: false
-##    use_complement: true
-#    use_am_fm_union: false
-##    use_am_fm_union: true
+  get_path_keys_kw_args:
+    sr: 8192
+#    am_hz_min: 4.0
+#    am_hz_max: 16.0
+    fm_oct_hz_min: 0.5
+    fm_oct_hz_max: 4.0
+#    spins: !!set {-1, 0, 1}  # AM only, # AM or FM
+    spins: !!set {1}  # FM only, AM and FM
+#    spins: !!set {0}
+    use_complement: false
+#    use_complement: true
+    use_am_fm_union: false
+#    use_am_fm_union: true

@@ -145,6 +145,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         for p in self.synth.parameters():
             p.requires_grad = False
 
+        # self.first_batch = None
+
     @staticmethod
     def adam_grad_norm(
         grad: T,
@@ -215,9 +217,11 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.paths_seen.add(path_idx)
         n_paths = scrapl.n_paths
         curr_t = self.global_step + 1
+        # curr_t = 1
 
-        # save_param_idx = 15
-        # if param_idx == save_param_idx:
+        # save_param_idx = None
+        # # save_param_idx = 15
+        # if save_param_idx is None or param_idx == save_param_idx:
         #     save_path = os.path.join(
         #         OUT_DIR, f"{self.run_name}__w_{param_idx}_{curr_t}_{path_idx}.pt"
         #     )
@@ -260,7 +264,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             prev_v_s[path_idx] = v
             prev_t_s[path_idx] = curr_t
 
-        # if param_idx == save_param_idx:
+        # if save_param_idx is None or param_idx == save_param_idx:
         #     save_path = os.path.join(
         #         OUT_DIR, f"{self.run_name}__g_adam_{param_idx}_{curr_t}_{path_idx}.pt"
         #     )
@@ -302,7 +306,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             # Update current path grad
             prev_path_grads[path_idx, ...] = grad
 
-            # if param_idx == save_param_idx:
+            # if save_param_idx is None or param_idx == save_param_idx:
             #     save_path = os.path.join(
             #         OUT_DIR,
             #         f"{self.run_name}__g_saga_{param_idx}_{curr_t}_{path_idx}.pt"
@@ -325,10 +329,22 @@ class SCRAPLLightingModule(pl.LightningModule):
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         theta_d_0to1, theta_s_0to1, seed, batch_indices = batch
 
-        # with tr.no_grad():
-        #     theta_d_entropy = self.calc_mag_entropy(theta_d_0to1)
-        #     theta_s_entropy = self.calc_mag_entropy(theta_s_0to1)
-        #     log.info(f"theta_d_entropy: {theta_d_entropy:.4f}, theta_s_entropy: {theta_s_entropy:.4f}")
+        # if stage != "train":
+        #     log.info(f"Skipping validation/test step")
+        #     return {}
+        # log.info(f"loss_func.curr_path_idx: {self.loss_func.curr_path_idx}")
+        # if self.loss_func.curr_path_idx == self.loss_func.n_paths - 1:
+        #     exit()
+        # if self.first_batch is None:
+        #     self.first_batch = batch
+        # else:
+        #     theta_d_0to1, theta_s_0to1, seed, batch_indices = self.first_batch
+        # log.info(f"theta_d_0to1.mean(): {theta_d_0to1.mean()}, "
+        #          f"theta_s_0to1.mean(): {theta_s_0to1.mean()}, "
+        #          f"seed.max(): {seed.max()}")
+        # p1 = list(self.parameters())[0]
+        # assert p1.requires_grad
+        # log.info(f"p1.max() = {p1.max()}")
 
         batch_size = theta_d_0to1.size(0)
         if stage == "train":
@@ -360,10 +376,6 @@ class SCRAPLLightingModule(pl.LightningModule):
             theta_d_0to1_hat.retain_grad()
             theta_s_0to1_hat.retain_grad()
 
-        # theta_d_hat_entropy = self.calc_mag_entropy(theta_d_0to1_hat)
-        # theta_s_hat_entropy = self.calc_mag_entropy(theta_s_0to1_hat)
-        # log.info(f"theta_d_hat_entropy: {theta_d_hat_entropy:.4f}, theta_s_hat_entropy: {theta_s_hat_entropy:.4f}")
-
         l1_d = self.l1(theta_d_0to1_hat, theta_d_0to1)
         l1_s = self.l1(theta_s_0to1_hat, theta_s_0to1)
         if stage == "val":
@@ -384,9 +396,6 @@ class SCRAPLLightingModule(pl.LightningModule):
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
             loss = self.loss_func(x_hat, x)
-            # loss_audio = self.loss_func(x_hat, x)
-            # loss_entropy = 1e-3 * ((theta_d_hat_entropy + theta_s_hat_entropy) / 2.0 - 0.93) ** 2.0
-            # loss = loss_audio + loss_entropy
             self.log(f"{stage}/{self.loss_name}", loss, prog_bar=True, sync_dist=True)
 
         self.log(f"{stage}/l1_d", l1_d, prog_bar=True, sync_dist=True)
@@ -404,25 +413,6 @@ class SCRAPLLightingModule(pl.LightningModule):
                     theta_d_0to1_hat, theta_s_0to1_hat, seed_hat
                 )
                 U_hat = self.calc_U(x_hat)
-
-        # top_n = 8
-        # with suppress(Exception):
-        # #     logits = self.loss_func.logits
-        # #     probs = util.limited_softmax(
-        # #         logits, tau=self.loss_func.tau, max_prob=self.loss_func.max_prob
-        # #     )
-        # #     top = tr.topk(logits, k=top_n, dim=-1)
-        # #     logits = [f"{p:.6f}" for p in top.values]
-        # #     log.info(f"Top {top_n} logits: {top.indices} {logits}")
-        #     probs = self.loss_func.probs
-        #     top = tr.topk(probs, k=top_n, dim=-1)
-        #     percentages = [f"{p:.6f}" for p in top.values]
-        #     log.info(f"Top {top_n} percentages: {top.indices} {percentages}")
-        # with suppress(Exception):
-        #     path_counts = self.loss_func.path_counts
-        #     path_counts = sorted(path_counts.items(), key=lambda x: x[1], reverse=True)
-        #     path_counts = list(path_counts)[:top_n]
-        #     # log.info(f"sorted path_counts: {path_counts}")
 
         out_dict = {
             "loss": loss,

@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 from torch import Tensor as T
 
+from experiments.lightning import SCRAPLLightingModule
 from experiments.losses import AdaptiveSCRAPLLoss
 from experiments.paths import OUT_DIR, CONFIGS_DIR
 from experiments.util import target_range_softmax
@@ -23,13 +24,15 @@ def reduce(x: T, reduction: str = "mean") -> T:
         return x.mean()
     elif reduction == "max":
         return x.max()
+    elif reduction == "min":
+        return x.min()
     elif reduction == "median":
         return x.median()
     else:
         raise ValueError(f"Unknown reduction {reduction}")
 
 
-def calc_lc(
+def estimate_lc(
     a: T, b: T, grad_a: T, grad_b: T, elementwise: bool = False, eps: float = 1e-8
 ) -> T:
     assert a.shape == b.shape == grad_a.shape == grad_b.shape
@@ -50,7 +53,9 @@ def calc_lc(
     return lc
 
 
-def calc_convexity(a: T, b: T, grad_a: T, grad_b: T, elementwise: bool = False) -> T:
+def estimate_convexity(
+    a: T, b: T, grad_a: T, grad_b: T, elementwise: bool = False
+) -> T:
     assert a.shape == b.shape == grad_a.shape == grad_b.shape
     if not elementwise:
         a = a.flatten()
@@ -118,6 +123,20 @@ def calc_mag_entropy(x: T, eps: float = 1e-12) -> T:
     return entropy
 
 
+def calc_norm(g: T, p: int = 2) -> T:
+    norm = g.flatten().norm(p=p)
+    return norm
+
+
+def calc_spec_norm(g: T) -> T:
+    if g.ndim < 2:
+        spec_norm = g.norm(p=2)
+    else:
+        S = tr.linalg.svdvals(g)
+        spec_norm = S.max()
+    return spec_norm
+
+
 if __name__ == "__main__":
     scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_adaptive.yml")
     with open(scrapl_config_path, "r") as f:
@@ -131,13 +150,16 @@ if __name__ == "__main__":
     n_paths = scrapl.n_paths
     sampling_factor = 5
     # metric_name = "norm"
-    metric_name = "lc"
-    # metric_name = "conv"
-    # metric_name = "ent"
+    # metric_name = "spec_norm"
+    metric_name = "ent"
+    # metric_name = "est_lc"
+    # metric_name = "est_conv"
 
+    reduction = None
     # reduction = "mean"
-    reduction = "median"
+    # reduction = "median"
     # reduction = "max"
+    # reduction = "min"
 
     # elementwise = True
     elementwise = False
@@ -145,13 +167,19 @@ if __name__ == "__main__":
     compare_adj_only = False
 
     max_t = None
-    # max_t = 500
+    # max_t = 400
+
+    # allowed_param_indices = None
+    allowed_param_indices = {15}
 
     dir_path = OUT_DIR
-    name = "scrapl_saga_sgd_1e-4_b16__chirplet_32_32_5_only_fm_meso"
+    # name = "scrapl_saga_sgd_1e-4_b16__chirplet_32_32_5_only_fm_meso"
+    # name = "scrapl_b32_t1__chirplet_32_32_5_only_am_meso"
+    name = "scrapl_b32_t1__chirplet_32_32_5_only_fm_meso"
+    # name = "scrapl_b32_t1__chirplet_32_32_5_meso"
     data_path = os.path.join(dir_path, name)
-    # grad_id = "__g_raw_"
-    grad_id = "__g_adam_"
+    grad_id = "__g_raw_"
+    # grad_id = "__g_adam_"
     # grad_id = "__g_saga_"
 
     dir = data_path
@@ -165,38 +193,47 @@ if __name__ == "__main__":
     for path in tqdm(paths):
         weight_path = path.replace(grad_id, "__w_")
         param_idx = int(path.split("_")[-3])
+        if allowed_param_indices is not None and param_idx not in allowed_param_indices:
+            continue
         t = int(path.split("_")[-2])
-        path_idx = int(path.split("_")[-1].split(".")[0])
-        grad = tr.load(path, map_location=tr.device("cpu")).detach()
-        weight = tr.load(weight_path, map_location=tr.device("cpu")).detach()
         if max_t is not None and t > max_t:
             continue
-        else:
-            data[path_idx][param_idx].append((t, weight, grad))
+        path_idx = int(path.split("_")[-1].split(".")[0])
+        grad = tr.load(path, map_location=tr.device("cpu")).detach()
+
+        # prev_m = tr.zeros_like(grad)
+        # prev_v = tr.zeros_like(grad)
+        # # grad *= 1e8
+        # grad, _, _ = SCRAPLLightingModule.adam_grad_norm_cont(
+        #     grad, prev_m, prev_v, t=1.0, prev_t=0.0
+        # )
+
+        weight = tr.load(weight_path, map_location=tr.device("cpu")).detach()
+        data[path_idx][param_idx].append((t, weight, grad))
 
     metrics = defaultdict(lambda: {})
     for path_idx, param_data in tqdm(data.items()):
         for param_idx, t_data in param_data.items():
-            if len(t_data) < 1:
-                log.warning(f"Not enough data for path_idx = {path_idx}, "
-                            f"param_idx = {param_idx}, len(t_data) = {len(t_data)}")
             # assert len(t_data) > 1, f"path_idx = {path_idx}, param_idx = {param_idx}"
-            if len(t_data) > 1:
+            if len(t_data):
                 t_data = sorted(t_data, key=lambda x: x[0])
                 weights = [x[1] for x in t_data]
                 grads = [x[2] for x in t_data]
 
                 if metric_name == "norm":
-                    vals = [g.flatten().norm(p=2) for g in grads]
+                    vals = [calc_norm(g) for g in grads]
+                    metric = tr.stack(vals).mean()
+                elif metric_name == "spec_norm":
+                    vals = [calc_spec_norm(g) for g in grads]
                     metric = tr.stack(vals).mean()
                 elif metric_name == "ent":
                     vals = [calc_mag_entropy(g) for g in grads]
                     metric = tr.stack(vals).mean()
                 else:
                     if metric_name == "lc":
-                        metric_fn = calc_lc
+                        metric_fn = estimate_lc
                     else:
-                        metric_fn = calc_convexity
+                        metric_fn = estimate_convexity
                     metric = calc_pairwise_metric(
                         weights,
                         grads,
@@ -206,9 +243,15 @@ if __name__ == "__main__":
                         compare_adj_only=compare_adj_only,
                     )
                 metrics[path_idx][param_idx] = metric
+            else:
+                log.warning(
+                    f"Not enough data for path_idx = {path_idx}, "
+                    f"param_idx = {param_idx}, len(t_data) = {len(t_data)}"
+                )
 
     del data
     param_indices = {k for path_idx in metrics for k in metrics[path_idx]}
+    log.info(f"Param indices: {param_indices}")
     logits_all = []
     for param_idx in param_indices:
         logits = tr.zeros((n_paths,))
@@ -224,7 +267,7 @@ if __name__ == "__main__":
         # )
         # plt.show()
 
-    assert len(logits_all) == 1
+    # assert len(logits_all) == 1
     logits = tr.stack(logits_all, dim=0).mean(dim=0)
 
     # plt.bar(range(logits.size(0)), logits.numpy())
@@ -245,13 +288,14 @@ if __name__ == "__main__":
     # plt.ylim(0, (sampling_factor + 0.5) * uniform_prob)
     # plt.title(f"prob {metric_name} ({reduction}, elem {elementwise}, adj {compare_adj_only})")
     # plt.show()
-    colors = ["r" if idx in subset_indices else "b" for idx in range(n_paths)]
-    plt.bar(range(prob.size(0)), prob.numpy(), color=colors)
-    plt.ylim(0, (sampling_factor + 0.5) * uniform_prob)
-    plt.title(
-        f"{grad_id} prob {metric_name} ({reduction}, elem {elementwise}, adj {compare_adj_only})"
-    )
-    plt.show()
+
+    # colors = ["r" if idx in subset_indices else "b" for idx in range(n_paths)]
+    # plt.bar(range(prob.size(0)), prob.numpy(), color=colors)
+    # plt.ylim(0, (sampling_factor + 0.5) * uniform_prob)
+    # plt.title(
+    #     f"{grad_id} prob {metric_name} ({reduction}, elem {elementwise}, adj {compare_adj_only})"
+    # )
+    # plt.show()
 
     vals = [(idx, p.item()) for idx, p in enumerate(prob)]
     vals = sorted(vals, key=lambda x: x[1])
