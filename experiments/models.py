@@ -3,7 +3,6 @@ import os
 from typing import Optional, List, Tuple
 
 import torch as tr
-from magic_clamp import magic_clamp
 from torch import Tensor as T
 from torch import nn
 

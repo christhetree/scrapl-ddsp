@@ -88,7 +88,7 @@ class ChirpletSynth(nn.Module):
         win_support = self.create_gaussian_window_support(n_samples)
         self.register_buffer("win_support", win_support)
 
-    def forward(self, theta_am_hz: T, theta_fm_hz: T, seed: Optional[T] = None) -> T:
+    def make_x(self, theta_am_hz: T, theta_fm_hz: T, seed: Optional[T] = None) -> T:
         assert theta_am_hz.ndim == theta_fm_hz.ndim == 0
         if seed is not None:
             assert seed.ndim == 0 or seed.shape == (1,)
@@ -122,7 +122,7 @@ class ChirpletSynth(nn.Module):
         )
         return chirplet
 
-    def make_x_from_theta(self, theta_am_hz_0to1: T, theta_fm_hz_0to1: T, seed: T) -> T:
+    def forward(self, theta_am_hz_0to1: T, theta_fm_hz_0to1: T, seed: T) -> T:
         assert theta_am_hz_0to1.ndim == theta_fm_hz_0to1.ndim == 1
         assert theta_am_hz_0to1.min() >= 0.0
         assert theta_am_hz_0to1.max() <= 1.0
@@ -147,7 +147,7 @@ class ChirpletSynth(nn.Module):
             theta_fm_hz = tr.full_like(theta_fm_hz_0to1, self.fm_oct_hz)
         x = []
         for idx in range(theta_am_hz.size(0)):
-            curr_x = self.forward(theta_am_hz[idx], theta_fm_hz[idx], seed[idx])
+            curr_x = self.make_x(theta_am_hz[idx], theta_fm_hz[idx], seed[idx])
             x.append(curr_x)
         x = tr.stack(x, dim=0).unsqueeze(1)  # Unsqueeze channel dim
         return x
@@ -328,7 +328,7 @@ class ChirpTextureSynth(nn.Module):
         )
         return slope
 
-    def forward(self, theta_density: T, theta_slope: T, seed: Optional[T] = None) -> T:
+    def make_x(self, theta_density: T, theta_slope: T, seed: Optional[T] = None) -> T:
         assert theta_density.ndim == theta_slope.ndim == 0
         rand_gen = self.get_rand_gen(device=self.grain_support.device.type)
         if seed is not None:
@@ -356,7 +356,7 @@ class ChirpTextureSynth(nn.Module):
         x = x / tr.norm(x, p=2)  # TODO
         return x
 
-    def make_x_from_theta(self, theta_d_0to1: T, theta_s_0to1: T, seed: T) -> T:
+    def forward(self, theta_d_0to1: T, theta_s_0to1: T, seed: T) -> T:
         # TODO(cm): add batch support to synth
         assert theta_d_0to1.min() >= 0.0
         assert theta_d_0to1.max() <= 1.0
@@ -366,7 +366,7 @@ class ChirpTextureSynth(nn.Module):
         theta_slope = theta_s_0to1 * 2.0 - 1.0
         x = []
         for idx in range(theta_density.size(0)):
-            curr_x = self.forward(theta_density[idx], theta_slope[idx], seed[idx])
+            curr_x = self.make_x(theta_density[idx], theta_slope[idx], seed[idx])
             x.append(curr_x)
         x = tr.stack(x, dim=0).unsqueeze(1)  # Unsqueeze channel dim
         return x

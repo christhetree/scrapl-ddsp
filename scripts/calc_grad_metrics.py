@@ -6,13 +6,11 @@ from typing import List, Callable
 import torch as tr
 import yaml
 from matplotlib import pyplot as plt
-from tqdm import tqdm
 from torch import Tensor as T
+from tqdm import tqdm
 
-from experiments.lightning import SCRAPLLightingModule
 from experiments.losses import AdaptiveSCRAPLLoss
 from experiments.paths import OUT_DIR, CONFIGS_DIR
-from experiments.util import target_range_softmax
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -134,6 +132,9 @@ def calc_spec_norm(g: T) -> T:
     else:
         S = tr.linalg.svdvals(g)
         spec_norm = S.max()
+
+    spec_norm_2 = tr.linalg.norm(g, ord=2)
+    assert spec_norm == spec_norm_2
     return spec_norm
 
 
@@ -148,10 +149,10 @@ if __name__ == "__main__":
     ]
 
     n_paths = scrapl.n_paths
-    sampling_factor = 5
-    # metric_name = "norm"
+    sampling_factor = 4
+    metric_name = "norm"
     # metric_name = "spec_norm"
-    metric_name = "ent"
+    # metric_name = "ent"
     # metric_name = "est_lc"
     # metric_name = "est_conv"
 
@@ -169,8 +170,8 @@ if __name__ == "__main__":
     max_t = None
     # max_t = 400
 
-    # allowed_param_indices = None
-    allowed_param_indices = {15}
+    allowed_param_indices = None
+    # allowed_param_indices = {15, 3}
 
     dir_path = OUT_DIR
     # name = "scrapl_saga_sgd_1e-4_b16__chirplet_32_32_5_only_fm_meso"
@@ -230,10 +231,12 @@ if __name__ == "__main__":
                     vals = [calc_mag_entropy(g) for g in grads]
                     metric = tr.stack(vals).mean()
                 else:
-                    if metric_name == "lc":
+                    if metric_name == "est_lc":
                         metric_fn = estimate_lc
-                    else:
+                    elif metric_name == "est_conv":
                         metric_fn = estimate_convexity
+                    else:
+                        raise ValueError(f"Unknown metric {metric_name}")
                     metric = calc_pairwise_metric(
                         weights,
                         grads,
@@ -267,8 +270,15 @@ if __name__ == "__main__":
         # )
         # plt.show()
 
-    # assert len(logits_all) == 1
-    logits = tr.stack(logits_all, dim=0).mean(dim=0)
+    # TODO(cm): look into different aggregation techniques
+    logits = tr.stack(logits_all, dim=0)
+    logit_sums = logits.sum(dim=1, keepdim=True)
+    logits = logits / logit_sums
+    logits = logits.mean(dim=0)
+
+    log.info(f"logits.min() = {logits.min():.6f}, logits.max() = {logits.max():.6f}, "
+             f"logits.median() = {logits.median():.6f} "
+             f"logits.mean() = {logits.mean():.6f}, logits.std() = {logits.std():.6f}")
 
     # plt.bar(range(logits.size(0)), logits.numpy())
     # plt.title(
@@ -279,10 +289,21 @@ if __name__ == "__main__":
     uniform_prob = 1 / n_paths
     target_min_prob = uniform_prob / sampling_factor
     target_max_prob = uniform_prob * sampling_factor
-    target_range = target_max_prob - target_min_prob
-    prob = target_range_softmax(logits, target_range=target_range)
-    prob -= prob.min()
-    prob += target_min_prob
+
+    scaling_factor = 1.0 - (n_paths * target_min_prob)
+    prob = logits / logits.sum() * scaling_factor + target_min_prob
+    assert tr.allclose(prob.sum(), tr.tensor(1.0))
+
+    # target_range = target_max_prob - target_min_prob
+    # prob = target_range_softmax(logits, target_range=target_range)
+    # prob -= prob.min()
+    # prob += target_min_prob
+
+    subset_prob = prob[subset_indices].sum()
+    subset_unif_prob = uniform_prob * len(subset_indices)
+    ratio = subset_prob / subset_unif_prob
+    log.info(f"subset_prob = {subset_prob:.6f}, "
+             f"subset_unif_prob = {subset_unif_prob:.6f}, ratio = {ratio:.6f}")
 
     # plt.plot(range(prob.size(0)), prob.numpy())
     # plt.ylim(0, (sampling_factor + 0.5) * uniform_prob)
@@ -313,9 +334,10 @@ if __name__ == "__main__":
     for idx in subset_indices:
         sorted_idx = sorted_indices.index(idx)
         plt.plot(sorted_idx, prob[idx].item(), "rd")
-    plt.yscale("log")
+    # plt.yscale("log")
     plt.title(
-        f"{grad_id} sorted {metric_name} ({reduction}, elem {elementwise}, adj {compare_adj_only})"
+        # f"{grad_id} sorted {metric_name} ({reduction}, elem {elementwise}, adj {compare_adj_only})"
+        f"{grad_id} sorted {metric_name} (r = {ratio:.2f}, SF = {sampling_factor:.2f})"
     )
     plt.legend()
     plt.show()

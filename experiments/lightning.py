@@ -3,16 +3,17 @@ import logging
 import os
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List, Any, Tuple
 
 import pytorch_lightning as pl
 import torch as tr
 from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
+from tqdm import tqdm
 
+from experiments import util
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss, Scat1DLoss
-from experiments.paths import OUT_DIR
 from experiments.util import ReadOnlyTensorDict
 
 logging.basicConfig()
@@ -80,7 +81,12 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.run_name = run_name
         log.info(f"Run name: {self.run_name}")
 
-        if type(self.loss_func) in {SCRAPLLoss, AdaptiveSCRAPLLoss, JTFSTLoss, Scat1DLoss}:
+        if type(self.loss_func) in {
+            SCRAPLLoss,
+            AdaptiveSCRAPLLoss,
+            JTFSTLoss,
+            Scat1DLoss,
+        }:
             assert self.grad_multiplier is not None, "Grad multiplier is required"
         else:
             assert self.grad_multiplier is None, "Grad multiplier is only for JTFS"
@@ -145,7 +151,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         for p in self.synth.parameters():
             p.requires_grad = False
 
-        # self.first_batch = None
+        self.param_idx_hooks_in_use = set()
+        self.model_param_grads = None
+        self.first_batch = None
 
     @staticmethod
     def adam_grad_norm(
@@ -198,6 +206,37 @@ class SCRAPLLightingModule(pl.LightningModule):
         entropy = entropy / (tr.log(tr.tensor(x.numel())) + eps)
         return entropy
 
+    def functional_loss(
+        self,
+        model_params: Tuple[Dict[str, T]],
+        synth_params: Tuple[Dict[str, T]],
+        loss_params: Tuple[Dict[str, T]],
+        x: T,
+        U: T,
+        seed_hat: T,
+        curr_path_idx: Optional[int] = None,
+    ) -> (T, (T, T, T)):
+        theta_d_0to1_hat, theta_s_0to1_hat = tr.func.functional_call(
+            self.model, model_params, U, strict=True
+        )
+        x_hat = tr.func.functional_call(
+            self.synth,
+            synth_params,
+            args=(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat),
+            strict=True,
+        )
+        if curr_path_idx is None:
+            loss_args = (x_hat, x)
+        else:
+            loss_args = (x_hat, x, curr_path_idx)
+        loss = tr.func.functional_call(
+            self.loss_func, loss_params, args=loss_args, strict=True
+        )
+        return loss, (theta_d_0to1_hat, theta_s_0to1_hat, x_hat)
+
+    # def backward(self, loss: T, **kwargs: Dict[str, Any]) -> None:
+    #     loss.backward(create_graph=True, **kwargs)
+
     def grad_multiplier_hook(self, grad: T) -> T:
         # log.info(f"grad.abs().max() = {grad.abs().max()}")
         if not self.training:
@@ -210,6 +249,38 @@ class SCRAPLLightingModule(pl.LightningModule):
         if not self.training:
             log.warning("vr_hook called during eval")
             return grad
+
+        # # Hessian ====================================================================
+        # if param_idx in self.param_idx_hooks_in_use:
+        #     log.debug(f"param_idx {param_idx} hook is currently in use")
+        #     return grad
+        #
+        # self.param_idx_hooks_in_use.add(param_idx)
+        # assert not grad.isnan().any()
+        # p = list(self.model.parameters())[param_idx]
+        # p_name = list(self.model.named_parameters())[param_idx][0]
+        # grad_2 = self.model_param_grads[p_name]
+        # assert tr.allclose(grad, grad_2)
+        # assert util.is_connected_via_ad_graph(grad, p)
+        #
+        # def calc_hess_row(g: T, p: T) -> T:
+        #     assert g.numel() == 1
+        #     hess_row = tr.autograd.grad(
+        #         g,
+        #         [p],
+        #         retain_graph=True,
+        #         create_graph=False,
+        #     )[0]
+        #     hess_row = hess_row.view(-1)
+        #     return hess_row
+        #
+        # grad_flat = grad.view(-1)
+        # h_rows = [calc_hess_row(g, p) for g in tqdm(grad_flat)]
+        # hess = tr.stack(h_rows, dim=0)
+        # log.info(f"hess.shape = {hess.shape}, hess[0, 0] = {hess[0, 0]}")
+        # assert tr.allclose(hess, hess.t())
+        # self.param_idx_hooks_in_use.remove(param_idx)
+        # # Hessian ====================================================================
 
         path_idx = scrapl.curr_path_idx
         assert path_idx is not None
@@ -365,7 +436,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             seed_hat = tr.randint_like(seed, low=seed_range, high=2 * seed_range)
 
         with tr.no_grad():
-            x = self.synth.make_x_from_theta(theta_d_0to1, theta_s_0to1, seed)
+            x = self.synth(theta_d_0to1, theta_s_0to1, seed)
             U = self.calc_U(x)
 
         U_hat = None
@@ -390,9 +461,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                 f"{stage}/p_loss_{self.loss_name}", loss, prog_bar=True, sync_dist=True
             )
         else:
-            x_hat = self.synth.make_x_from_theta(
-                theta_d_0to1_hat, theta_s_0to1_hat, seed_hat
-            )
+            x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat)
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
             loss = self.loss_func(x_hat, x)
@@ -407,12 +476,50 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         with tr.no_grad():
             if x is None and self.log_x:
-                x = self.synth.make_x_from_theta(theta_d_0to1, theta_s_0to1, seed)
+                x = self.synth(theta_d_0to1, theta_s_0to1, seed)
             if x_hat is None and self.log_x_hat:
-                x_hat = self.synth.make_x_from_theta(
-                    theta_d_0to1_hat, theta_s_0to1_hat, seed_hat
-                )
+                x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat)
                 U_hat = self.calc_U(x_hat)
+
+        # # Double check gradients using tr.func ======================================
+        # model_params = {k: v.detach() for k, v in self.model.named_parameters()}
+        # model_buffers = {k: v.detach() for k, v in self.model.named_buffers()}
+        # synth_params = {k: v.detach() for k, v in self.synth.named_parameters()}
+        # synth_buffers = {k: v.detach() for k, v in self.synth.named_buffers()}
+        # loss_params = {k: v.detach() for k, v in self.loss_func.named_parameters()}
+        # loss_buffers = {k: v.detach() for k, v in self.loss_func.named_buffers()}
+        # model_p = (model_params, model_buffers)
+        # synth_p = (synth_params, synth_buffers)
+        # loss_p = (loss_params, loss_buffers)
+        # try:
+        #     curr_path_idx = self.loss_func.curr_path_idx
+        # except Exception:
+        #     curr_path_idx = None
+        #
+        # log.info(f"Starting tr.func calc")
+        # (model_param_grads, _), (loss_2, aux) = tr.func.grad_and_value(
+        #     self.functional_loss, argnums=0, has_aux=True
+        # )(
+        #     model_p,
+        #     synth_p,
+        #     loss_p,
+        #     x,
+        #     U,
+        #     seed_hat,
+        #     curr_path_idx,
+        # )
+        # self.model_param_grads = model_param_grads
+        # log.info(f"Done tr.func calc")
+        # # These will only be equal if the model is deterministic (e.g. no dropout)
+        # theta_d_0to1_hat_2, theta_s_0to1_hat_2, x_hat_2 = aux
+        # log.info(f"loss_2 = {loss_2}, loss = {loss}")
+        # assert tr.allclose(loss, loss_2)
+        # assert tr.allclose(theta_d_0to1_hat, theta_d_0to1_hat_2)
+        # assert tr.allclose(theta_s_0to1_hat, theta_s_0to1_hat_2)
+        # if x_hat is not None:
+        #     assert tr.allclose(x_hat, x_hat_2)
+        # # exit()
+        # # Double check gradients using tr.func ======================================
 
         out_dict = {
             "loss": loss,

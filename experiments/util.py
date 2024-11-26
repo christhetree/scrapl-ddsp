@@ -245,6 +245,27 @@ def target_range_softmax(
     return probs
 
 
+def is_connected_via_ad_graph(output: T, input_: T) -> bool:
+    visited = set()
+    stack = [output.grad_fn]
+
+    while stack:
+        fn = stack.pop()
+        if fn is None or fn in visited:
+            continue
+        visited.add(fn)
+
+        # Check if the source tensor is an input to this function
+        if hasattr(fn, 'variable') and fn.variable is input_:
+            return True
+
+        # Add next functions to the stack
+        stack.extend(next_fn[0] for next_fn in fn.next_functions)
+
+    log.info(f"Looked at {len(visited)} functions, input_ not found")
+    return False
+
+
 if __name__ == "__main__":
     print("Hello, world!")
     print("This is a util module.")

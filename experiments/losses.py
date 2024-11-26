@@ -2,17 +2,16 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Union, Any, Optional, List, Dict
+from typing import Union, Any, Optional, Dict
 
 import torch as tr
 import torch.nn as nn
 from kymatio.torch import Scattering1D, TimeFrequencyScattering
 from msclap import CLAP
 from torch import Tensor as T
-from torch.autograd import Function
 from torch.nn import functional as F
 from torchaudio.transforms import Resample
-from transformers import Wav2Vec2Model, AutoProcessor
+from transformers import Wav2Vec2Model
 
 from experiments import util
 from scrapl.torch import TimeFrequencyScrapl
@@ -168,10 +167,14 @@ class SCRAPLLoss(nn.Module):
         dist = tr.mean(dist)
         return dist, Sx, Sx_target
 
-    def forward(self, x: T, x_target: T) -> T:
+    def forward(self, x: T, x_target: T, path_idx: Optional[int] = None) -> T:
         assert x.ndim == x_target.ndim == 3
         assert x.size(1) == x_target.size(1) == 1
-        path_idx = self.sample_path()
+        if path_idx is None:
+            path_idx = self.sample_path()
+        else:
+            log.info(f"Using specified path_idx = {path_idx}")
+            assert 0 <= path_idx < self.n_paths
         dist, _, _ = self.calc_dist(x, x_target, path_idx)
         return dist
 

@@ -26,9 +26,9 @@ custom:
 #  dataset_name: chirp_32_32_5_micro
 #  dataset_name: chirp_32_32_5_meso
 #  dataset_name: chirplet_32_32_5_micro
-#  dataset_name: chirplet_32_32_5_meso
+  dataset_name: chirplet_32_32_5_meso
 #  dataset_name: chirplet_32_32_5_only_am_meso
-  dataset_name: chirplet_32_32_5_only_fm_meso
+#  dataset_name: chirplet_32_32_5_only_fm_meso
 #  dataset_name: chirp_32_32_5_micro
 #  dataset_name: chirp_32_32_5_meso
 #  dataset_name: testing
@@ -107,8 +107,8 @@ model:
 #    grad_multiplier: null
     grad_multiplier: 1e8
 
-    use_pathwise_adam: False
-#    use_pathwise_adam: True
+#    use_pathwise_adam: False
+    use_pathwise_adam: True
 
     vr_algo: null
 #    vr_algo: saga
