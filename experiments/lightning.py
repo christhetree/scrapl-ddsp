@@ -2,17 +2,17 @@ import functools
 import logging
 import os
 from collections import defaultdict
+from contextlib import nullcontext
 from datetime import datetime
-from typing import Dict, Optional, List, Any, Tuple
+from typing import Dict, Optional, List, Any
 
 import pytorch_lightning as pl
 import torch as tr
 from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
-from tqdm import tqdm
+from torch.autograd.profiler import record_function
 
-from experiments import util
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss, Scat1DLoss
 from experiments.util import ReadOnlyTensorDict
 
@@ -208,20 +208,20 @@ class SCRAPLLightingModule(pl.LightningModule):
 
     def functional_loss(
         self,
-        model_params: Tuple[Dict[str, T]],
-        synth_params: Tuple[Dict[str, T]],
-        loss_params: Tuple[Dict[str, T]],
+        model_p: ([str, T], Dict[str, T]),
+        synth_p: ([str, T], Dict[str, T]),
+        loss_p: ([str, T], Dict[str, T]),
         x: T,
         U: T,
         seed_hat: T,
         curr_path_idx: Optional[int] = None,
     ) -> (T, (T, T, T)):
         theta_d_0to1_hat, theta_s_0to1_hat = tr.func.functional_call(
-            self.model, model_params, U, strict=True
+            self.model, model_p, U, strict=True
         )
         x_hat = tr.func.functional_call(
             self.synth,
-            synth_params,
+            synth_p,
             args=(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat),
             strict=True,
         )
@@ -230,9 +230,137 @@ class SCRAPLLightingModule(pl.LightningModule):
         else:
             loss_args = (x_hat, x, curr_path_idx)
         loss = tr.func.functional_call(
-            self.loss_func, loss_params, args=loss_args, strict=True
+            self.loss_func, loss_p, args=loss_args, strict=True
         )
         return loss, (theta_d_0to1_hat, theta_s_0to1_hat, x_hat)
+
+    def specific_model_p_functional_loss(
+        self,
+        p: T,
+        p_name: str,
+        model_p: ([str, T], Dict[str, T]),
+        synth_p: ([str, T], Dict[str, T]),
+        loss_p: ([str, T], Dict[str, T]),
+        x: T,
+        U: T,
+        seed_hat: T,
+        curr_path_idx: Optional[int] = None,
+    ) -> T:
+        model_params, _ = model_p
+        model_params[p_name] = p
+        loss, _ = self.functional_loss(
+            model_p, synth_p, loss_p, x, U, seed_hat, curr_path_idx
+        )
+        return loss
+
+    def calc_model_param_grads(
+        self,
+        x: T,
+        U: T,
+        seed_hat: T,
+    ) -> (Dict[str, T], T, T, T, T):
+        model_params = {k: v.detach() for k, v in self.model.named_parameters()}
+        model_buffers = {k: v.detach() for k, v in self.model.named_buffers()}
+        synth_params = {k: v.detach() for k, v in self.synth.named_parameters()}
+        synth_buffers = {k: v.detach() for k, v in self.synth.named_buffers()}
+        loss_params = {k: v.detach() for k, v in self.loss_func.named_parameters()}
+        loss_buffers = {k: v.detach() for k, v in self.loss_func.named_buffers()}
+        model_p = (model_params, model_buffers)
+        synth_p = (synth_params, synth_buffers)
+        loss_p = (loss_params, loss_buffers)
+        try:
+            curr_path_idx = self.loss_func.curr_path_idx
+        except Exception:
+            curr_path_idx = None
+
+        out = tr.func.grad_and_value(self.functional_loss, has_aux=True)(
+            model_p,
+            synth_p,
+            loss_p,
+            x,
+            U,
+            seed_hat,
+            curr_path_idx,
+        )
+        (model_param_grads, _), (loss, aux) = out
+        theta_d_0to1_hat, theta_s_0to1_hat, x_hat = aux
+        return model_param_grads, loss, theta_d_0to1_hat, theta_s_0to1_hat, x_hat
+
+    def calc_model_param_hessian(
+        self,
+        param_name: str,
+        x: T,
+        U: T,
+        seed_hat: T,
+        use_autograd: bool = False,
+        use_profiler: bool = False,
+    ) -> T:
+        model_params = {k: v.detach() for k, v in self.model.named_parameters()}
+        model_buffers = {k: v.detach() for k, v in self.model.named_buffers()}
+        synth_params = {k: v.detach() for k, v in self.synth.named_parameters()}
+        synth_buffers = {k: v.detach() for k, v in self.synth.named_buffers()}
+        loss_params = {k: v.detach() for k, v in self.loss_func.named_parameters()}
+        loss_buffers = {k: v.detach() for k, v in self.loss_func.named_buffers()}
+        model_p = (model_params, model_buffers)
+        synth_p = (synth_params, synth_buffers)
+        loss_p = (loss_params, loss_buffers)
+        try:
+            curr_path_idx = self.loss_func.curr_path_idx
+        except Exception:
+            curr_path_idx = None
+
+        param = model_params[param_name]
+        log.debug(f"param_name = {param_name}, param.shape = {param.shape}")
+        ag_fn = functools.partial(
+            self.specific_model_p_functional_loss,
+            p_name=param_name,
+            model_p=model_p,
+            synth_p=synth_p,
+            loss_p=loss_p,
+            x=x,
+            U=U,
+            seed_hat=seed_hat,
+            curr_path_idx=curr_path_idx,
+        )
+
+        with (
+            tr.profiler.profile(
+                activities=[tr.profiler.ProfilerActivity.CPU],
+                with_stack=True,
+                profile_memory=True,
+                record_shapes=False,
+            )
+            if use_profiler
+            else nullcontext()
+        ) as prof:
+            if use_autograd:
+                with record_function("hessian") if use_profiler else nullcontext():
+                    hess = tr.autograd.functional.hessian(
+                        ag_fn,
+                        param,
+                        create_graph=False,
+                        strict=True,
+                        vectorize=False,
+                        outer_jacobian_strategy="reverse-mode",
+                    )
+            else:
+                with record_function("jacrev") if use_profiler else nullcontext():
+                    hess = tr.func.jacrev(
+                        tr.func.jacrev(self.specific_model_p_functional_loss)
+                    )(
+                        param,
+                        param_name,
+                        model_p,
+                        synth_p,
+                        loss_p,
+                        x,
+                        U,
+                        seed_hat,
+                        curr_path_idx,
+                    )
+        if use_profiler:
+            log.info(prof.key_averages().table(sort_by="cpu_time_total", row_limit=1))
+        return hess
 
     # def backward(self, loss: T, **kwargs: Dict[str, Any]) -> None:
     #     loss.backward(create_graph=True, **kwargs)
@@ -275,6 +403,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         #     return hess_row
         #
         # grad_flat = grad.view(-1)
+        # log.info(f"calc hess, p.shape = {p.shape}")
         # h_rows = [calc_hess_row(g, p) for g in tqdm(grad_flat)]
         # hess = tr.stack(h_rows, dim=0)
         # log.info(f"hess.shape = {hess.shape}, hess[0, 0] = {hess[0, 0]}")
@@ -400,6 +529,7 @@ class SCRAPLLightingModule(pl.LightningModule):
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         theta_d_0to1, theta_s_0to1, seed, batch_indices = batch
 
+        # # Grad collection setup ======================================================
         # if stage != "train":
         #     log.info(f"Skipping validation/test step")
         #     return {}
@@ -410,12 +540,15 @@ class SCRAPLLightingModule(pl.LightningModule):
         #     self.first_batch = batch
         # else:
         #     theta_d_0to1, theta_s_0to1, seed, batch_indices = self.first_batch
-        # log.info(f"theta_d_0to1.mean(): {theta_d_0to1.mean()}, "
-        #          f"theta_s_0to1.mean(): {theta_s_0to1.mean()}, "
-        #          f"seed.max(): {seed.max()}")
+        # log.info(
+        #     f"theta_d_0to1.mean(): {theta_d_0to1.mean()}, "
+        #     f"theta_s_0to1.mean(): {theta_s_0to1.mean()}, "
+        #     f"seed.max(): {seed.max()}"
+        # )
         # p1 = list(self.parameters())[0]
         # assert p1.requires_grad
         # log.info(f"p1.max() = {p1.max()}")
+        # # Grad collection setup ======================================================
 
         batch_size = theta_d_0to1.size(0)
         if stage == "train":
@@ -481,45 +614,57 @@ class SCRAPLLightingModule(pl.LightningModule):
                 x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat)
                 U_hat = self.calc_U(x_hat)
 
-        # # Double check gradients using tr.func ======================================
-        # model_params = {k: v.detach() for k, v in self.model.named_parameters()}
-        # model_buffers = {k: v.detach() for k, v in self.model.named_buffers()}
-        # synth_params = {k: v.detach() for k, v in self.synth.named_parameters()}
-        # synth_buffers = {k: v.detach() for k, v in self.synth.named_buffers()}
-        # loss_params = {k: v.detach() for k, v in self.loss_func.named_parameters()}
-        # loss_buffers = {k: v.detach() for k, v in self.loss_func.named_buffers()}
-        # model_p = (model_params, model_buffers)
-        # synth_p = (synth_params, synth_buffers)
-        # loss_p = (loss_params, loss_buffers)
-        # try:
-        #     curr_path_idx = self.loss_func.curr_path_idx
-        # except Exception:
-        #     curr_path_idx = None
+        # # Func grad calculation ======================================================
+        # model_params = {k: v for k, v in self.model.named_parameters()}
+        # name_to_idx = {k: idx for idx, k in enumerate(model_params)}
         #
-        # log.info(f"Starting tr.func calc")
-        # (model_param_grads, _), (loss_2, aux) = tr.func.grad_and_value(
-        #     self.functional_loss, argnums=0, has_aux=True
-        # )(
-        #     model_p,
-        #     synth_p,
-        #     loss_p,
-        #     x,
-        #     U,
-        #     seed_hat,
-        #     curr_path_idx,
+        # curr_t = self.global_step + 1
+        # path_idx = self.loss_func.curr_path_idx
+        # save_dir = os.path.join(OUT_DIR, f"{self.run_name}")
+        # os.makedirs(save_dir, exist_ok=True)
+        #
+        # model_grads, loss_2, theta_d_2, theta_s_2, x_hat_2 = (
+        #     self.calc_model_param_grads(x, U, seed_hat)
         # )
-        # self.model_param_grads = model_param_grads
-        # log.info(f"Done tr.func calc")
-        # # These will only be equal if the model is deterministic (e.g. no dropout)
-        # theta_d_0to1_hat_2, theta_s_0to1_hat_2, x_hat_2 = aux
-        # log.info(f"loss_2 = {loss_2}, loss = {loss}")
-        # assert tr.allclose(loss, loss_2)
-        # assert tr.allclose(theta_d_0to1_hat, theta_d_0to1_hat_2)
-        # assert tr.allclose(theta_s_0to1_hat, theta_s_0to1_hat_2)
+        # for name, grad in model_grads.items():
+        #     p = model_params[name]
+        #     assert p.shape == grad.shape
+        #     p_idx = name_to_idx[name]
+        #     save_path = os.path.join(
+        #         save_dir, f"{self.run_name}__w_{p_idx}_{curr_t}_{path_idx}.pt"
+        #     )
+        #     tr.save(p.detach().cpu(), save_path)
+        #     save_path = save_path.replace("__w_", "__g_raw_")
+        #     tr.save(grad.detach().cpu(), save_path)
+        #
+        # assert tr.allclose(loss_2, loss)
+        # assert tr.allclose(theta_d_2, theta_d_0to1_hat)
+        # assert tr.allclose(theta_s_2, theta_s_0to1_hat)
         # if x_hat is not None:
-        #     assert tr.allclose(x_hat, x_hat_2)
-        # # exit()
-        # # Double check gradients using tr.func ======================================
+        #     assert tr.allclose(x_hat_2, x_hat)
+        # # Func grad calculation ======================================================
+        #
+        # # Hessian calculation ========================================================
+        # # param_name = "cnn.3.weight"  # numel = 1
+        # # param_name = "fc_d.bias"     # numel = 32
+        # # param_name = "fc.bias"       # numel = 64
+        # # param_name = "cnn.17.bias"   # numel = 128
+        # max_numel = 1
+        # # max_numel = 32
+        # hess_param_names = [name for name, p in model_params.items()
+        #                     if p.numel() <= max_numel]
+        # log.info(f"max_numel = {max_numel}, hess_param_names = {hess_param_names}")
+        # for p_name in tqdm(hess_param_names):
+        #     p_idx = name_to_idx[p_name]
+        #     hess = self.calc_model_param_hessian(
+        #         p_name, x, U, seed_hat, use_autograd=False, use_profiler=False
+        #     )
+        #     # log.info(f"hess.shape = {hess.shape}, hess = {hess}")
+        #     save_path = os.path.join(
+        #         save_dir, f"{self.run_name}__h_{p_idx}_{curr_t}_{path_idx}.pt"
+        #     )
+        #     tr.save(hess.detach().cpu(), save_path)
+        # # Hessian calculation ========================================================
 
         out_dict = {
             "loss": loss,

@@ -26,33 +26,22 @@ custom:
 #  dataset_name: chirp_32_32_5_micro
 #  dataset_name: chirp_32_32_5_meso
 #  dataset_name: chirplet_32_32_5_micro
-  dataset_name: chirplet_32_32_5_meso
 #  dataset_name: chirplet_32_32_5_only_am_meso
 #  dataset_name: chirplet_32_32_5_only_fm_meso
+  dataset_name: chirplet_32_32_5_meso
 #  dataset_name: chirp_32_32_5_micro
 #  dataset_name: chirp_32_32_5_meso
 #  dataset_name: testing
-#  dataset_name: flowtron_32_32_1_hifigan_MS_fixed_z
-#  dataset_name: flowtron_16_16_5_hifigan_MS
-#  dataset_name: flowtron_16_16_5_hifigan_MS_micro
-#  dataset_name: flowtron_32_32_10_hifigan_MS_micro_no_unique_seed
-#  dataset_name: flowtron_16_16_5_hifigan_MS_meso_rand_train
-#  dataset_name: fs2_32_32_pace_pitch
-#  dataset_name: fs2_32_32_pace_pitch_4words_meso
-#  dataset_name: fs2_32_32_pace_energy_4words_meso
-#  dataset_name: fs2_16_16_10_pitch_energy_4words_micro
-#  dataset_name: fs2_16_16_10_cqtJ7Q24_4words_micro3
-#  dataset_name: fs2_16_16_10_cqtJ7Q24_4words_meso3
   cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
-#  use_wandb_gpu: false
-  use_wandb_gpu: true
+  use_wandb_gpu: false
+#  use_wandb_gpu: true
 
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [7]
+  devices: [0]
   max_epochs: 30
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
@@ -62,8 +51,8 @@ trainer:
 data:
   class_path: experiments.data_modules.ThetaDSDataModule
   init_args:
-#    batch_size: 32
-    batch_size: 16
+    batch_size: 32
+#    batch_size: 16
 #    batch_size: 4
 
     num_workers: 4
