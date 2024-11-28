@@ -127,6 +127,7 @@ def calc_norm(g: T, p: int = 2) -> T:
 
 
 def calc_spec_norm(g: T) -> T:
+    assert g.ndim <= 2
     if g.ndim < 2:
         spec_norm = g.norm(p=2)
     else:
@@ -135,6 +136,10 @@ def calc_spec_norm(g: T) -> T:
 
     spec_norm_2 = tr.linalg.norm(g, ord=2)
     assert spec_norm == spec_norm_2
+
+    norm = calc_norm(g)
+    assert spec_norm <= norm
+    # log.info(f"norm - spec_norm = {norm - spec_norm}")
     return spec_norm
 
 
@@ -167,21 +172,30 @@ if __name__ == "__main__":
     # compare_adj_only = True
     compare_adj_only = False
 
-    max_t = None
-    # max_t = 400
-
-    allowed_param_indices = None
-    # allowed_param_indices = {15, 3}
-
     dir_path = OUT_DIR
     # name = "scrapl_saga_sgd_1e-4_b16__chirplet_32_32_5_only_fm_meso"
     # name = "scrapl_b32_t1__chirplet_32_32_5_only_am_meso"
-    name = "scrapl_b32_t1__chirplet_32_32_5_only_fm_meso"
+    # name = "scrapl_b32_t1__chirplet_32_32_5_only_fm_meso"
     # name = "scrapl_b32_t1__chirplet_32_32_5_meso"
+    # name = "scrapl_b16_ds__chirplet_32_32_5_only_am_meso"
+    # name = "scrapl_b16_ds__chirplet_32_32_5_only_fm_meso"
+    # name = "scrapl_b16_ds__chirplet_32_32_5_meso"
+    # name = "scrapl_b16_ds_eps_no_do__chirplet_32_32_5_only_am_meso"
+    # name = "scrapl_b16_ds_eps_no_do__chirplet_32_32_5_only_fm_meso"
+    name = "scrapl_b16_ds_eps_no_do__chirplet_32_32_5_meso"
     data_path = os.path.join(dir_path, name)
-    grad_id = "__g_raw_"
+    # grad_id = "__g_raw_"
+    grad_id = "__h_"
     # grad_id = "__g_adam_"
     # grad_id = "__g_saga_"
+
+    # allowed_param_indices = None
+    # allowed_param_indices = {"theta_d_0to1_hat"}
+    # allowed_param_indices = {"theta_s_0to1_hat"}
+    allowed_param_indices = {"theta_d_0to1_hat", "theta_s_0to1_hat"}
+
+    max_t = None
+    # max_t = 400
 
     dir = data_path
     paths = [
@@ -192,8 +206,16 @@ if __name__ == "__main__":
     log.info(f"Found {len(paths)} files")
     data = defaultdict(lambda: defaultdict(list))
     for path in tqdm(paths):
-        weight_path = path.replace(grad_id, "__w_")
-        param_idx = int(path.split("_")[-3])
+        try:
+            param_idx = int(path.split("_")[-3])
+        except ValueError:
+            if allowed_param_indices is None:
+                continue
+            if "theta_s_0to1_hat" in path:
+                param_idx = "theta_s_0to1_hat"
+            else:
+                assert "theta_d_0to1_hat" in path
+                param_idx = "theta_d_0to1_hat"
         if allowed_param_indices is not None and param_idx not in allowed_param_indices:
             continue
         t = int(path.split("_")[-2])
@@ -209,7 +231,9 @@ if __name__ == "__main__":
         #     grad, prev_m, prev_v, t=1.0, prev_t=0.0
         # )
 
-        weight = tr.load(weight_path, map_location=tr.device("cpu")).detach()
+        # weight_path = path.replace(grad_id, "__w_")
+        # weight = tr.load(weight_path, map_location=tr.device("cpu")).detach()
+        weight = None
         data[path_idx][param_idx].append((t, weight, grad))
 
     metrics = defaultdict(lambda: {})
@@ -310,13 +334,13 @@ if __name__ == "__main__":
     # plt.title(f"prob {metric_name} ({reduction}, elem {elementwise}, adj {compare_adj_only})")
     # plt.show()
 
-    # colors = ["r" if idx in subset_indices else "b" for idx in range(n_paths)]
-    # plt.bar(range(prob.size(0)), prob.numpy(), color=colors)
-    # plt.ylim(0, (sampling_factor + 0.5) * uniform_prob)
-    # plt.title(
-    #     f"{grad_id} prob {metric_name} ({reduction}, elem {elementwise}, adj {compare_adj_only})"
-    # )
-    # plt.show()
+    colors = ["r" if idx in subset_indices else "b" for idx in range(n_paths)]
+    plt.bar(range(prob.size(0)), prob.numpy(), color=colors)
+    plt.ylim(0, (sampling_factor + 0.5) * uniform_prob)
+    plt.title(
+        f"{grad_id} prob {metric_name} ({reduction}, elem {elementwise}, adj {compare_adj_only})"
+    )
+    plt.show()
 
     vals = [(idx, p.item()) for idx, p in enumerate(prob)]
     vals = sorted(vals, key=lambda x: x[1])
@@ -338,6 +362,7 @@ if __name__ == "__main__":
     plt.title(
         # f"{grad_id} sorted {metric_name} ({reduction}, elem {elementwise}, adj {compare_adj_only})"
         f"{grad_id} sorted {metric_name} (r = {ratio:.2f}, SF = {sampling_factor:.2f})"
+        f"\n{param_indices}"
     )
     plt.legend()
     plt.show()

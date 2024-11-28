@@ -14,6 +14,7 @@ from torch import nn
 from torch.autograd.profiler import record_function
 
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss, Scat1DLoss
+from experiments.paths import OUT_DIR
 from experiments.util import ReadOnlyTensorDict
 
 logging.basicConfig()
@@ -206,19 +207,16 @@ class SCRAPLLightingModule(pl.LightningModule):
         entropy = entropy / (tr.log(tr.tensor(x.numel())) + eps)
         return entropy
 
-    def functional_loss(
+    def functional_loss_from_theta_hat(
         self,
-        model_p: ([str, T], Dict[str, T]),
-        synth_p: ([str, T], Dict[str, T]),
-        loss_p: ([str, T], Dict[str, T]),
+        theta_hat: (T, T),
+        synth_p: (Dict[str, T], Dict[str, T]),
+        loss_p: (Dict[str, T], Dict[str, T]),
         x: T,
-        U: T,
         seed_hat: T,
         curr_path_idx: Optional[int] = None,
-    ) -> (T, (T, T, T)):
-        theta_d_0to1_hat, theta_s_0to1_hat = tr.func.functional_call(
-            self.model, model_p, U, strict=True
-        )
+    ) -> (T, T):
+        theta_d_0to1_hat, theta_s_0to1_hat = theta_hat
         x_hat = tr.func.functional_call(
             self.synth,
             synth_p,
@@ -232,15 +230,58 @@ class SCRAPLLightingModule(pl.LightningModule):
         loss = tr.func.functional_call(
             self.loss_func, loss_p, args=loss_args, strict=True
         )
+        return loss, x_hat
+
+    def specific_theta_hat_functional_loss(
+        self,
+        specific_theta_hat: T,
+        theta_name: str,
+        other_theta_hat: T,
+        synth_p: (Dict[str, T], Dict[str, T]),
+        loss_p: (Dict[str, T], Dict[str, T]),
+        x: T,
+        seed_hat: T,
+        curr_path_idx: Optional[int] = None,
+    ) -> T:
+        if theta_name == "d":
+            theta_hat = (specific_theta_hat, other_theta_hat)
+        else:
+            theta_hat = (other_theta_hat, specific_theta_hat)
+        loss, _ = self.functional_loss_from_theta_hat(
+            theta_hat, synth_p, loss_p, x, seed_hat, curr_path_idx
+        )
+        return loss
+
+    def functional_loss(
+        self,
+        model_p: (Dict[str, T], Dict[str, T]),
+        synth_p: (Dict[str, T], Dict[str, T]),
+        loss_p: (Dict[str, T], Dict[str, T]),
+        x: T,
+        U: T,
+        seed_hat: T,
+        curr_path_idx: Optional[int] = None,
+    ) -> (T, (T, T, T)):
+        theta_d_0to1_hat, theta_s_0to1_hat = tr.func.functional_call(
+            self.model, model_p, U, strict=True
+        )
+        loss, x_hat = self.functional_loss_from_theta_hat(
+            (theta_d_0to1_hat, theta_s_0to1_hat),
+            synth_p,
+            loss_p,
+            x,
+            seed_hat,
+            curr_path_idx,
+        )
         return loss, (theta_d_0to1_hat, theta_s_0to1_hat, x_hat)
 
     def specific_model_p_functional_loss(
         self,
         p: T,
         p_name: str,
-        model_p: ([str, T], Dict[str, T]),
-        synth_p: ([str, T], Dict[str, T]),
-        loss_p: ([str, T], Dict[str, T]),
+        model_p: (Dict[str, T], Dict[str, T]),
+        synth_p: (Dict[str, T], Dict[str, T]),
+        loss_p: (Dict[str, T], Dict[str, T]),
         x: T,
         U: T,
         seed_hat: T,
@@ -285,6 +326,83 @@ class SCRAPLLightingModule(pl.LightningModule):
         (model_param_grads, _), (loss, aux) = out
         theta_d_0to1_hat, theta_s_0to1_hat, x_hat = aux
         return model_param_grads, loss, theta_d_0to1_hat, theta_s_0to1_hat, x_hat
+
+    def calc_theta_hat_hessian(
+        self,
+        theta_name: str,
+        theta_d_0to1_hat: T,
+        theta_s_0to1_hat: T,
+        x: T,
+        seed_hat: T,
+        use_autograd: bool = False,
+        use_profiler: bool = False,
+    ) -> T:
+        if theta_name == "d":
+            specific_theta_hat = theta_d_0to1_hat
+            other_theta_hat = theta_s_0to1_hat
+        else:
+            specific_theta_hat = theta_s_0to1_hat
+            other_theta_hat = theta_d_0to1_hat
+        synth_params = {k: v.detach() for k, v in self.synth.named_parameters()}
+        synth_buffers = {k: v.detach() for k, v in self.synth.named_buffers()}
+        loss_params = {k: v.detach() for k, v in self.loss_func.named_parameters()}
+        loss_buffers = {k: v.detach() for k, v in self.loss_func.named_buffers()}
+        synth_p = (synth_params, synth_buffers)
+        loss_p = (loss_params, loss_buffers)
+        try:
+            curr_path_idx = self.loss_func.curr_path_idx
+        except Exception:
+            curr_path_idx = None
+
+        ag_fn = functools.partial(
+            self.specific_theta_hat_functional_loss,
+            theta_name=theta_name,
+            other_theta_hat=other_theta_hat,
+            synth_p=synth_p,
+            loss_p=loss_p,
+            x=x,
+            seed_hat=seed_hat,
+            curr_path_idx=curr_path_idx,
+        )
+
+        with (
+            tr.profiler.profile(
+                activities=[tr.profiler.ProfilerActivity.CPU],
+                with_stack=True,
+                profile_memory=True,
+                record_shapes=False,
+            )
+            if use_profiler
+            else nullcontext()
+        ) as prof:
+            if use_autograd:
+                with record_function("hessian") if use_profiler else nullcontext():
+                    hess = tr.autograd.functional.hessian(
+                        ag_fn,
+                        specific_theta_hat,
+                        create_graph=False,
+                        strict=True,
+                        vectorize=False,
+                        outer_jacobian_strategy="reverse-mode",
+                    )
+            else:
+                with record_function("jacrev") if use_profiler else nullcontext():
+                    hess = tr.func.jacrev(
+                        tr.func.jacrev(self.specific_theta_hat_functional_loss)
+                    )(
+                        # hess=tr.func.jacrev(self.specific_theta_hat_functional_loss)(
+                        specific_theta_hat,
+                        theta_name,
+                        other_theta_hat,
+                        synth_p,
+                        loss_p,
+                        x,
+                        seed_hat,
+                        curr_path_idx,
+                    )
+        if use_profiler:
+            log.info(prof.key_averages().table(sort_by="cpu_time_total", row_limit=1))
+        return hess
 
     def calc_model_param_hessian(
         self,
@@ -373,6 +491,21 @@ class SCRAPLLightingModule(pl.LightningModule):
         grad *= self.grad_multiplier
         return grad
 
+    def save_grad_hook(self, grad: T, name: str) -> T:
+        if not self.training:
+            log.warning("save_grad_hook called during eval")
+            return grad
+
+        curr_t = self.global_step + 1
+        # curr_t = 1
+        path_idx = self.loss_func.curr_path_idx
+        save_dir = os.path.join(OUT_DIR, f"{self.run_name}")
+        os.makedirs(save_dir, exist_ok=True)
+        save_path = os.path.join(
+            save_dir, f"{self.run_name}__g_raw_{name}_{curr_t}_{path_idx}.pt"
+        )
+        tr.save(grad.detach().cpu(), save_path)
+
     def vr_hook(self, grad: T, param_idx: int, scrapl: AdaptiveSCRAPLLoss) -> T:
         if not self.training:
             log.warning("vr_hook called during eval")
@@ -417,20 +550,22 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.paths_seen.add(path_idx)
         n_paths = scrapl.n_paths
         curr_t = self.global_step + 1
-        # curr_t = 1
 
+        # curr_t = 1
+        # save_dir = os.path.join(OUT_DIR, f"{self.run_name}")
+        # os.makedirs(save_dir, exist_ok=True)
         # save_param_idx = None
         # # save_param_idx = 15
         # if save_param_idx is None or param_idx == save_param_idx:
-        #     save_path = os.path.join(
-        #         OUT_DIR, f"{self.run_name}__w_{param_idx}_{curr_t}_{path_idx}.pt"
-        #     )
-        #     weight = list(self.parameters())[param_idx]
-        #     assert weight.shape == grad.shape
-        #     tr.save(weight.detach().cpu(), save_path)
+        #     # save_path = os.path.join(
+        #     #     save_dir, f"{self.run_name}__w_{param_idx}_{curr_t}_{path_idx}.pt"
+        #     # )
+        #     # weight = list(self.parameters())[param_idx]
+        #     # assert weight.shape == grad.shape
+        #     # tr.save(weight.detach().cpu(), save_path)
         #
         #     save_path = os.path.join(
-        #         OUT_DIR, f"{self.run_name}__g_raw_{param_idx}_{curr_t}_{path_idx}.pt"
+        #         save_dir, f"{self.run_name}__g_raw_{param_idx}_{curr_t}_{path_idx}.pt"
         #     )
         #     tr.save(grad.detach().cpu(), save_path)
 
@@ -466,7 +601,7 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         # if save_param_idx is None or param_idx == save_param_idx:
         #     save_path = os.path.join(
-        #         OUT_DIR, f"{self.run_name}__g_adam_{param_idx}_{curr_t}_{path_idx}.pt"
+        #         save_dir, f"{self.run_name}__g_adam_{param_idx}_{curr_t}_{path_idx}.pt"
         #     )
         #     tr.save(grad.detach().cpu(), save_path)
 
@@ -508,7 +643,7 @@ class SCRAPLLightingModule(pl.LightningModule):
 
             # if save_param_idx is None or param_idx == save_param_idx:
             #     save_path = os.path.join(
-            #         OUT_DIR,
+            #         save_dir,
             #         f"{self.run_name}__g_saga_{param_idx}_{curr_t}_{path_idx}.pt"
             #     )
             #     tr.save(saga_grad.detach().cpu(), save_path)
@@ -579,6 +714,12 @@ class SCRAPLLightingModule(pl.LightningModule):
         if stage == "train":
             theta_d_0to1_hat.retain_grad()
             theta_s_0to1_hat.retain_grad()
+            # theta_d_0to1_hat.register_hook(
+            #     functools.partial(self.save_grad_hook, name="theta_d_0to1_hat")
+            # )
+            # theta_s_0to1_hat.register_hook(
+            #     functools.partial(self.save_grad_hook, name="theta_s_0to1_hat")
+            # )
 
         l1_d = self.l1(theta_d_0to1_hat, theta_d_0to1)
         l1_s = self.l1(theta_s_0to1_hat, theta_s_0to1)
@@ -664,6 +805,49 @@ class SCRAPLLightingModule(pl.LightningModule):
         #         save_dir, f"{self.run_name}__h_{p_idx}_{curr_t}_{path_idx}.pt"
         #     )
         #     tr.save(hess.detach().cpu(), save_path)
+
+        # save_dir = os.path.join(OUT_DIR, f"{self.run_name}")
+        # os.makedirs(save_dir, exist_ok=True)
+        # curr_t = 1
+        # path_idx = self.loss_func.curr_path_idx
+        #
+        # theta_d_hat = theta_d_0to1_hat.detach()
+        # theta_s_hat = theta_s_0to1_hat.detach()
+        # # log.info(f"calc hess d")
+        # hess_d = self.calc_theta_hat_hessian(
+        #     "d",
+        #     theta_d_hat,
+        #     theta_s_hat,
+        #     x,
+        #     seed_hat,
+        #     use_autograd=False,
+        #     use_profiler=False,
+        # )
+        # # log.info(f"hess_d = {hess_d}")
+        # save_path = os.path.join(
+        #     save_dir, f"{self.run_name}__h_theta_d_0to1_hat_{curr_t}_{path_idx}.pt"
+        # )
+        # tr.save(hess_d.detach().cpu(), save_path)
+
+        # log.info(f"calc hess s")
+        # theta_d_hat = theta_d_0to1_hat.detach()
+        # theta_s_hat = theta_s_0to1_hat.detach()
+        # hess_s = self.calc_theta_hat_hessian(
+        #     "s",
+        #     theta_d_hat,
+        #     theta_s_hat,
+        #     x,
+        #     seed_hat,
+        #     use_autograd=False,
+        #     use_profiler=False,
+        # )
+        # # log.info(f"hess_s = {hess_s}")
+        # # log.info(f"done calc hess")
+        # save_path = os.path.join(
+        #     save_dir, f"{self.run_name}__h_theta_s_0to1_hat_{curr_t}_{path_idx}.pt"
+        # )
+        # tr.save(hess_s.detach().cpu(), save_path)
+
         # # Hessian calculation ========================================================
 
         out_dict = {

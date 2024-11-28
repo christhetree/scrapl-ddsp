@@ -80,7 +80,7 @@ def get_path_keys(
         else:
             fm_cf_oct_hz = am_cf_cycles_p_sec / fm_cf_cycles_p_oct
         key_info = (
-            f"key = {k}, spin = {spin}, "
+            f"{idx}: key = {k}, spin = {spin}, "
             f"am_cf_cycles_p_sec = {am_cf_cycles_p_sec:.2f}, "
             f"fm_cf_oct_hz = {fm_cf_oct_hz:.2f}"
         )
