@@ -2,21 +2,15 @@ import functools
 import logging
 import os
 from collections import defaultdict
-from contextlib import nullcontext
 from datetime import datetime
 from typing import Dict, Optional, List, Any
 
-import hessian_eigenthings
-import numpy as np
 import pytorch_lightning as pl
 import torch as tr
 from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
-from torch.autograd.profiler import record_function
-from tqdm import tqdm
 
-from experiments.hessian import HVPFunc, HVPAutograd
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss, Scat1DLoss
 from experiments.paths import OUT_DIR
 from experiments.util import ReadOnlyTensorDict
@@ -156,7 +150,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         for p in self.synth.parameters():
             p.requires_grad = False
 
-        self.param_idx_hooks_in_use = set()
         self.model_param_grads = None
         self.first_batch = None
 
@@ -201,15 +194,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         # log.info(f"grad_hat.abs().mean() {grad_hat.abs().mean()}")
         # log.info(f"grad_hat.abs().std() {grad_hat.abs().std()}")
         return grad_hat, m, v
-
-    @staticmethod
-    def calc_mag_entropy(x: T, eps: float = 1e-8) -> T:
-        x = x.abs()
-        x = x / (x.sum() + eps)
-        entropy = -x * tr.log(x + eps)
-        entropy = entropy.sum()
-        entropy = entropy / (tr.log(tr.tensor(x.numel())) + eps)
-        return entropy
 
     def functional_loss_from_theta_hat(
         self,
@@ -334,162 +318,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         theta_d_0to1_hat, theta_s_0to1_hat, x_hat = aux
         return model_param_grads, loss, theta_d_0to1_hat, theta_s_0to1_hat, x_hat
 
-    def calc_theta_hat_hessian(
-        self,
-        theta_name: str,
-        theta_d_0to1_hat: T,
-        theta_s_0to1_hat: T,
-        x: T,
-        seed_hat: T,
-        use_autograd: bool = False,
-        use_profiler: bool = False,
-    ) -> T:
-        if theta_name == "d":
-            specific_theta_hat = theta_d_0to1_hat
-            other_theta_hat = theta_s_0to1_hat
-        else:
-            specific_theta_hat = theta_s_0to1_hat
-            other_theta_hat = theta_d_0to1_hat
-        synth_params = {k: v.detach() for k, v in self.synth.named_parameters()}
-        synth_buffers = {k: v.detach() for k, v in self.synth.named_buffers()}
-        loss_params = {k: v.detach() for k, v in self.loss_func.named_parameters()}
-        loss_buffers = {k: v.detach() for k, v in self.loss_func.named_buffers()}
-        synth_p = (synth_params, synth_buffers)
-        loss_p = (loss_params, loss_buffers)
-        try:
-            curr_path_idx = self.loss_func.curr_path_idx
-        except Exception:
-            curr_path_idx = None
-
-        ag_fn = functools.partial(
-            self.specific_theta_hat_functional_loss,
-            theta_name=theta_name,
-            other_theta_hat=other_theta_hat,
-            synth_p=synth_p,
-            loss_p=loss_p,
-            x=x,
-            seed_hat=seed_hat,
-            curr_path_idx=curr_path_idx,
-        )
-
-        with (
-            tr.profiler.profile(
-                activities=[tr.profiler.ProfilerActivity.CPU],
-                with_stack=True,
-                profile_memory=True,
-                record_shapes=False,
-            )
-            if use_profiler
-            else nullcontext()
-        ) as prof:
-            if use_autograd:
-                with record_function("hessian") if use_profiler else nullcontext():
-                    hess = tr.autograd.functional.hessian(
-                        ag_fn,
-                        specific_theta_hat,
-                        create_graph=False,
-                        strict=True,
-                        vectorize=False,
-                        outer_jacobian_strategy="reverse-mode",
-                    )
-            else:
-                with record_function("jacrev") if use_profiler else nullcontext():
-                    hess = tr.func.jacrev(
-                        tr.func.jacrev(self.specific_theta_hat_functional_loss)
-                    )(
-                        # hess=tr.func.jacrev(self.specific_theta_hat_functional_loss)(
-                        specific_theta_hat,
-                        theta_name,
-                        other_theta_hat,
-                        synth_p,
-                        loss_p,
-                        x,
-                        seed_hat,
-                        curr_path_idx,
-                    )
-        if use_profiler:
-            log.info(prof.key_averages().table(sort_by="cpu_time_total", row_limit=1))
-        return hess
-
-    def calc_model_param_hessian(
-        self,
-        param_name: str,
-        x: T,
-        U: T,
-        seed_hat: T,
-        use_autograd: bool = False,
-        use_profiler: bool = False,
-    ) -> T:
-        model_params = {k: v.detach() for k, v in self.model.named_parameters()}
-        model_buffers = {k: v.detach() for k, v in self.model.named_buffers()}
-        synth_params = {k: v.detach() for k, v in self.synth.named_parameters()}
-        synth_buffers = {k: v.detach() for k, v in self.synth.named_buffers()}
-        loss_params = {k: v.detach() for k, v in self.loss_func.named_parameters()}
-        loss_buffers = {k: v.detach() for k, v in self.loss_func.named_buffers()}
-        model_p = (model_params, model_buffers)
-        synth_p = (synth_params, synth_buffers)
-        loss_p = (loss_params, loss_buffers)
-        try:
-            curr_path_idx = self.loss_func.curr_path_idx
-        except Exception:
-            curr_path_idx = None
-
-        param = model_params[param_name]
-        log.debug(f"param_name = {param_name}, param.shape = {param.shape}")
-        ag_fn = functools.partial(
-            self.specific_model_p_functional_loss,
-            p_name=param_name,
-            model_p=model_p,
-            synth_p=synth_p,
-            loss_p=loss_p,
-            x=x,
-            U=U,
-            seed_hat=seed_hat,
-            curr_path_idx=curr_path_idx,
-        )
-
-        with (
-            tr.profiler.profile(
-                activities=[tr.profiler.ProfilerActivity.CPU],
-                with_stack=True,
-                profile_memory=True,
-                record_shapes=False,
-            )
-            if use_profiler
-            else nullcontext()
-        ) as prof:
-            if use_autograd:
-                with record_function("hessian") if use_profiler else nullcontext():
-                    hess = tr.autograd.functional.hessian(
-                        ag_fn,
-                        param,
-                        create_graph=False,
-                        strict=True,
-                        vectorize=False,
-                        outer_jacobian_strategy="reverse-mode",
-                    )
-            else:
-                with record_function("jacrev") if use_profiler else nullcontext():
-                    hess = tr.func.jacrev(
-                        tr.func.jacrev(self.specific_model_p_functional_loss)
-                    )(
-                        param,
-                        param_name,
-                        model_p,
-                        synth_p,
-                        loss_p,
-                        x,
-                        U,
-                        seed_hat,
-                        curr_path_idx,
-                    )
-        if use_profiler:
-            log.info(prof.key_averages().table(sort_by="cpu_time_total", row_limit=1))
-        return hess
-
-    # def backward(self, loss: T, **kwargs: Dict[str, Any]) -> None:
-    #     loss.backward(create_graph=True, **kwargs)
-
     def grad_multiplier_hook(self, grad: T) -> T:
         # log.info(f"grad.abs().max() = {grad.abs().max()}")
         if not self.training:
@@ -498,58 +326,30 @@ class SCRAPLLightingModule(pl.LightningModule):
         grad *= self.grad_multiplier
         return grad
 
-    def save_grad_hook(self, grad: T, name: str) -> T:
+    def save_grad_hook(self, grad: T, name: str, curr_t: Optional[int] = None) -> T:
         if not self.training:
             log.warning("save_grad_hook called during eval")
             return grad
 
-        curr_t = self.global_step + 1
-        # curr_t = 1
-        path_idx = self.loss_func.curr_path_idx
+        if curr_t is None:
+            curr_t = self.global_step + 1
+        try:
+            path_idx = self.loss_func.curr_path_idx
+        except AttributeError:
+            log.warning("save_grad_hook: path_idx not found")
+            path_idx = -1
         save_dir = os.path.join(OUT_DIR, f"{self.run_name}")
         os.makedirs(save_dir, exist_ok=True)
         save_path = os.path.join(
-            save_dir, f"{self.run_name}__g_raw_{name}_{curr_t}_{path_idx}.pt"
+            save_dir, f"{self.run_name}__{name}_{curr_t}_{path_idx}.pt"
         )
         tr.save(grad.detach().cpu(), save_path)
+        return grad
 
     def vr_hook(self, grad: T, param_idx: int, scrapl: AdaptiveSCRAPLLoss) -> T:
         if not self.training:
             log.warning("vr_hook called during eval")
             return grad
-
-        # # Hessian ====================================================================
-        # if param_idx in self.param_idx_hooks_in_use:
-        #     log.debug(f"param_idx {param_idx} hook is currently in use")
-        #     return grad
-        #
-        # self.param_idx_hooks_in_use.add(param_idx)
-        # assert not grad.isnan().any()
-        # p = list(self.model.parameters())[param_idx]
-        # p_name = list(self.model.named_parameters())[param_idx][0]
-        # grad_2 = self.model_param_grads[p_name]
-        # assert tr.allclose(grad, grad_2)
-        # assert util.is_connected_via_ad_graph(grad, p)
-        #
-        # def calc_hess_row(g: T, p: T) -> T:
-        #     assert g.numel() == 1
-        #     hess_row = tr.autograd.grad(
-        #         g,
-        #         [p],
-        #         retain_graph=True,
-        #         create_graph=False,
-        #     )[0]
-        #     hess_row = hess_row.view(-1)
-        #     return hess_row
-        #
-        # grad_flat = grad.view(-1)
-        # log.info(f"calc hess, p.shape = {p.shape}")
-        # h_rows = [calc_hess_row(g, p) for g in tqdm(grad_flat)]
-        # hess = tr.stack(h_rows, dim=0)
-        # log.info(f"hess.shape = {hess.shape}, hess[0, 0] = {hess[0, 0]}")
-        # assert tr.allclose(hess, hess.t())
-        # self.param_idx_hooks_in_use.remove(param_idx)
-        # # Hessian ====================================================================
 
         path_idx = scrapl.curr_path_idx
         assert path_idx is not None
@@ -559,22 +359,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         curr_t = self.global_step + 1
 
         # curr_t = 1
-        # save_dir = os.path.join(OUT_DIR, f"{self.run_name}")
-        # os.makedirs(save_dir, exist_ok=True)
-        # save_param_idx = None
-        # # save_param_idx = 15
-        # if save_param_idx is None or param_idx == save_param_idx:
-        #     # save_path = os.path.join(
-        #     #     save_dir, f"{self.run_name}__w_{param_idx}_{curr_t}_{path_idx}.pt"
-        #     # )
-        #     # weight = list(self.parameters())[param_idx]
-        #     # assert weight.shape == grad.shape
-        #     # tr.save(weight.detach().cpu(), save_path)
-        #
-        #     save_path = os.path.join(
-        #         save_dir, f"{self.run_name}__g_raw_{param_idx}_{curr_t}_{path_idx}.pt"
-        #     )
-        #     tr.save(grad.detach().cpu(), save_path)
+        # self.save_grad_hook(grad, f"g_raw_{param_idx}", curr_t)
 
         if self.grad_multiplier is not None:
             grad *= self.grad_multiplier
@@ -606,11 +391,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             prev_v_s[path_idx] = v
             prev_t_s[path_idx] = curr_t
 
-        # if save_param_idx is None or param_idx == save_param_idx:
-        #     save_path = os.path.join(
-        #         save_dir, f"{self.run_name}__g_adam_{param_idx}_{curr_t}_{path_idx}.pt"
-        #     )
-        #     tr.save(grad.detach().cpu(), save_path)
+            # self.save_grad_hook(grad, f"g_adam_{param_idx}", curr_t)
 
         if self.vr_algo is None:
             return grad
@@ -648,13 +429,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             # Update current path grad
             prev_path_grads[path_idx, ...] = grad
 
-            # if save_param_idx is None or param_idx == save_param_idx:
-            #     save_path = os.path.join(
-            #         save_dir,
-            #         f"{self.run_name}__g_saga_{param_idx}_{curr_t}_{path_idx}.pt"
-            #     )
-            #     tr.save(saga_grad.detach().cpu(), save_path)
-
+            # self.save_grad_hook(saga_grad, f"g_saga_{param_idx}", curr_t)
             return saga_grad
         else:
             raise ValueError(f"Unknown VR algorithm: {self.vr_algo}")
@@ -761,101 +536,6 @@ class SCRAPLLightingModule(pl.LightningModule):
             if x_hat is None and self.log_x_hat:
                 x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat)
                 U_hat = self.calc_U(x_hat)
-
-        # # Func grad calculation ======================================================
-        # model_params = {k: v for k, v in self.model.named_parameters()}
-        # name_to_idx = {k: idx for idx, k in enumerate(model_params)}
-        #
-        # curr_t = self.global_step + 1
-        # path_idx = self.loss_func.curr_path_idx
-        # save_dir = os.path.join(OUT_DIR, f"{self.run_name}")
-        # os.makedirs(save_dir, exist_ok=True)
-        #
-        # model_grads, loss_2, theta_d_2, theta_s_2, x_hat_2 = (
-        #     self.calc_model_param_grads(x, U, seed_hat)
-        # )
-        # for name, grad in model_grads.items():
-        #     p = model_params[name]
-        #     assert p.shape == grad.shape
-        #     p_idx = name_to_idx[name]
-        #     save_path = os.path.join(
-        #         save_dir, f"{self.run_name}__w_{p_idx}_{curr_t}_{path_idx}.pt"
-        #     )
-        #     tr.save(p.detach().cpu(), save_path)
-        #     save_path = save_path.replace("__w_", "__g_raw_")
-        #     tr.save(grad.detach().cpu(), save_path)
-        #
-        # assert tr.allclose(loss_2, loss)
-        # assert tr.allclose(theta_d_2, theta_d_0to1_hat)
-        # assert tr.allclose(theta_s_2, theta_s_0to1_hat)
-        # if x_hat is not None:
-        #     assert tr.allclose(x_hat_2, x_hat)
-        # # Func grad calculation ======================================================
-        #
-        # # Hessian calculation ========================================================
-        # # param_name = "cnn.3.weight"  # numel = 1
-        # # param_name = "fc_d.bias"     # numel = 32
-        # # param_name = "fc.bias"       # numel = 64
-        # # param_name = "cnn.17.bias"   # numel = 128
-        # max_numel = 1
-        # # max_numel = 32
-        # hess_param_names = [name for name, p in model_params.items()
-        #                     if p.numel() <= max_numel]
-        # log.info(f"max_numel = {max_numel}, hess_param_names = {hess_param_names}")
-        # for p_name in tqdm(hess_param_names):
-        #     p_idx = name_to_idx[p_name]
-        #     hess = self.calc_model_param_hessian(
-        #         p_name, x, U, seed_hat, use_autograd=False, use_profiler=False
-        #     )
-        #     # log.info(f"hess.shape = {hess.shape}, hess = {hess}")
-        #     save_path = os.path.join(
-        #         save_dir, f"{self.run_name}__h_{p_idx}_{curr_t}_{path_idx}.pt"
-        #     )
-        #     tr.save(hess.detach().cpu(), save_path)
-
-        # save_dir = os.path.join(OUT_DIR, f"{self.run_name}")
-        # os.makedirs(save_dir, exist_ok=True)
-        # curr_t = 1
-        # path_idx = self.loss_func.curr_path_idx
-        #
-        # theta_d_hat = theta_d_0to1_hat.detach()
-        # theta_s_hat = theta_s_0to1_hat.detach()
-        # # log.info(f"calc hess d")
-        # hess_d = self.calc_theta_hat_hessian(
-        #     "d",
-        #     theta_d_hat,
-        #     theta_s_hat,
-        #     x,
-        #     seed_hat,
-        #     use_autograd=False,
-        #     use_profiler=False,
-        # )
-        # # log.info(f"hess_d = {hess_d}")
-        # save_path = os.path.join(
-        #     save_dir, f"{self.run_name}__h_theta_d_0to1_hat_{curr_t}_{path_idx}.pt"
-        # )
-        # tr.save(hess_d.detach().cpu(), save_path)
-
-        # log.info(f"calc hess s")
-        # theta_d_hat = theta_d_0to1_hat.detach()
-        # theta_s_hat = theta_s_0to1_hat.detach()
-        # hess_s = self.calc_theta_hat_hessian(
-        #     "s",
-        #     theta_d_hat,
-        #     theta_s_hat,
-        #     x,
-        #     seed_hat,
-        #     use_autograd=False,
-        #     use_profiler=False,
-        # )
-        # # log.info(f"hess_s = {hess_s}")
-        # # log.info(f"done calc hess")
-        # save_path = os.path.join(
-        #     save_dir, f"{self.run_name}__h_theta_s_0to1_hat_{curr_t}_{path_idx}.pt"
-        # )
-        # tr.save(hess_s.detach().cpu(), save_path)
-
-        # # Hessian calculation ========================================================
 
         # # HVP calculation ============================================================
         # model_params = {k: v.detach() for k, v in self.model.named_parameters()}
