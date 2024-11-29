@@ -6,13 +6,17 @@ from contextlib import nullcontext
 from datetime import datetime
 from typing import Dict, Optional, List, Any
 
+import hessian_eigenthings
+import numpy as np
 import pytorch_lightning as pl
 import torch as tr
 from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
 from torch.autograd.profiler import record_function
+from tqdm import tqdm
 
+from experiments.hessian import HVPFunc, HVPAutograd
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss, Scat1DLoss
 from experiments.paths import OUT_DIR
 from experiments.util import ReadOnlyTensorDict
@@ -288,6 +292,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         curr_path_idx: Optional[int] = None,
     ) -> T:
         model_params, _ = model_p
+        orig_param = model_params[p_name]
+        p = p.view(orig_param.shape)
+        # assert tr.allclose(p, orig_param)
         model_params[p_name] = p
         loss, _ = self.functional_loss(
             model_p, synth_p, loss_p, x, U, seed_hat, curr_path_idx
@@ -849,6 +856,68 @@ class SCRAPLLightingModule(pl.LightningModule):
         # tr.save(hess_s.detach().cpu(), save_path)
 
         # # Hessian calculation ========================================================
+
+        # # HVP calculation ============================================================
+        # model_params = {k: v.detach() for k, v in self.model.named_parameters()}
+        # model_buffers = {k: v.detach() for k, v in self.model.named_buffers()}
+        # synth_params = {k: v.detach() for k, v in self.synth.named_parameters()}
+        # synth_buffers = {k: v.detach() for k, v in self.synth.named_buffers()}
+        # loss_params = {k: v.detach() for k, v in self.loss_func.named_parameters()}
+        # loss_buffers = {k: v.detach() for k, v in self.loss_func.named_buffers()}
+        # model_p = (model_params, model_buffers)
+        # synth_p = (synth_params, synth_buffers)
+        # loss_p = (loss_params, loss_buffers)
+        # try:
+        #     curr_path_idx = self.loss_func.curr_path_idx
+        # except Exception:
+        #     curr_path_idx = None
+        #
+        # max_numel = np.inf
+        # hess_param_names = [name for name, p in model_params.items()
+        #                     if p.numel() <= max_numel]
+        # hess_param_names = ["cnn.1.weight"]
+        # log.info(f"max_numel = {max_numel}, hess_param_names = {hess_param_names}")
+        # for p_name in tqdm(hess_param_names):
+        #     loss_fn = functools.partial(
+        #         self.specific_model_p_functional_loss,
+        #         p_name=p_name,
+        #         model_p=model_p,
+        #         synth_p=synth_p,
+        #         loss_p=loss_p,
+        #         x=x,
+        #         U=U,
+        #         seed_hat=seed_hat,
+        #         curr_path_idx=curr_path_idx,
+        #     )
+        #     param = model_params[p_name]
+        #     log.info(f"param.numel() = {param.numel()}")
+        #     primal = param.view(-1)
+        #     hvp_op = HVPAutograd(loss_fn, primal)
+        #     # tangent = tr.randn_like(primal)
+        #     # log.info(f"starting hvp")
+        #     # hvp = hvp_op.apply(tangent)
+        #     # assert not hvp.isnan().any()
+        #     n_iter = 5
+        #     tol = 1e-4
+        #     eigenvals, _ = hessian_eigenthings.lanczos(
+        #         operator=hvp_op,
+        #         num_eigenthings=1,
+        #         # tol=tol,
+        #         which="LM",
+        #         max_steps=n_iter,
+        #         use_gpu=False,
+        #     )
+        #     log.info(f"Eigenvalues1: {eigenvals}")
+        #     eigenvals_2, _ = hessian_eigenthings.deflated_power_iteration(
+        #         operator=hvp_op,
+        #         num_eigenthings=1,
+        #         power_iter_steps=n_iter,
+        #         # power_iter_err_threshold=tol,
+        #         use_gpu=False,
+        #     )
+        #     log.info(f"Eigenvalues2: {eigenvals_2}")
+        #     exit()
+        # # HVP calculation ============================================================
 
         out_dict = {
             "loss": loss,
