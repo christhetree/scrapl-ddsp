@@ -197,13 +197,13 @@ if __name__ == "__main__":
     cqt = CQT(**cqt_params)
     y_coords = cqt.frequencies
 
-    U = cqt(x)
-    U = tr.log1p(U / eps_cqt)
-    log.info(f"U.shape: {U.shape}")
-
-    fig, ax = plt.subplots(1, 1, figsize=(6, 6))
-    plot_scalogram(ax, U[0], sr, y_coords=y_coords, hop_len=hop_len, title="Chirp 1")
-    plt.show()
+    # U = cqt(x)
+    # U = tr.log1p(U / eps_cqt)
+    # log.info(f"U.shape: {U.shape}")
+    #
+    # fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+    # plot_scalogram(ax, U[0], sr, y_coords=y_coords, hop_len=hop_len, title="Chirp 1")
+    # plt.show()
 
     U2 = cqt(x2)
     U2 = tr.log1p(U2 / eps_cqt)

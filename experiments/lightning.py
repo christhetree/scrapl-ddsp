@@ -5,12 +5,16 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Dict, Optional, List, Any
 
+import hessian_eigenthings
+import numpy as np
 import pytorch_lightning as pl
 import torch as tr
 from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
+from tqdm import tqdm
 
+from experiments.hessian import HVPAutograd
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss, Scat1DLoss
 from experiments.paths import OUT_DIR
 from experiments.util import ReadOnlyTensorDict
@@ -360,6 +364,7 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         # curr_t = 1
         # self.save_grad_hook(grad, f"g_raw_{param_idx}", curr_t)
+        # return grad
 
         if self.grad_multiplier is not None:
             grad *= self.grad_multiplier
@@ -552,10 +557,13 @@ class SCRAPLLightingModule(pl.LightningModule):
         # except Exception:
         #     curr_path_idx = None
         #
+        # name_to_idx = {name: idx for idx, name in enumerate(model_params)}
         # max_numel = np.inf
-        # hess_param_names = [name for name, p in model_params.items()
-        #                     if p.numel() <= max_numel]
-        # hess_param_names = ["cnn.1.weight"]
+        # hess_param_names = [
+        #     name for name, p in model_params.items() if p.numel() <= max_numel
+        # ]
+        # # hess_param_names = ["cnn.1.weight"]
+        # # hess_param_names = ["cnn.3.weight"]
         # log.info(f"max_numel = {max_numel}, hess_param_names = {hess_param_names}")
         # for p_name in tqdm(hess_param_names):
         #     loss_fn = functools.partial(
@@ -570,33 +578,51 @@ class SCRAPLLightingModule(pl.LightningModule):
         #         curr_path_idx=curr_path_idx,
         #     )
         #     param = model_params[p_name]
-        #     log.info(f"param.numel() = {param.numel()}")
+        #     log.info(f"param_name = {p_name}, param.numel() = {param.numel()}")
         #     primal = param.view(-1)
         #     hvp_op = HVPAutograd(loss_fn, primal)
+        #
         #     # tangent = tr.randn_like(primal)
         #     # log.info(f"starting hvp")
         #     # hvp = hvp_op.apply(tangent)
         #     # assert not hvp.isnan().any()
-        #     n_iter = 5
-        #     tol = 1e-4
-        #     eigenvals, _ = hessian_eigenthings.lanczos(
+        #
+        #     n_iter = 20
+        #     n_eig = 1
+        #     # try:
+        #     #     eigenvals, _ = hessian_eigenthings.lanczos(
+        #     #         operator=hvp_op,
+        #     #         num_eigenthings=1,
+        #     #         which="LM",
+        #     #         max_steps=n_iter,
+        #     #         use_gpu=True,
+        #     #     )
+        #     #     log.info(f"Eigenvalues lanczos: {eigenvals}")
+        #     # except Exception as e:
+        #     #     log.info(f"Lanczos failed: {e}")
+        #     use_gpu = tr.cuda.is_available()
+        #     eigenvals_power, _ = hessian_eigenthings.deflated_power_iteration(
         #         operator=hvp_op,
-        #         num_eigenthings=1,
-        #         # tol=tol,
-        #         which="LM",
-        #         max_steps=n_iter,
-        #         use_gpu=False,
-        #     )
-        #     log.info(f"Eigenvalues1: {eigenvals}")
-        #     eigenvals_2, _ = hessian_eigenthings.deflated_power_iteration(
-        #         operator=hvp_op,
-        #         num_eigenthings=1,
+        #         num_eigenthings=n_eig,
         #         power_iter_steps=n_iter,
-        #         # power_iter_err_threshold=tol,
-        #         use_gpu=False,
+        #         to_numpy=False,
+        #         use_gpu=use_gpu,
         #     )
-        #     log.info(f"Eigenvalues2: {eigenvals_2}")
-        #     exit()
+        #     eigenvals_power = tr.from_numpy(eigenvals_power.copy()).float()
+        #     log.info(f"Eigenvalues power:   {eigenvals_power}")
+        #     assert not eigenvals_power.isnan().any()
+        #
+        #     param_idx = name_to_idx[p_name]
+        #     curr_t = 1
+        #     save_dir = os.path.join(OUT_DIR, f"{self.run_name}")
+        #     os.makedirs(save_dir, exist_ok=True)
+        #     save_path = os.path.join(
+        #         save_dir,
+        #         f"{self.run_name}__eig{n_eig}_{param_idx}_{curr_t}_{curr_path_idx}.pt",
+        #     )
+        #     tr.save(eigenvals_power.detach().cpu(), save_path)
+        #
+        #     # exit()
         # # HVP calculation ============================================================
 
         out_dict = {

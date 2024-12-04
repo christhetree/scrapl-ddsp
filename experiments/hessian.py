@@ -74,16 +74,18 @@ class HVPFunc(Operator):
 class HVPAutograd(HVPFunc):
     def _hvp_revrev(self, tangent: T) -> (T, T):
         loss, vhp = tr.autograd.functional.vhp(
-            self.loss_fn, self.primal, tangent, create_graph=False, strict=True
+            self.loss_fn, self.primal, tangent, create_graph=False, strict=False
         )
         hvp = vhp.t()
         return loss, hvp
 
     def _hvp_fwdrev(self, tangent: T) -> (T, T):
-        log.warning("Fwdrev strategy is slower then revrev in tr.autograd.functional "
-                    "because it isn't using forward mode AD under the hood.")
+        log.warning(
+            "Fwdrev strategy is slower then revrev in tr.autograd.functional "
+            "because it isn't using forward mode AD under the hood."
+        )
         loss, hvp = tr.autograd.functional.hvp(
-            self.loss_fn, self.primal, tangent, create_graph=False, strict=True
+            self.loss_fn, self.primal, tangent, create_graph=False, strict=False
         )
 
         # self.primal.requires_grad_()
@@ -105,6 +107,7 @@ class HVPAutograd(HVPFunc):
 
 
 if __name__ == "__main__":
+
     def eps_fn(x: T, eps: float = 1e-12) -> T:
         # x = tr.where(x < 0, x - eps, x + eps)
         # x += eps
@@ -119,13 +122,11 @@ if __name__ == "__main__":
         return x
 
     x = tr.randn((1000000, 2))
-    with (
-            tr.profiler.profile(
-                activities=[tr.profiler.ProfilerActivity.CPU],
-                with_stack=True,
-                profile_memory=True,
-                record_shapes=False,
-            )
+    with tr.profiler.profile(
+        activities=[tr.profiler.ProfilerActivity.CPU],
+        with_stack=True,
+        profile_memory=True,
+        record_shapes=False,
     ) as prof:
         with record_function("eps_fn"):
             x = eps_fn(x)

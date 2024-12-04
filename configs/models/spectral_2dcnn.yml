@@ -13,5 +13,5 @@ init_args:
 #  latent_dim: 32
   latent_dim: 64
   use_ln: true
-  dropout_prob: 0.5
-#  dropout_prob: 0.0
+#  dropout_prob: 0.5
+  dropout_prob: 0.0

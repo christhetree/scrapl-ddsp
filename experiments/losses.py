@@ -173,7 +173,7 @@ class SCRAPLLoss(nn.Module):
         if path_idx is None:
             path_idx = self.sample_path()
         else:
-            log.info(f"Using specified path_idx = {path_idx}")
+            log.debug(f"Using specified path_idx = {path_idx}")
             assert 0 <= path_idx < self.n_paths
         dist, _, _ = self.calc_dist(x, x_target, path_idx)
         return dist

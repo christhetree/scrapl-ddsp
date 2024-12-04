@@ -23,10 +23,14 @@ init_args:
 
 #  get_path_keys_kw_args:
 #    sr: 8192
-#    am_hz_min: 4.0
-#    am_hz_max: 16.0
-#    fm_oct_hz_min: 0.5
-#    fm_oct_hz_max: 4.0
+##    am_hz_min: 4.0
+##    am_hz_max: 16.0
+##    fm_oct_hz_min: 0.5
+##    fm_oct_hz_max: 4.0
+#    am_hz_min: 16.0
+#    am_hz_max: 64.0
+#    fm_oct_hz_min: 4.0
+#    fm_oct_hz_max: 32.0
 #    spins: !!set {-1, 0, 1}  # AM only, # AM or FM
 ##    spins: !!set {1}  # FM only, AM and FM
 ##    spins: !!set {0}
