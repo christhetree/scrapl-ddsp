@@ -117,6 +117,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.l1 = nn.L1Loss()
         self.global_n = 0
         self.val_l1_s = defaultdict(list)
+        self.param_idx_to_lc = {}
 
         if use_pathwise_adam or vr_algo:
             log.info(
@@ -355,6 +356,9 @@ class SCRAPLLightingModule(pl.LightningModule):
             log.warning("vr_hook called during eval")
             return grad
 
+        # grad_norm = grad.detach().cpu().view(-1).norm(p=2)
+        # self.param_idx_to_lc[param_idx] = grad_norm
+
         path_idx = scrapl.curr_path_idx
         assert path_idx is not None
         # path_idx = 250
@@ -368,6 +372,9 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         if self.grad_multiplier is not None:
             grad *= self.grad_multiplier
+
+        # grad_norm = grad.detach().cpu().view(-1).norm(p=2)
+        # self.param_idx_to_lc[param_idx] = grad_norm
 
         if self.use_pathwise_adam:
             # Adam grad continuous normalization
@@ -449,6 +456,17 @@ class SCRAPLLightingModule(pl.LightningModule):
             raise NotImplementedError
 
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
+        # if stage == "train" and isinstance(self.loss_func, AdaptiveSCRAPLLoss):
+        #     if self.loss_func.curr_path_idx is not None:
+        #         prev_path_idx = self.loss_func.curr_path_idx
+        #         if self.param_idx_to_lc:
+        #             assert len(self.param_idx_to_lc) == 28
+        #             lc_s = [lc for lc in self.param_idx_to_lc.values()]
+        #             lc = tr.stack(lc_s, dim=0).mean().item()
+        #             log.info(f"Path {prev_path_idx} LC: {lc}")
+        #             self.loss_func.update_prob(prev_path_idx, lc)
+        # self.param_idx_to_lc.clear()
+
         theta_d_0to1, theta_s_0to1, seed, batch_indices = batch
 
         # # Grad collection setup ======================================================

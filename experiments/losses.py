@@ -120,7 +120,6 @@ class SCRAPLLoss(nn.Module):
         F: Optional[Union[str, int]] = None,
         p: int = 2,
         sample_all_paths_first: bool = False,
-        fixed_path_idx: Optional[int] = None,
     ):
         super().__init__()
         self.p = p
@@ -141,18 +140,15 @@ class SCRAPLLoss(nn.Module):
         # TODO(cm): check if this is correct
         self.scrapl_keys = [key for key in self.meta["key"] if len(key) == 2]
         self.n_paths = len(self.scrapl_keys)
+        # self.n_paths = 8
         log.info(f"number of SCRAPL keys = {self.n_paths}")
         self.path_counts = defaultdict(int)
-        self.fixed_path_idx = fixed_path_idx
 
     def sample_path(self) -> int:
-        if self.fixed_path_idx is not None:
-            path_idx = self.fixed_path_idx
-        elif self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
+        if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
             path_idx = len(self.path_counts)
         else:
             path_idx = tr.randint(0, self.n_paths, (1,)).item()
-        # log.info(f"\npath_idx = {path_idx}")
         self.path_counts[path_idx] += 1
         return path_idx
 
@@ -173,7 +169,7 @@ class SCRAPLLoss(nn.Module):
         if path_idx is None:
             path_idx = self.sample_path()
         else:
-            log.debug(f"Using specified path_idx = {path_idx}")
+            log.info(f"Using specified path_idx = {path_idx}")
             assert 0 <= path_idx < self.n_paths
         dist, _, _ = self.calc_dist(x, x_target, path_idx)
         return dist
@@ -192,18 +188,26 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         F: Optional[Union[str, int]] = None,
         p: int = 2,
         sample_all_paths_first: bool = False,
-        tau: float = 1.0,
+        min_prob_fac: float = 0.25,
         probs_path: Optional[str] = None,
         get_path_keys_kw_args: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(shape, J, Q1, Q2, J_fr, Q_fr, T, F, p, sample_all_paths_first)
-        self.tau = tau
+        assert 0 <= min_prob_fac <= 1.0
+        self.min_prob_fac = min_prob_fac
         self.get_path_indices_kw_args = get_path_keys_kw_args
+
+        self.unif_prob = 1.0 / self.n_paths
+        self.min_prob = self.unif_prob * min_prob_fac
+        log.info(f"unif_prob = {self.unif_prob:.8f}, min_prob = {self.min_prob:.8f}")
+        self.curr_path_idx = None
+        self.updated_prob_indices = set()
+        self.register_buffer("updated_vals", tr.zeros((self.n_paths,), dtype=tr.double))
+
         self.enabled_path_indices = []
-        self.register_buffer("logits", tr.zeros((self.n_paths,)))
         if probs_path is not None:
             log.info(f"Loading probs from {probs_path}")
-            probs = tr.load(probs_path)
+            probs = tr.load(probs_path).double()
             assert probs.shape == (self.n_paths,)
             self.register_buffer("probs", probs)
         elif get_path_keys_kw_args is not None:
@@ -214,7 +218,7 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
             assert path_keys, f"no path keys found for {get_path_keys_kw_args}"
             log.info(f"len(path_keys) = {len(path_keys)}")
             path_indices = []
-            probs = tr.zeros((self.n_paths,))
+            probs = tr.zeros((self.n_paths,), dtype=tr.double)
             for k in path_keys:
                 assert k in self.scrapl_keys
                 path_idx = self.scrapl_keys.index(k)
@@ -225,26 +229,61 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
             probs /= probs.sum()
             self.register_buffer("probs", probs)
         else:
-            self.probs = None
-        self.curr_path_idx = None
+            self.register_buffer("probs", tr.full((self.n_paths,), self.unif_prob, dtype=tr.double))
 
     def sample_path(self) -> int:
         if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
             path_idx = len(self.path_counts)
-            self.path_counts[path_idx] += 1
-            self.curr_path_idx = path_idx
-            return path_idx
-
-        if self.probs is None:
-            with tr.no_grad():
-                probs = util.stable_softmax(self.logits, self.tau)
         else:
-            probs = self.probs
-        path_idx = tr.multinomial(probs, 1).item()
-        # log.info(f"\npath_idx = {path_idx}")
+            assert tr.allclose(self.probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=1e-8), f"self.probs.sum() = {self.probs.sum()}"
+            path_idx = tr.multinomial(self.probs, 1).item()
         self.path_counts[path_idx] += 1
         self.curr_path_idx = path_idx
         return path_idx
+
+    def update_prob(self, path_idx: int, val: float, eps: float = 1e-8) -> None:
+        # Update probs
+        assert 0 <= path_idx < self.n_paths
+        assert val >= 0.0
+        self.updated_prob_indices.add(path_idx)
+        self.updated_vals[path_idx] = val
+        updated_indices = list(self.updated_prob_indices)
+        updated_probs_frac = len(updated_indices) / self.n_paths
+        updated_vals_sum = self.updated_vals.sum()
+        if updated_vals_sum < eps:
+            log.warning(f"not updating probs, updated_vals_sum = {updated_vals_sum}")
+        else:
+            updated_probs = self.updated_vals / updated_vals_sum * updated_probs_frac
+            remaining_indices = [idx for idx in range(self.n_paths)
+                                 if idx not in self.updated_prob_indices]
+            if remaining_indices:
+                remaining_probs_sum = self.probs[remaining_indices].sum()
+                remaining_probs_frac = remaining_probs_sum / (1.0 - updated_probs_frac)
+                self.probs[remaining_indices] *= remaining_probs_frac
+            self.probs[updated_indices] = updated_probs[updated_indices]
+            assert tr.allclose(self.probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=eps), \
+                f"self.probs.sum() = {self.probs.sum()}"
+            # Ensure min_prob is enforced
+            self.probs *= (1.0 - self.min_prob_fac)
+            self.probs += self.min_prob
+        assert tr.allclose(self.probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=eps), \
+            f"self.probs.sum() = {self.probs.sum()}"
+        assert self.probs.min() >= self.min_prob - eps, \
+            f"self.probs.min() = {self.probs.min()}"
+        # Check ratios
+        if updated_vals_sum > eps:
+            val_ratios = self.updated_vals[updated_indices] / self.updated_vals[updated_indices].min()
+            raw_probs = self.probs[updated_indices] - self.min_prob
+            prob_ratios = raw_probs / raw_probs.min()
+            # log.info(f"val_ratios = {val_ratios}, prob_ratios = {prob_ratios}")
+            assert tr.allclose(val_ratios, prob_ratios, atol=1e-3, rtol=1e-3, equal_nan=True), \
+                f"val_ratios = {val_ratios}, prob_ratios = {prob_ratios}"
+
+        # log.info(f"updated probs = {self.probs}")
+        log.info(f"updated {path_idx} probs.min() = {self.probs.min()}, "
+                 f"probs.max() = {self.probs.max()}")
+        # Prevent floating point errors
+        # self.probs /= self.probs.sum()
 
 
 class EmbeddingLoss(ABC, nn.Module):
@@ -373,6 +412,39 @@ class Wav2Vec2EmbeddingLoss(EmbeddingLoss):
 
 
 if __name__ == "__main__":
+    scrapl = AdaptiveSCRAPLLoss(
+        shape=32768,
+        J=12,
+        Q1=8,
+        Q2=2,
+        J_fr=3,
+        Q_fr=2,
+        sample_all_paths_first=False,
+        min_prob_fac=0.25,
+        # min_prob_fac=0.0,
+    )
+    n_iter = 1000
+    for _ in range(n_iter):
+        path_idx = scrapl.sample_path()
+        log.info(f"path_idx = {path_idx}")
+        val = tr.rand(1).item() * 1e-8
+        scrapl.update_prob(path_idx, val)
+
+    # scrapl.update_prob(4, 1.0)
+    # scrapl.update_prob(5, 3.0)
+    # scrapl.update_prob(6, 3.0)
+    # # scrapl.update_prob(6, 1.0)
+    # scrapl.update_prob(7, 1.0)
+    # scrapl.update_prob(0, 1.0)
+    # scrapl.update_prob(1, 1.0)
+    # scrapl.update_prob(2, 1.0)
+    # scrapl.update_prob(3, 1.0)
+    # scrapl.update_prob(4, 1.0)
+    # scrapl.update_prob(5, 1.0)
+    # scrapl.update_prob(6, 10.0)
+
+    exit()
+
     # w2v2_loss = Wav2Vec2Loss()
     # x = tr.randn(3, 1, 4000) * 3.0
     # w2v2_loss.get_embedding(x)
