@@ -2,7 +2,7 @@ seed_everything: 44
 
 custom:
   project_name: scrapl
-#  model_name: testing
+  model_name: testing
 #  model_name: ploss_mse_adamw_1e-4_b16
 #  model_name: mse_adamw_1e-4
 #  model_name: mss_adamw_1e-4
@@ -13,8 +13,9 @@ custom:
 #  model_name: wav2vec2tv_adamw_1e-4
 #  model_name: scrapl_adamw_1e-4_b16
 #  model_name: scrapl_pwa_sgd_1e-4_b16
-  model_name: scrapl_saga_sgd_1e-4_b16_a0.25
-#  model_name: scrapl_saga_sgd_1e-4_b16_am_or_fm_paths
+#  model_name: scrapl_saga_sgd_1e-4_b16
+#  model_name: scrapl_saga_sgd_1e-4_b16_a0.25
+#  model_name: scrapl_saga_sgd_1e-4_b16_am_paths
 #  model_name: scrapl_saga_sgd_1e-4_b16__am_paths_0
 #  model_name: scrapl_saga_sgd_1e-4_b16__am_paths_0_compl
 #  model_name: scrapl_saga_sgd_1e-4_b16__fm_paths_1
@@ -24,8 +25,9 @@ custom:
 #  model_name: scrapl_saga_sgd_1e-4_b16__am_or_fm_paths_-101
 #  model_name: scrapl_saga_sgd_1e-4_b16__am_or_fm_paths_-101_compl
 #  dataset_name: chirp_32_32_5
-#  dataset_name: chirp_32_32_5_micro
   dataset_name: chirp_32_32_5_meso
+#  dataset_name: chirp_32_32_5_fm_meso
+#  dataset_name: chirp_32_32_5_am_meso
 #  dataset_name: chirplet_32_32_5_micro
 #  dataset_name: chirplet_32_32_5_only_am_meso
 #  dataset_name: chirplet_32_32_5_only_fm_meso
@@ -43,8 +45,8 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [6]
-  max_epochs: 30
+  devices: [4]
+  max_epochs: 2
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 4

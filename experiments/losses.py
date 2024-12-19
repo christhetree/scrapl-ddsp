@@ -191,25 +191,35 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         min_prob_fac: float = 0.25,
         probs_path: Optional[str] = None,
         get_path_keys_kw_args: Optional[Dict[str, Any]] = None,
+        eps: float = 1e-12,
     ):
         super().__init__(shape, J, Q1, Q2, J_fr, Q_fr, T, F, p, sample_all_paths_first)
         assert 0 <= min_prob_fac <= 1.0
         self.min_prob_fac = min_prob_fac
         self.get_path_indices_kw_args = get_path_keys_kw_args
+        self.eps = eps
 
         self.unif_prob = 1.0 / self.n_paths
         self.min_prob = self.unif_prob * min_prob_fac
+        self.log_1m_min_prob_frac = tr.tensor(
+            1.0 - self.min_prob_fac, dtype=tr.double
+        ).log()
         log.info(f"unif_prob = {self.unif_prob:.8f}, min_prob = {self.min_prob:.8f}")
         self.curr_path_idx = None
-        self.updated_prob_indices = set()
-        self.register_buffer("updated_vals", tr.zeros((self.n_paths,), dtype=tr.double))
+        self.updated_indices = set()
+        # Use log and double precision to prevent cumulative floating point errors
+        self.log_vals = tr.log(tr.full((self.n_paths,), self.eps, dtype=tr.double))
+        self.log_probs = tr.log(
+            tr.full((self.n_paths,), self.unif_prob, dtype=tr.double)
+        )
+        self.log_eps = tr.log(tr.tensor(self.eps, dtype=tr.double))
 
         self.enabled_path_indices = []
         if probs_path is not None:
             log.info(f"Loading probs from {probs_path}")
             probs = tr.load(probs_path).double()
             assert probs.shape == (self.n_paths,)
-            self.register_buffer("probs", probs)
+            self.probs = probs
         elif get_path_keys_kw_args is not None:
             log.info(f"Disabling a subset of paths")
             path_keys = util.get_path_keys(
@@ -227,63 +237,74 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
                 self.enabled_path_indices.append(path_idx)
             log.info(f"path_indices = {path_indices}")
             probs /= probs.sum()
-            self.register_buffer("probs", probs)
+            self.probs = probs
         else:
-            self.register_buffer("probs", tr.full((self.n_paths,), self.unif_prob, dtype=tr.double))
+            self.probs = tr.full((self.n_paths,), self.unif_prob, dtype=tr.double)
 
     def sample_path(self) -> int:
         if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
             path_idx = len(self.path_counts)
         else:
-            assert tr.allclose(self.probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=1e-8), f"self.probs.sum() = {self.probs.sum()}"
+            assert tr.allclose(
+                self.probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=self.eps
+            ), f"self.probs.sum() = {self.probs.sum()}"
             path_idx = tr.multinomial(self.probs, 1).item()
         self.path_counts[path_idx] += 1
         self.curr_path_idx = path_idx
         return path_idx
 
-    def update_prob(self, path_idx: int, val: float, eps: float = 1e-8) -> None:
-        # Update probs
+    def _get_log_probs(self, log_vals: T) -> T:
+        log_probs = log_vals - tr.logsumexp(log_vals, dim=0)
+        return log_probs
+
+    def update_prob(self, path_idx: int, val: float) -> None:
         assert 0 <= path_idx < self.n_paths
         assert val >= 0.0
-        self.updated_prob_indices.add(path_idx)
-        self.updated_vals[path_idx] = val
-        updated_indices = list(self.updated_prob_indices)
-        updated_probs_frac = len(updated_indices) / self.n_paths
-        updated_vals_sum = self.updated_vals.sum()
-        if updated_vals_sum < eps:
-            log.warning(f"not updating probs, updated_vals_sum = {updated_vals_sum}")
+        self.updated_indices.add(path_idx)
+        log_val = tr.tensor(val, dtype=tr.double).clamp(min=self.eps).log()
+        self.log_vals[path_idx] = log_val
+        updated_indices = list(self.updated_indices)
+        n_updated = len(updated_indices)
+        if n_updated < 2:
+            # Only one prob has been updated, so no change required
+            log_probs = self.log_probs
+        elif n_updated == self.n_paths:
+            # All probs have been updated
+            log_probs = self._get_log_probs(self.log_vals)
         else:
-            updated_probs = self.updated_vals / updated_vals_sum * updated_probs_frac
-            remaining_indices = [idx for idx in range(self.n_paths)
-                                 if idx not in self.updated_prob_indices]
-            if remaining_indices:
-                remaining_probs_sum = self.probs[remaining_indices].sum()
-                remaining_probs_frac = remaining_probs_sum / (1.0 - updated_probs_frac)
-                self.probs[remaining_indices] *= remaining_probs_frac
-            self.probs[updated_indices] = updated_probs[updated_indices]
-            assert tr.allclose(self.probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=eps), \
-                f"self.probs.sum() = {self.probs.sum()}"
-            # Ensure min_prob is enforced
-            self.probs *= (1.0 - self.min_prob_fac)
-            self.probs += self.min_prob
-        assert tr.allclose(self.probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=eps), \
-            f"self.probs.sum() = {self.probs.sum()}"
-        assert self.probs.min() >= self.min_prob - eps, \
-            f"self.probs.min() = {self.probs.min()}"
-        # Check ratios
-        if updated_vals_sum > eps:
-            val_ratios = self.updated_vals[updated_indices] / self.updated_vals[updated_indices].min()
-            raw_probs = self.probs[updated_indices] - self.min_prob
-            prob_ratios = raw_probs / raw_probs.min()
-            # log.info(f"val_ratios = {val_ratios}, prob_ratios = {prob_ratios}")
-            assert tr.allclose(val_ratios, prob_ratios, atol=1e-3, rtol=1e-3, equal_nan=True), \
-                f"val_ratios = {val_ratios}, prob_ratios = {prob_ratios}"
+            # Balance between updated probs and initial uniform probs
+            self.log_probs[updated_indices] = self.log_eps
+            updated_frac = tr.tensor(n_updated / self.n_paths, dtype=tr.double)
+            stale_frac = 1.0 - updated_frac
+            updated_probs = self._get_log_probs(self.log_vals) + updated_frac.log()
+            stale_probs = self._get_log_probs(self.log_probs) + stale_frac.log()
+            log_probs = stale_probs
+            log_probs[updated_indices] = updated_probs[updated_indices]
+            log_probs = self._get_log_probs(log_probs)
 
-        # log.info(f"updated probs = {self.probs}")
-        log.info(f"updated {path_idx} probs.min() = {self.probs.min()}, "
-                 f"probs.max() = {self.probs.max()}")
-        # Prevent floating point errors
-        # self.probs /= self.probs.sum()
+        # Ensure min_prob is enforced
+        log_probs += self.log_1m_min_prob_frac
+        probs = tr.exp(log_probs) + self.min_prob
+        # log.info(f"probs.min() = {probs.min()}, "
+        #          f"probs.max() = {probs.max()}, "
+        #          f"probs.sum() = {probs.sum()}")
+        self.probs = probs
+
+        # Check that the probabilities are valid
+        assert tr.allclose(
+            probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=self.eps
+        ), f"probs.sum() = {probs.sum()}"
+        assert probs.min() >= self.min_prob - self.eps, f"probs.min() = {probs.min()}"
+
+        # Check ratios
+        vals = self.log_vals[updated_indices].exp()
+        val_ratios = vals / vals.min()
+        raw_probs = self.probs[updated_indices] - self.min_prob
+        prob_ratios = raw_probs / raw_probs.min()
+        # log.info(f"val_ratios = {val_ratios}, prob_ratios = {prob_ratios}")
+        assert tr.allclose(
+            val_ratios, prob_ratios, atol=1e-3, rtol=1e-3, equal_nan=True
+        ), f"val_ratios = {val_ratios}, prob_ratios = {prob_ratios}"
 
 
 class EmbeddingLoss(ABC, nn.Module):
@@ -423,25 +444,25 @@ if __name__ == "__main__":
         min_prob_fac=0.25,
         # min_prob_fac=0.0,
     )
-    n_iter = 1000
-    for _ in range(n_iter):
-        path_idx = scrapl.sample_path()
-        log.info(f"path_idx = {path_idx}")
-        val = tr.rand(1).item() * 1e-8
-        scrapl.update_prob(path_idx, val)
+    # n_iter = 10000
+    # for _ in range(n_iter):
+    #     path_idx = scrapl.sample_path()
+    #     log.info(f"path_idx = {path_idx}")
+    #     val = tr.rand(1).item() * 1e-8
+    #     scrapl.update_prob(path_idx, val)
 
-    # scrapl.update_prob(4, 1.0)
-    # scrapl.update_prob(5, 3.0)
-    # scrapl.update_prob(6, 3.0)
-    # # scrapl.update_prob(6, 1.0)
-    # scrapl.update_prob(7, 1.0)
-    # scrapl.update_prob(0, 1.0)
-    # scrapl.update_prob(1, 1.0)
-    # scrapl.update_prob(2, 1.0)
-    # scrapl.update_prob(3, 1.0)
-    # scrapl.update_prob(4, 1.0)
-    # scrapl.update_prob(5, 1.0)
-    # scrapl.update_prob(6, 10.0)
+    scrapl.update_prob(4, 1.0)
+    scrapl.update_prob(5, 3.0)
+    scrapl.update_prob(6, 3.0)
+    # scrapl.update_prob(6, 1.0)
+    scrapl.update_prob(7, 1.0)
+    scrapl.update_prob(0, 1.0)
+    scrapl.update_prob(1, 1.0)
+    scrapl.update_prob(2, 1.0)
+    scrapl.update_prob(3, 1.0)
+    scrapl.update_prob(4, 1.0)
+    scrapl.update_prob(5, 1.0)
+    scrapl.update_prob(6, 10.0)
 
     exit()
 

@@ -356,6 +356,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             log.warning("vr_hook called during eval")
             return grad
 
+        # # For adaptive SCRAPL, update path probabilities
         # grad_norm = grad.detach().cpu().view(-1).norm(p=2)
         # self.param_idx_to_lc[param_idx] = grad_norm
 
@@ -456,11 +457,12 @@ class SCRAPLLightingModule(pl.LightningModule):
             raise NotImplementedError
 
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
+        # # For adaptive SCRAPL, update path probabilities
         # if stage == "train" and isinstance(self.loss_func, AdaptiveSCRAPLLoss):
         #     if self.loss_func.curr_path_idx is not None:
         #         prev_path_idx = self.loss_func.curr_path_idx
         #         if self.param_idx_to_lc:
-        #             assert len(self.param_idx_to_lc) == 28
+        #             # assert len(self.param_idx_to_lc) == 28, f"len = {len(self.param_idx_to_lc)}"
         #             lc_s = [lc for lc in self.param_idx_to_lc.values()]
         #             lc = tr.stack(lc_s, dim=0).mean().item()
         #             log.info(f"Path {prev_path_idx} LC: {lc}")
