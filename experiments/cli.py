@@ -31,16 +31,16 @@ class CustomLightningCLI(LightningCLI):
         "callbacks": [
             LearningRateMonitor(logging_interval="step"),
             # ConsoleLRMonitor(logging_interval="epoch"),
-            # ModelCheckpoint(
-            #     filename="epoch_{epoch}_step_{step}",  # Name is appended
-            #     auto_insert_metric_name=False,
-            #     monitor="val/loss",
-            #     mode="min",
-            #     save_last=True,
-            #     save_top_k=1,
-            #     verbose=False,
-            # ),
-            LogScalogramCallback(),
+            ModelCheckpoint(
+                filename="epoch_{epoch}_step_{step}",  # Name is appended
+                auto_insert_metric_name=False,
+                monitor="val/loss",
+                mode="min",
+                save_last=True,
+                save_top_k=1,
+                verbose=False,
+            ),
+            # LogScalogramCallback(),
             # LogGradientCallback(),
             # LogAudioCallback(),
         ],

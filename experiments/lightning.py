@@ -1,6 +1,7 @@
 import functools
 import logging
 import os
+import time
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict, Optional, List, Any
@@ -118,6 +119,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.global_n = 0
         self.val_l1_s = defaultdict(list)
         self.param_idx_to_lc = {}
+        self.strict_loading = False
 
         if use_pathwise_adam or vr_algo:
             log.info(
@@ -157,6 +159,26 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         self.model_param_grads = None
         self.first_batch = None
+
+        # TSV logging
+        tsv_cols = [
+            "seed",
+            "stage",
+            "step",
+            "global_n",
+            "time_epoch",
+            "loss",
+            "l1_theta",
+            "l1_d",
+            "l1_s",
+        ]
+        if run_name:
+            self.tsv_path = os.path.join(OUT_DIR, f"{self.run_name}.tsv")
+            if not os.path.exists(self.tsv_path):
+                with open(self.tsv_path, "w") as f:
+                    f.write("\t".join(tsv_cols) + "\n")
+        else:
+            self.tsv_path = None
 
     @staticmethod
     def adam_grad_norm(
@@ -465,7 +487,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         #             # assert len(self.param_idx_to_lc) == 28, f"len = {len(self.param_idx_to_lc)}"
         #             lc_s = [lc for lc in self.param_idx_to_lc.values()]
         #             lc = tr.stack(lc_s, dim=0).mean().item()
-        #             log.info(f"Path {prev_path_idx} LC: {lc}")
+        #             # log.info(f"Path {prev_path_idx} LC: {lc}")
         #             self.loss_func.update_prob(prev_path_idx, lc)
         # self.param_idx_to_lc.clear()
 
@@ -644,6 +666,18 @@ class SCRAPLLightingModule(pl.LightningModule):
         #
         #     # exit()
         # # HVP calculation ============================================================
+
+        # TSV logging
+        if self.tsv_path:
+            # TODO(cm): check if there is a better way to do this
+            seed_everything = tr.initial_seed() % (2**32)
+            time_epoch = time.time()
+            with open(self.tsv_path, "a") as f:
+                f.write(
+                    f"{seed_everything}\t{stage}\t{self.global_step}\t"
+                    f"{self.global_n}\t{time_epoch}\t{loss.item()}\t"
+                    f"{theta_mae.item()}\t{l1_d.item()}\t{l1_s.item()}\n"
+                )
 
         out_dict = {
             "loss": loss,

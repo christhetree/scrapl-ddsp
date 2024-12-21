@@ -2,7 +2,7 @@ seed_everything: 44
 
 custom:
   project_name: scrapl
-  model_name: testing
+#  model_name: testing
 #  model_name: ploss_mse_adamw_1e-4_b16
 #  model_name: mse_adamw_1e-4
 #  model_name: mss_adamw_1e-4
@@ -13,7 +13,7 @@ custom:
 #  model_name: wav2vec2tv_adamw_1e-4
 #  model_name: scrapl_adamw_1e-4_b16
 #  model_name: scrapl_pwa_sgd_1e-4_b16
-#  model_name: scrapl_saga_sgd_1e-4_b16
+  model_name: scrapl_saga_sgd_1e-4_b16
 #  model_name: scrapl_saga_sgd_1e-4_b16_a0.25
 #  model_name: scrapl_saga_sgd_1e-4_b16_am_paths
 #  model_name: scrapl_saga_sgd_1e-4_b16__am_paths_0
@@ -25,7 +25,7 @@ custom:
 #  model_name: scrapl_saga_sgd_1e-4_b16__am_or_fm_paths_-101
 #  model_name: scrapl_saga_sgd_1e-4_b16__am_or_fm_paths_-101_compl
 #  dataset_name: chirp_32_32_5
-  dataset_name: chirp_32_32_5_meso
+  dataset_name: texture_32_32_5_meso
 #  dataset_name: chirp_32_32_5_fm_meso
 #  dataset_name: chirp_32_32_5_am_meso
 #  dataset_name: chirplet_32_32_5_micro
@@ -45,8 +45,8 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [4]
-  max_epochs: 2
+  devices: [7]
+  max_epochs: 50
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 4
@@ -82,9 +82,9 @@ model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
     model: ../configs/models/spectral_2dcnn.yml
-    synth: ../configs/synths/chirplet_8khz.yml
+#    synth: ../configs/synths/chirplet_8khz.yml
 #    synth: ../configs/synths/chirplet_8khz_fast.yml
-#    synth: ../configs/synths/chirp_texture_8khz.yml
+    synth: ../configs/synths/chirp_texture_8khz.yml
 #    synth: ../configs/flowtron/flowtron_synth.yml
 #    synth: ../configs/fastspeech2/fastspeech2_synth.yml
 
@@ -124,18 +124,15 @@ model:
     feature_type: cqt
     cqt_eps: 1e-3
     log_x: true
-    log_x_hat: true
-#    log_x_hat: false
+#    log_x_hat: true
+    log_x_hat: false
 #    log_val_grads: true
     log_val_grads: false
 
-#    run_name: scrapl_saga_sgd_1e-4_b16__chirplet_32_32_5_only_fm_meso
-#    run_name: scrapl_b32_no_do_power__chirplet_32_32_5_meso
-#    run_name: scrapl_b32_no_do_power__chirplet_32_32_5_meso_fm
-#    run_name: scrapl_b32_no_do_power__chirplet_32_32_5_meso_am
-#    run_name: scrapl_b32_no_do_power__chirplet_32_32_5_fast_meso_am
-#    run_name: scrapl_b32_no_do_power__chirplet_32_32_5_fast_meso_fm
-#    run_name: scrapl_b32_no_do_power__chirplet_32_32_5_fast_meso
+#    run_name: scrapl_adamw_1e-4_b16__texture_32_32_5_meso
+#    run_name: scrapl_pwa_sgd_1e-4_b16__texture_32_32_5_meso
+    run_name: scrapl_saga_sgd_1e-4_b16__texture_32_32_5_meso
+#    run_name: scrapl_saga_sgd_1e-4_b16_a0.25__texture_32_32_5_meso
 
 #optimizer: ../configs/opt/adam_w.yml
 optimizer: ../configs/opt/sgd.yml
