@@ -25,37 +25,6 @@ log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class CustomLightningCLI(LightningCLI):
-    # TODO(cm): move to yaml
-    trainer_defaults = {
-        "accelerator": "gpu",
-        "callbacks": [
-            LearningRateMonitor(logging_interval="step"),
-            # ConsoleLRMonitor(logging_interval="epoch"),
-            ModelCheckpoint(
-                filename="epoch_{epoch}_step_{step}",  # Name is appended
-                auto_insert_metric_name=False,
-                monitor="val/loss",
-                mode="min",
-                save_last=True,
-                save_top_k=1,
-                verbose=False,
-            ),
-            # LogScalogramCallback(),
-            # LogGradientCallback(),
-            # LogAudioCallback(),
-        ],
-        "logger": {
-            "class_path": "pytorch_lightning.loggers.TensorBoardLogger",
-            "init_args": {
-                "save_dir": "lightning_logs",
-                "name": None,
-            },
-        },
-        "log_every_n_steps": 1,
-        "precision": 32,
-        "strategy": lazy_instance(DDPStrategy, find_unused_parameters=False),
-    }
-
     def __init__(self, cli_config_path: Optional[str] = None, *args, **kwargs) -> None:
         if cli_config_path is None:
             cli_config_path = os.path.join(CONFIGS_DIR, "cli_config.yml")
@@ -216,3 +185,36 @@ class CustomLightningCLI(LightningCLI):
     #     print("=================================================================")
     #     print("eval message")
     #     print("=================================================================")
+
+    @staticmethod
+    def make_trainer_defaults() -> Dict[str, Any]:
+        trainer_defaults = {
+            "accelerator": "gpu",
+            "callbacks": [
+                LearningRateMonitor(logging_interval="step"),
+                # ConsoleLRMonitor(logging_interval="epoch"),
+                ModelCheckpoint(
+                    filename="epoch_{epoch}_step_{step}",  # Name is appended
+                    auto_insert_metric_name=False,
+                    monitor="val/loss",
+                    mode="min",
+                    save_last=False,
+                    save_top_k=1,
+                    verbose=False,
+                ),
+                # LogScalogramCallback(),
+                # LogGradientCallback(),
+                # LogAudioCallback(),
+            ],
+            "logger": {
+                "class_path": "pytorch_lightning.loggers.TensorBoardLogger",
+                "init_args": {
+                    "save_dir": "lightning_logs",
+                    "name": None,
+                },
+            },
+            "log_every_n_steps": 1,
+            "precision": 32,
+            "strategy": lazy_instance(DDPStrategy, find_unused_parameters=False),
+        }
+        return trainer_defaults

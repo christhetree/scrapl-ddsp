@@ -208,6 +208,7 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         self.curr_path_idx = None
         self.updated_indices = set()
         # Use log and double precision to prevent cumulative floating point errors
+        # TODO(cm): register buffer, but cpu, for checkpointing
         self.log_vals = tr.log(tr.full((self.n_paths,), self.eps, dtype=tr.double))
         self.log_probs = tr.log(
             tr.full((self.n_paths,), self.unif_prob, dtype=tr.double)

@@ -718,7 +718,11 @@ class SCRAPLLightingModule(pl.LightningModule):
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         state_dict = checkpoint["state_dict"]
-        excluded_keys = [k for k in state_dict if k.startswith("synth")]
+        excluded_keys = [k for k in state_dict
+                         if k.startswith("synth")
+                         or k.startswith("loss_func.jtfs")
+                         or k.startswith("prev_path_grads")  # Tmp to reduce chkpt size
+                         or k.startswith("cqt")]
         for k in excluded_keys:
             del state_dict[k]
 

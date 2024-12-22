@@ -2,40 +2,11 @@
 
 custom:
   project_name: scrapl
-#  model_name: testing
-#  model_name: ploss_mse_adamw_1e-4_b16
-#  model_name: mse_adamw_1e-4
-#  model_name: mss_adamw_1e-4
-#  model_name: jtfs_adamw_1e-4
-#  model_name: scat1d_adamw_1e-4
-#  model_name: scat_1d_o1_J12_Q24_T64_adamw_1e-4
-#  model_name: clap_adamw_1e-4
-#  model_name: wav2vec2tv_adamw_1e-4
 #  model_name: scrapl_adamw_1e-5_b32
 #  model_name: scrapl_pwa_sgd_1e-5_b32
-  model_name: scrapl_saga_sgd_1e-5_b32
-#  model_name: scrapl_saga_sgd_1e-5_b32_a0.25
-#  model_name: scrapl_saga_sgd_1e-4_b16_am_paths
-#  model_name: scrapl_saga_sgd_1e-4_b16__am_paths_0
-#  model_name: scrapl_saga_sgd_1e-4_b16__am_paths_0_compl
-#  model_name: scrapl_saga_sgd_1e-4_b16__fm_paths_1
-#  model_name: scrapl_saga_sgd_1e-4_b16__fm_paths_1_compl
-#  model_name: scrapl_saga_sgd_1e-4_b16__am_fm_paths_1
-#  model_name: scrapl_saga_sgd_1e-4_b16__am_fm_paths_1_compl
-#  model_name: scrapl_saga_sgd_1e-4_b16__am_or_fm_paths_-101
-#  model_name: scrapl_saga_sgd_1e-4_b16__am_or_fm_paths_-101_compl
-#  dataset_name: chirp_32_32_5
+#  model_name: scrapl_saga_sgd_1e-5_b32
+  model_name: scrapl_saga_sgd_1e-5_b32_a0.25
   dataset_name: texture_32_32_5_meso
-#  dataset_name: chirp_32_32_5_fm_meso
-#  dataset_name: chirp_32_32_5_am_meso
-#  dataset_name: chirplet_32_32_5_micro
-#  dataset_name: chirplet_32_32_5_only_am_meso
-#  dataset_name: chirplet_32_32_5_only_fm_meso
-#  dataset_name: chirplet_32_32_5_meso
-#  dataset_name: chirplet_32_32_5_fast
-#  dataset_name: chirplet_32_32_5_fast_micro
-#  dataset_name: chirplet_32_32_5_fast_meso
-#  dataset_name: testing
   cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
@@ -46,11 +17,10 @@ trainer:
   accelerator: gpu
   benchmark: false
   devices: [3]
-  max_epochs: 2
+  max_epochs: 200
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 4
-#  gradient_clip_val: 0.5
 
 data:
   class_path: experiments.data_modules.ThetaDSDataModule
@@ -60,18 +30,18 @@ data:
 #    batch_size: 4
 
     num_workers: 4
-    n_d: 4
+    n_d: 32
 #    n_d: 16
 #    n_d: 256
 #    n_d: 1
-    n_s: 4
+    n_s: 32
 #    n_s: 16
 #    n_s: 1
 #    n_s: 256
 #    n_s: 8
 #    n_seeds_per_theta: 10
-#    n_seeds_per_theta: 5
-    n_seeds_per_theta: 1
+    n_seeds_per_theta: 5
+#    n_seeds_per_theta: 1
     n_folds: 5
     use_unique_seeds: true
 #    use_unique_seeds: false
@@ -131,8 +101,8 @@ model:
 
 #    run_name: scrapl_adamw_1e-5_b32__texture_32_32_5_meso
 #    run_name: scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso
-    run_name: scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso
-#    run_name: scrapl_saga_sgd_1e-5_b32_a0.25__texture_32_32_5_meso
+#    run_name: scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso
+    run_name: scrapl_saga_sgd_1e-5_b32_a0.25__texture_32_32_5_meso
 
 #optimizer: ../configs/opt/adam_w.yml
 optimizer: ../configs/opt/sgd.yml
