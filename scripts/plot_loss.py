@@ -116,19 +116,17 @@ def plot_xy_vals(
 
     mean_label = "mean"
     if title is not None:
-        mean_label = f"{title} mean"
+        mean_label = title
     ax.plot(x_vals, y_means, label=mean_label, lw=2)
     if plot_95ci:
         ax.fill_between(
             x_vals,
             y_means - y_95cis,
             y_means + y_95cis,
-            # color="blue",
-            alpha=0.2,
-            # label="95% CI",
+            alpha=0.4,
         )
     if plot_range:
-        ax.fill_between(x_vals, y_mins, y_maxs, color="gray", alpha=0.2)
+        ax.fill_between(x_vals, y_mins, y_maxs, color="gray", alpha=0.4)
 
     # Labels and legend
     ax.set_xlabel(f"{x_col}")
@@ -139,36 +137,27 @@ def plot_xy_vals(
 
 if __name__ == "__main__":
     tsv_names_and_paths = [
-        (
-            "adam",
-            os.path.join(OUT_DIR, f"scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv"),
-        ),
-        (
-            "pwa",
-            os.path.join(OUT_DIR, f"scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv"),
-        ),
-        (
-            "saga",
-            os.path.join(
-                OUT_DIR, f"scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso.tsv"
-            ),
-        ),
-        (
-            "saga_a0.25",
-            os.path.join(
-                OUT_DIR, f"scrapl_saga_sgd_1e-5_b32_a0.25__texture_32_32_5_meso.tsv"
-            ),
-        ),
+        ("adam", os.path.join(OUT_DIR, f"scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        ("pwa", os.path.join(OUT_DIR, f"scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        ("saga", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        ("saga_a0.25", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32_a0.25__texture_32_32_5_meso.tsv")),
+        ("jtfs", os.path.join(OUT_DIR, f"jtfs_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        ("clap", os.path.join(OUT_DIR, f"clap_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
     ]
-    stage = "train"
-    # stage = "val"
+    # stage = "train"
+    stage = "val"
     # stage = "test"
     x_col = "step"
+    # x_col = "global_n"
     y_col = "l1_theta"
+    # y_col = "l1_d"
+    # y_col = "l1_s"
 
     # Plot
     fig, ax = plt.subplots(figsize=(10, 6))
+    ax.set_title(f"{stage} {y_col}")
     for name, tsv_path in tsv_names_and_paths:
-        data = prepare_tsv_data(tsv_path, stage, x_col, y_col, allow_var_n=False)
-        plot_xy_vals(ax, data, title=name)
+        log.info(f"Plotting {name}")
+        data = prepare_tsv_data(tsv_path, stage, x_col, y_col, allow_var_n=True)
+        plot_xy_vals(ax, data, title=name, plot_95ci=True, plot_range=False)
     plt.show()

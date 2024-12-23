@@ -1,0 +1,106 @@
+#seed_everything: 44
+
+custom:
+  project_name: scrapl
+  model_name: jtfs_adamw_1e-5_b32
+  dataset_name: texture_32_32_5_meso
+  cpu_batch_size: 3
+#  use_wandb_cpu: true
+  use_wandb_cpu: false
+#  use_wandb_gpu: false
+  use_wandb_gpu: true
+
+trainer:
+  accelerator: gpu
+  benchmark: false
+  devices: [6]
+  max_epochs: 50
+  num_sanity_val_steps: 1
+#  accumulate_grad_batches: 1
+  accumulate_grad_batches: 8
+
+data:
+  class_path: experiments.data_modules.ThetaDSDataModule
+  init_args:
+#    batch_size: 32
+#    batch_size: 16
+    batch_size: 4
+
+    num_workers: 4
+    n_d: 32
+#    n_d: 16
+#    n_d: 256
+#    n_d: 1
+    n_s: 32
+#    n_s: 16
+#    n_s: 1
+#    n_s: 256
+#    n_s: 8
+#    n_seeds_per_theta: 10
+    n_seeds_per_theta: 5
+#    n_seeds_per_theta: 1
+    n_folds: 5
+    use_unique_seeds: true
+#    use_unique_seeds: false
+    use_unique_theta_in_val_test: true
+#    use_unique_theta_in_val_test: false
+
+model:
+  class_path: experiments.lightning.SCRAPLLightingModule
+  init_args:
+    model: ../configs/models/spectral_2dcnn.yml
+#    synth: ../configs/synths/chirplet_8khz.yml
+#    synth: ../configs/synths/chirplet_8khz_fast.yml
+    synth: ../configs/synths/chirp_texture_8khz.yml
+#    synth: ../configs/flowtron/flowtron_synth.yml
+#    synth: ../configs/fastspeech2/fastspeech2_synth.yml
+
+#    loss_func: ../configs/losses/mss.yml
+#    loss_func: ../configs/losses/scat_1d_dtfa.yml
+#    loss_func: ../configs/losses/rand_mss.yml
+    loss_func: ../configs/losses/jtfst_dtfa.yml
+#    loss_func: ../configs/losses/scrapl_dtfa.yml
+#    loss_func: ../configs/losses/scrapl_adaptive.yml
+#    loss_func: ../configs/losses/clap.yml
+#    loss_func: ../configs/losses/wav2vec2.yml
+#    loss_func: ../configs/losses/wav2vec2tv.yml
+
+#    grad_multiplier: null
+    grad_multiplier: 1e8
+
+    use_pathwise_adam: False
+#    use_pathwise_adam: True
+
+    vr_algo: null
+#    vr_algo: saga
+#    vr_algo: sag
+    vr_beta: 1.00
+
+    use_p_loss: false
+#    use_p_loss: true
+#    loss_func: torch.nn.MSELoss
+
+    use_train_rand_seed: false
+#    use_train_rand_seed: true
+    use_val_rand_seed: false
+#    use_val_rand_seed: true
+
+#    use_rand_seed_hat: false
+    use_rand_seed_hat: true
+
+    feature_type: cqt
+    cqt_eps: 1e-3
+    log_x: true
+#    log_x_hat: true
+    log_x_hat: false
+#    log_val_grads: true
+    log_val_grads: false
+
+    run_name: jtfs_adamw_1e-5_b32__texture_32_32_5_meso
+
+optimizer: ../configs/opt/adam_w.yml
+#optimizer: ../configs/opt/sgd.yml
+#optimizer: ../configs/opt/sf_adam_w.yml
+#optimizer: ../configs/opt/sf_sgd.yml
+
+#lr_scheduler: ../configs/opt/exp_scheduler.yml
