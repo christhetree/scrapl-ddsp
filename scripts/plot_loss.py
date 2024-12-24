@@ -7,12 +7,34 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Subplot
+from pandas import DataFrame
 
 from experiments.paths import OUT_DIR
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
+
+
+def calc_tv(df: DataFrame, x_col: str, y_col: str) -> (float, float):
+    # Check that x_col is monotonically increasing and unique
+    assert df[x_col].is_monotonic_increasing
+    assert df[x_col].is_unique
+    n = len(df)
+    y_vals = df[y_col].values
+    tv = 0.0
+    for i in range(1, n):
+        tv += np.abs(y_vals[i] - y_vals[i - 1])
+    tv_x_normed = tv / n
+    y_min = df[y_col].min()
+    y_max = df[y_col].max()
+    y_range = y_max - y_min
+    y_vals_0to1 = (y_vals - y_min) / y_range
+    tv = 0.0
+    for i in range(1, n):
+        tv += np.abs(y_vals_0to1[i] - y_vals_0to1[i - 1])
+    tv_xy_normed = tv / n
+    return tv_x_normed, tv_xy_normed
 
 
 def prepare_tsv_data(
@@ -27,24 +49,67 @@ def prepare_tsv_data(
 
     # Filter out stage
     df = df[df["stage"] == stage]
-    log.info(f"Number of rows before removing warmup steps: {len(df)}")
+    log.debug(f"Number of rows before removing warmup steps: {len(df)}")
     # Remove sanity check rows
     df = df[~((df["step"] == 0) & (df["stage"] == "val"))]
-    log.info(f"Number of rows after  removing warmup steps: {len(df)}")
+    log.debug(f"Number of rows after  removing warmup steps: {len(df)}")
 
     data = defaultdict(list)
     grouped = df.groupby(trial_col)
+
+    x_val_mins = []
+    x_val_maxs = []
+    x_val_ranges = []
+    durs = []
+    tvs_x_normed = []
+    tvs_xy_normed = []
+
     for _, group in grouped:
-        x_vals = group[x_col].tolist()
-        y_vals = group[y_col].tolist()
-        if stage == "train":
-            for x_val, y_val in zip(x_vals, y_vals):
-                data[x_val].append(y_val)
-        else:
-            grouped_x = group.groupby(x_col)
-            for x_val, group_x in grouped_x:
-                y_val = group_x[y_col].mean()
-                data[x_val].append(y_val)
+        # Calc ranges and duration per step
+        x_val_min = group[x_col].min()
+        x_val_min_ts = group[group[x_col] == x_val_min]["time_epoch"].values[0]
+        x_val_max = group[x_col].max()
+        x_val_max_ts = group[group[x_col] == x_val_max]["time_epoch"].values[0]
+        x_val_mins.append(x_val_min)
+        x_val_maxs.append(x_val_max)
+        x_val_ranges.append(x_val_max - x_val_min)
+        dur = x_val_max_ts - x_val_min_ts
+        durs.append(dur)
+        # Take mean of y values if there are multiple for each x value (e.g. val / test or grad accumulation)
+        grouped_x = group.groupby(x_col).agg({y_col: "mean"})
+        for x_val, y_val in grouped_x.itertuples():
+            data[x_val].append(y_val)
+        if stage != "test":
+            # Calc TV
+            grouped_x.reset_index(drop=False, inplace=True)
+            tv_x_normed, tv_xy_normed = calc_tv(grouped_x, x_col, y_col)
+            tvs_x_normed.append(tv_x_normed)
+            tvs_xy_normed.append(tv_xy_normed)
+
+    if not allow_var_n:
+        assert len(set(x_val_mins)) == 1, "Found var min x val"
+        assert len(set(x_val_maxs)) == 1, "Found var max x val"
+        assert len(set(x_val_ranges)) == 1, "Found var range x val"
+
+    # Display duration information
+    x_val_min = x_val_mins[0]
+    x_val_max = x_val_maxs[0]
+    if x_val_max != x_val_min:
+        durs_per_step = [dur / x_val_range for dur, x_val_range in zip(durs, x_val_ranges)]
+        avg_dur_per_step = np.mean(durs_per_step)
+    else:
+        avg_dur_per_step = 0.0
+    log.info(f"Min {x_col}: {x_val_min}, Max {x_col}: {x_val_max}, "
+             f"Avg dur per {x_col}: {avg_dur_per_step:.4f} sec")
+
+    if stage != "test":
+        # Display TV information
+        tv_x_normed = np.mean(tvs_x_normed)
+        tv_xy_normed = np.mean(tvs_xy_normed)
+        log.info(f"TV {y_col} (x normed): {tv_x_normed:.4f}, "
+                 f"TV {y_col} (xy normed): {tv_xy_normed:.4f}")
+
+    # Display mean, 95% CI, and range for test stage
     if stage == "test":
         assert len(data) == 1
         # Calc mean, 95% CI, and range
@@ -157,7 +222,7 @@ if __name__ == "__main__":
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.set_title(f"{stage} {y_col}")
     for name, tsv_path in tsv_names_and_paths:
-        log.info(f"Plotting {name}")
+        log.info(f"Plotting {name}, stage: {stage} ===================================")
         data = prepare_tsv_data(tsv_path, stage, x_col, y_col, allow_var_n=True)
         plot_xy_vals(ax, data, title=name, plot_95ci=True, plot_range=False)
     plt.show()
