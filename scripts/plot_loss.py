@@ -42,7 +42,9 @@ def prepare_tsv_data(
     stage: str,
     x_col: str,
     y_col: str,
+    y_converge_val: float = 0.1,
     trial_col: str = "seed",
+    time_col: str = "time_epoch",
     allow_var_n: bool = False,
 ) -> Dict[str, np.ndarray]:
     df = pd.read_csv(tsv_path, sep="\t", index_col=False)
@@ -63,13 +65,15 @@ def prepare_tsv_data(
     durs = []
     tvs_x_normed = []
     tvs_xy_normed = []
+    converged = []
+    converged_x_vals = []
 
     for _, group in grouped:
         # Calc ranges and duration per step
         x_val_min = group[x_col].min()
-        x_val_min_ts = group[group[x_col] == x_val_min]["time_epoch"].values[0]
+        x_val_min_ts = group[group[x_col] == x_val_min][time_col].values[0]
         x_val_max = group[x_col].max()
-        x_val_max_ts = group[group[x_col] == x_val_max]["time_epoch"].values[0]
+        x_val_max_ts = group[group[x_col] == x_val_max][time_col].values[0]
         x_val_mins.append(x_val_min)
         x_val_maxs.append(x_val_max)
         x_val_ranges.append(x_val_max - x_val_min)
@@ -85,10 +89,21 @@ def prepare_tsv_data(
             tv_x_normed, tv_xy_normed = calc_tv(grouped_x, x_col, y_col)
             tvs_x_normed.append(tv_x_normed)
             tvs_xy_normed.append(tv_xy_normed)
+        # Check for convergence
+        y_val_min = grouped_x[y_col].min()
+        if y_val_min <= y_converge_val:
+            converged.append(1)
+            if stage != "test":
+                # Find first y value less than y_converge_val and corresponding x value
+                assert grouped_x[x_col].is_monotonic_increasing
+                con_x_val = grouped_x[grouped_x[y_col] <= y_converge_val][x_col].values[0]
+                converged_x_vals.append(con_x_val)
+        else:
+            converged.append(0)
 
     if not allow_var_n:
-        assert len(set(x_val_mins)) == 1, "Found var min x val"
-        assert len(set(x_val_maxs)) == 1, "Found var max x val"
+        assert len(set(x_val_mins)) == 1, f"Found var min x val {x_val_mins}"
+        assert len(set(x_val_maxs)) == 1, f"Found var max x val {x_val_maxs}"
         assert len(set(x_val_ranges)) == 1, "Found var range x val"
 
     # Display duration information
@@ -126,8 +141,25 @@ def prepare_tsv_data(
             f"range: ({y_min:.4f}, {y_max:.4f}), n: {len(y_vals)}"
         )
 
+    # Display convergence information
+    con_rate = np.mean(converged)
+    log.info(f"Converged rate: {con_rate:.4f}, y converge val: {y_converge_val}")
+    if stage != "test" and con_rate > 0:
+        con_x_val = np.mean(converged_x_vals)
+        con_x_std = np.std(converged_x_vals)
+        con_x_min = np.min(converged_x_vals)
+        con_x_max = np.max(converged_x_vals)
+        con_x_sem = con_x_std / np.sqrt(len(converged_x_vals))
+        con_x_95ci = 1.96 * con_x_sem
+        log.info(
+            f"Converged {x_col}: {con_x_val:.0f}, 95% CI: {con_x_95ci:.0f} "
+            f"({con_x_val - con_x_95ci:.0f}, {con_x_val + con_x_95ci:.0f}), "
+            f"range: ({con_x_min:.0f}, {con_x_max:.0f}), n: {len(converged_x_vals)}"
+        )
+
     x_vals = []
     y_means = []
+    y_vars = []
     y_stds = []
     y_mins = []
     y_maxs = []
@@ -139,12 +171,14 @@ def prepare_tsv_data(
         y_vals = data[x_val]
         n = len(y_vals)
         y_mean = np.mean(y_vals)
+        y_var = np.var(y_vals)
         y_std = np.std(y_vals)
         y_sem = y_std / np.sqrt(n)
         y_95ci = 1.96 * y_sem
         y_min = np.min(y_vals)
         y_max = np.max(y_vals)
         y_means.append(y_mean)
+        y_vars.append(y_var)
         y_stds.append(y_std)
         y_mins.append(y_min)
         y_maxs.append(y_max)
@@ -157,6 +191,12 @@ def prepare_tsv_data(
     y_95cis = np.array(y_95cis)
     y_mins = np.array(y_mins)
     y_maxs = np.array(y_maxs)
+
+    # Display variance info
+    y_std = np.mean(y_stds)
+    y_var = np.mean(y_vars)
+    log.info(f"{y_col} mean std: {y_std:.4f}, mean var: {y_var:.8f}")
+
     return {
         "x_vals": x_vals,
         "y_means": y_means,
@@ -206,8 +246,8 @@ if __name__ == "__main__":
         ("pwa", os.path.join(OUT_DIR, f"scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
         ("saga", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
         ("saga_a0.25", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32_a0.25__texture_32_32_5_meso.tsv")),
-        ("jtfs", os.path.join(OUT_DIR, f"jtfs_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        ("clap", os.path.join(OUT_DIR, f"clap_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("jtfs", os.path.join(OUT_DIR, f"jtfs_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("clap", os.path.join(OUT_DIR, f"clap_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
     ]
     # stage = "train"
     stage = "val"
@@ -223,6 +263,6 @@ if __name__ == "__main__":
     ax.set_title(f"{stage} {y_col}")
     for name, tsv_path in tsv_names_and_paths:
         log.info(f"Plotting {name}, stage: {stage} ===================================")
-        data = prepare_tsv_data(tsv_path, stage, x_col, y_col, allow_var_n=True)
+        data = prepare_tsv_data(tsv_path, stage, x_col, y_col, y_converge_val=0.1, allow_var_n=False)
         plot_xy_vals(ax, data, title=name, plot_95ci=True, plot_range=False)
     plt.show()
