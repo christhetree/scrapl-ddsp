@@ -2,10 +2,13 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Union, Any, Optional, Dict
+from typing import Union, Any, Optional, Dict, List
 
+import scipy
 import torch as tr
 import torch.nn as nn
+
+from experiments.util import ReadOnlyTensorDict
 from kymatio.torch import Scattering1D, TimeFrequencyScattering
 from msclap import CLAP
 from torch import Tensor as T
@@ -61,9 +64,9 @@ class JTFSTLoss(nn.Module):
         if self.format == "time":
             Sx = Sx[:, :, 1:, :]  # Remove the 0th order coefficients
             Sx_target = Sx_target[:, :, 1:, :]  # Remove the 0th order coefficients
-            dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=-1)
+            dist = tr.linalg.vector_norm(Sx_target - Sx, ord=self.p, dim=-1)
         else:
-            dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=(-2, -1))
+            dist = tr.linalg.vector_norm(Sx_target - Sx, ord=self.p, dim=(-2, -1))
         dist = tr.mean(dist)
         return dist
 
@@ -99,9 +102,9 @@ class Scat1DLoss(nn.Module):
         Sx_target = Sx_target[:, :, 1:, :]  # Remove the 0th order coefficients
 
         if self.max_order == 1:
-            dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=(-2, -1))
+            dist = tr.linalg.vector_norm(Sx_target - Sx, ord=self.p, dim=(-2, -1))
         else:
-            dist = tr.linalg.norm(Sx_target - Sx, ord=self.p, dim=-1)
+            dist = tr.linalg.vector_norm(Sx_target - Sx, ord=self.p, dim=-1)
 
         dist = tr.mean(dist)
         return dist
@@ -159,7 +162,7 @@ class SCRAPLLoss(nn.Module):
         Sx_target = self.jtfs.scattering_singlepath(x_target, n2, n_fr)
         Sx_target = Sx_target["coef"].squeeze(-1)
         diff = Sx_target - Sx
-        dist = tr.linalg.norm(diff, ord=self.p, dim=(-2, -1))
+        dist = tr.linalg.vector_norm(diff, ord=self.p, dim=(-2, -1))
         dist = tr.mean(dist)
         return dist, Sx, Sx_target
 
@@ -366,10 +369,10 @@ class EmbeddingLoss(ABC, nn.Module):
         diff = x_target_emb - x_emb
         if self.use_time_varying:
             assert diff.ndim == 3
-            dist = tr.linalg.norm(diff, ord=self.p, dim=(-2, -1))
+            dist = tr.linalg.vector_norm(diff, ord=self.p, dim=(-2, -1))
         else:
             assert diff.ndim == 2
-            dist = tr.linalg.norm(diff, ord=self.p, dim=-1)
+            dist = tr.linalg.vector_norm(diff, ord=self.p, dim=-1)
         dist = tr.mean(dist)
         return dist
 
@@ -433,7 +436,100 @@ class Wav2Vec2EmbeddingLoss(EmbeddingLoss):
         return emb
 
 
+class LogMSSLoss(nn.Module):
+    def __init__(
+        self,
+        fft_sizes: Optional[List[int]] = None,
+        hop_sizes: Optional[List[int]] = None,
+        win_lengths: Optional[List[int]] = None,
+        window: str = "flat_top",
+        log_mag_eps: float = 1.0,
+        gamma: float = 1.0,
+        p: int = 2,
+    ):
+        super().__init__()
+        if win_lengths is None:
+            win_lengths = [67, 127, 257, 509, 1021, 2053]
+            log.info(f"win_lengths = {win_lengths}")
+        if fft_sizes is None:
+            fft_sizes = win_lengths
+            log.info(f"fft_sizes = {fft_sizes}")
+        if hop_sizes is None:
+            hop_sizes = [w // 2 for w in win_lengths]
+            log.info(f"hop_sizes = {hop_sizes}")
+        self.fft_sizes = fft_sizes
+        self.hop_sizes = hop_sizes
+        self.win_lengths = win_lengths
+        self.window = window
+        self.log_mag_eps = log_mag_eps
+        self.gamma = gamma
+        self.p = p
+        # Create windows
+        windows = {}
+        for win_length in win_lengths:
+            win = self.make_window(window, win_length)
+            windows[win_length] = win
+        self.windows = ReadOnlyTensorDict(windows)
+
+    def forward(self, x: T, x_target: T) -> T:
+        assert x.ndim == x_target.ndim == 3
+        assert x.size(1) == x_target.size(1) == 1
+        x = x.squeeze(1)
+        x_target = x_target.squeeze(1)
+        dists = []
+        for fft_size, hop_size, win_length in zip(
+            self.fft_sizes, self.hop_sizes, self.win_lengths
+        ):
+            win = self.windows[win_length]
+            Sx = tr.stft(
+                x,
+                n_fft=fft_size,
+                hop_length=hop_size,
+                win_length=win_length,
+                window=win,
+                return_complex=True,
+            ).abs()
+            Sx_target = tr.stft(
+                x_target,
+                n_fft=fft_size,
+                hop_length=hop_size,
+                win_length=win_length,
+                window=win,
+                return_complex=True,
+            ).abs()
+            if self.log_mag_eps == 1.0:
+                log_Sx = tr.log1p(self.gamma * Sx)
+                log_Sx_target = tr.log1p(self.gamma * Sx_target)
+            else:
+                log_Sx = tr.log(self.gamma * Sx + self.log_mag_eps)
+                log_Sx_target = tr.log(self.gamma * Sx_target + self.log_mag_eps)
+            dist = tr.linalg.vector_norm(log_Sx_target - log_Sx, ord=self.p, dim=(-2, -1))
+            dists.append(dist)
+        dist = tr.stack(dists, dim=1).sum(dim=1)
+        dist = dist.mean()  # Aggregate the batch dimension
+        return dist
+
+    @staticmethod
+    def make_window(window: str, n: int) -> T:
+        if window == "rect":
+            return tr.ones(n)
+        elif window == "hann":
+            return tr.hann_window(n)
+        elif window == "flat_top":
+            window = scipy.signal.windows.flattop(n, sym=False)
+            window = tr.from_numpy(window).float()
+            return window
+        else:
+            raise ValueError(f"Unknown window type: {window}")
+
+
 if __name__ == "__main__":
+    audio = tr.randn(3, 1, 4000)
+    audio_target = tr.randn(3, 1, 4000)
+    mss = LogMSSLoss()
+    mss(audio, audio_target)
+    exit()
+
     scrapl = AdaptiveSCRAPLLoss(
         shape=32768,
         J=12,

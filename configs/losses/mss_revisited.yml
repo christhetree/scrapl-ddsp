@@ -1,0 +1,27 @@
+class_path: experiments.losses.LogMSSLoss
+init_args:
+  fft_sizes:
+    - 67
+    - 127
+    - 257
+    - 509
+    - 1021
+    - 2053
+  hop_sizes:
+    - 33
+    - 63
+    - 128
+    - 254
+    - 510
+    - 1026
+  win_lengths:
+    - 67
+    - 127
+    - 257
+    - 509
+    - 1021
+    - 2053
+  window: flat_top
+  log_mag_eps: 1.0
+  gamma: 1.0
+  p: 2

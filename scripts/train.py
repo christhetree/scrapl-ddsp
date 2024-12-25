@@ -20,6 +20,9 @@ if __name__ == "__main__":
     # config_name = "train_4.yml"
     # config_name = "train_5.yml"
     # config_name = "train_6.yml"
+    # config_name = "train_7.yml"
+    # config_name = "train_8.yml"
+    # config_name = "train_9.yml"
     log.info(f"Running with config: {config_name}")
     seeds = None
     # seeds = [0, 1, 2]
