@@ -7,13 +7,13 @@ custom:
   cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
-#  use_wandb_gpu: false
-  use_wandb_gpu: true
+  use_wandb_gpu: false
+#  use_wandb_gpu: true
 
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [2]
+  devices: [6]
   max_epochs: 200
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1

@@ -2,13 +2,13 @@
 
 custom:
   project_name: scrapl
-  model_name: clap_adamw_1e-5_b32
+  model_name: clap_adamw_1e-5_b32_fixed_norm
   dataset_name: texture_32_32_5_meso
   cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
-#  use_wandb_gpu: false
-  use_wandb_gpu: true
+  use_wandb_gpu: false
+#  use_wandb_gpu: true
 
 trainer:
   accelerator: gpu
@@ -96,7 +96,7 @@ model:
 #    log_val_grads: true
     log_val_grads: false
 
-    run_name: clap_adamw_1e-5_b32__texture_32_32_5_meso
+    run_name: clap_adamw_1e-5_b32_fixed_norm__texture_32_32_5_meso
 
 optimizer: ../configs/opt/adam_w.yml
 #optimizer: ../configs/opt/sgd.yml

@@ -2,7 +2,7 @@
 
 custom:
   project_name: scrapl
-  model_name: jtfs_adamw_1e-5_b32
+  model_name: jtfs_adamw_1e-5_b32_fixed_norm
   dataset_name: texture_32_32_5_meso
   cpu_batch_size: 3
 #  use_wandb_cpu: true
@@ -13,7 +13,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [6]
+  devices: [7]
   max_epochs: 50
   num_sanity_val_steps: 1
 #  accumulate_grad_batches: 1
@@ -96,7 +96,7 @@ model:
 #    log_val_grads: true
     log_val_grads: false
 
-    run_name: jtfs_adamw_1e-5_b32__texture_32_32_5_meso
+    run_name: jtfs_adamw_1e-5_b32_fixed_norm__texture_32_32_5_meso
 
 optimizer: ../configs/opt/adam_w.yml
 #optimizer: ../configs/opt/sgd.yml

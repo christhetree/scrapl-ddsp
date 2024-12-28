@@ -242,12 +242,23 @@ def plot_xy_vals(
 
 if __name__ == "__main__":
     tsv_names_and_paths = [
-        ("adam", os.path.join(OUT_DIR, f"scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        ("pwa", os.path.join(OUT_DIR, f"scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
-        ("saga", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
-        ("saga_a0.25", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32_a0.25__texture_32_32_5_meso.tsv")),
-        # ("jtfs", os.path.join(OUT_DIR, f"jtfs_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("clap", os.path.join(OUT_DIR, f"clap_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("adam", os.path.join(OUT_DIR, f"scrapl_adamw_1e-5_b32_fixed_norm__texture_32_32_5_meso.tsv")),
+        # ("pwa", os.path.join(OUT_DIR, f"scrapl_pwa_sgd_1e-5_b32_fixed_norm__texture_32_32_5_meso.tsv")),
+        # ("saga_prev", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("saga", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32_fixed_norm__texture_32_32_5_meso.tsv")),
+        # ("saga_a0.25_prev", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32_a0.25__texture_32_32_5_meso.tsv")),
+        # ("saga_a0.25", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32_a0.25_fixed_norm__texture_32_32_5_meso.tsv")),
+        # ("jtfs", os.path.join(OUT_DIR, f"jtfs_adamw_1e-5_b32_fixed_norm__texture_32_32_5_meso.tsv")),
+        # ("clap", os.path.join(OUT_DIR, f"clap_adamw_1e-5_b32_fixed_norm__texture_32_32_5_meso.tsv")),
+        # ("mss", os.path.join(OUT_DIR, f"mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("r_mss", os.path.join(OUT_DIR, f"rand_mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("mss_rev", os.path.join(OUT_DIR, f"mss_revisited_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("saga", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_sgd_1e-5_b32__chirp_32_32_5_meso.tsv")),
+        # ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_sgd_1e-5_b32_a0.25__chirp_32_32_5_meso.tsv")),
+        ("saga", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        ("saga_am_or_fm", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_am_or_fm_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
     ]
     # stage = "train"
     stage = "val"
@@ -263,6 +274,6 @@ if __name__ == "__main__":
     ax.set_title(f"{stage} {y_col}")
     for name, tsv_path in tsv_names_and_paths:
         log.info(f"Plotting {name}, stage: {stage} ===================================")
-        data = prepare_tsv_data(tsv_path, stage, x_col, y_col, y_converge_val=0.1, allow_var_n=False)
+        data = prepare_tsv_data(tsv_path, stage, x_col, y_col, y_converge_val=0.1, allow_var_n=True)
         plot_xy_vals(ax, data, title=name, plot_95ci=True, plot_range=False)
     plt.show()

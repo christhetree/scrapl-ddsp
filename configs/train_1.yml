@@ -2,10 +2,7 @@
 
 custom:
   project_name: scrapl
-  model_name: scrapl_adamw_1e-5_b32
-#  model_name: scrapl_pwa_sgd_1e-5_b32
-#  model_name: scrapl_saga_sgd_1e-5_b32
-#  model_name: scrapl_saga_sgd_1e-5_b32_a0.25
+  model_name: scrapl_adamw_1e-5_b32_fixed_norm
   dataset_name: texture_32_32_5_meso
   cpu_batch_size: 3
 #  use_wandb_cpu: true
@@ -16,7 +13,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [7]
+  devices: [3]
   max_epochs: 200
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
@@ -52,11 +49,7 @@ model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
     model: ../configs/models/spectral_2dcnn.yml
-#    synth: ../configs/synths/chirplet_8khz.yml
-#    synth: ../configs/synths/chirplet_8khz_fast.yml
     synth: ../configs/synths/chirp_texture_8khz.yml
-#    synth: ../configs/flowtron/flowtron_synth.yml
-#    synth: ../configs/fastspeech2/fastspeech2_synth.yml
 
 #    loss_func: ../configs/losses/mss.yml
 #    loss_func: ../configs/losses/scat_1d_dtfa.yml
@@ -99,10 +92,7 @@ model:
 #    log_val_grads: true
     log_val_grads: false
 
-    run_name: scrapl_adamw_1e-5_b32__texture_32_32_5_meso
-#    run_name: scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso
-#    run_name: scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso
-#    run_name: scrapl_saga_sgd_1e-5_b32_a0.25__texture_32_32_5_meso
+    run_name: scrapl_adamw_1e-5_b32_fixed_norm__texture_32_32_5_meso
 
 optimizer: ../configs/opt/adam_w.yml
 #optimizer: ../configs/opt/sgd.yml

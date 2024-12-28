@@ -44,6 +44,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         log_x: bool = False,
         log_x_hat: bool = False,
         log_val_grads: bool = False,
+        update_paths: bool = False,
         run_name: Optional[str] = None,
     ):
         super().__init__()
@@ -79,6 +80,11 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.log_x = log_x
         self.log_x_hat = log_x_hat
         self.log_val_grads = log_val_grads
+        self.update_paths = update_paths
+        if update_paths:
+            log.info("Updating path probabilities")
+            assert vr_algo or use_pathwise_adam, \
+                "VR or PWA is required for path updates"
         if run_name is None:
             self.run_name = f"run__{datetime.now().strftime('%Y-%m-%d__%H-%M-%S')}"
         else:
@@ -378,9 +384,10 @@ class SCRAPLLightingModule(pl.LightningModule):
             log.warning("vr_hook called during eval")
             return grad
 
-        # # For adaptive SCRAPL, update path probabilities
-        # grad_norm = grad.detach().cpu().view(-1).norm(p=2)
-        # self.param_idx_to_lc[param_idx] = grad_norm
+        if self.update_paths:
+            # For adaptive SCRAPL, update path probabilities
+            grad_norm = grad.detach().cpu().view(-1).norm(p=2)
+            self.param_idx_to_lc[param_idx] = grad_norm
 
         path_idx = scrapl.curr_path_idx
         assert path_idx is not None
@@ -479,17 +486,18 @@ class SCRAPLLightingModule(pl.LightningModule):
             raise NotImplementedError
 
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
-        # # For adaptive SCRAPL, update path probabilities
-        # if stage == "train" and isinstance(self.loss_func, AdaptiveSCRAPLLoss):
-        #     if self.loss_func.curr_path_idx is not None:
-        #         prev_path_idx = self.loss_func.curr_path_idx
-        #         if self.param_idx_to_lc:
-        #             # assert len(self.param_idx_to_lc) == 28, f"len = {len(self.param_idx_to_lc)}"
-        #             lc_s = [lc for lc in self.param_idx_to_lc.values()]
-        #             lc = tr.stack(lc_s, dim=0).mean().item()
-        #             # log.info(f"Path {prev_path_idx} LC: {lc}")
-        #             self.loss_func.update_prob(prev_path_idx, lc)
-        # self.param_idx_to_lc.clear()
+        if self.update_paths:
+            # For adaptive SCRAPL, update path probabilities
+            if stage == "train" and isinstance(self.loss_func, AdaptiveSCRAPLLoss):
+                if self.loss_func.curr_path_idx is not None:
+                    prev_path_idx = self.loss_func.curr_path_idx
+                    if self.param_idx_to_lc:
+                        # assert len(self.param_idx_to_lc) == 28, f"len = {len(self.param_idx_to_lc)}"
+                        lc_s = [lc for lc in self.param_idx_to_lc.values()]
+                        lc = tr.stack(lc_s, dim=0).mean().item()
+                        # log.info(f"Path {prev_path_idx} LC: {lc}")
+                        self.loss_func.update_prob(prev_path_idx, lc)
+            self.param_idx_to_lc.clear()
 
         theta_d_0to1, theta_s_0to1, seed, batch_indices = batch
 

@@ -1,0 +1,21 @@
+class_path: experiments.losses.AdaptiveSCRAPLLoss
+init_args:
+  shape: 32768
+  J: 12
+  Q1: 8
+  Q2: 2
+  J_fr: 3
+  Q_fr: 2
+  T: null
+  F: null
+  p: 2
+  sample_all_paths_first: false
+  min_prob_fac: 0.25
+
+  get_path_keys_kw_args:
+    sr: 8192
+    fm_oct_hz_min: 0.5
+    fm_oct_hz_max: 4.0
+    spins: !!set {1}
+    use_complement: false
+    use_am_fm_union: false
