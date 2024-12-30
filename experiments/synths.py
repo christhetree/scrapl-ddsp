@@ -6,6 +6,7 @@ from typing import Optional
 import numpy as np
 import torch as tr
 import torch.nn as nn
+import torchaudio
 from torch import Tensor as T
 
 from experiments.paths import OUT_DIR
@@ -378,7 +379,195 @@ class ChirpTextureSynth(nn.Module):
         return y
 
 
+class AMFMSynth(nn.Module):
+    def __init__(
+        self,
+        sr: int,
+        n_samples: int,
+        f0_hz_min: float,
+        f0_hz_max: float,
+        am_hz_min: float,
+        am_hz_max: float,
+        fm_hz_min: float,
+        fm_hz_max: float,
+        mi_am_min: float = 0.0,
+        mi_am_max: float = 1.0,
+        mi_fm_min: float = 0.0,
+        mi_fm_max: float = 1.0,
+        theta_am_is_mod_index: bool = False,
+        theta_fm_is_mod_index: bool = True,
+        J_cqt: int = 5,
+        Q: int = 12,
+        hop_len: int = 256,
+    ):
+        super().__init__()
+        assert 0.0 < f0_hz_min <= f0_hz_max
+        assert 0.0 < am_hz_min <= am_hz_max
+        assert 0.0 < fm_hz_min <= fm_hz_max
+        self.sr = sr
+        self.n_samples = n_samples
+        self.f0_hz_min = f0_hz_min
+        self.f0_hz_max = f0_hz_max
+        self.am_hz_min = am_hz_min
+        self.am_hz_max = am_hz_max
+        self.fm_hz_min = fm_hz_min
+        self.fm_hz_max = fm_hz_max
+        self.mi_am_min = mi_am_min
+        self.mi_am_max = mi_am_max
+        self.mi_fm_min = mi_fm_min
+        self.mi_fm_max = mi_fm_max
+        self.theta_am_is_mod_index = theta_am_is_mod_index
+        self.theta_fm_is_mod_index = theta_fm_is_mod_index
+        self.J_cqt = J_cqt
+        self.Q = Q
+        self.hop_len = hop_len
+
+        # Derived params
+        self.nyquist = sr / 2.0
+        self.f0_hz_min_log2 = tr.log2(tr.tensor(f0_hz_min))
+        self.f0_hz_max_log2 = tr.log2(tr.tensor(f0_hz_max))
+        self.am_hz_min_log2 = tr.log2(tr.tensor(am_hz_min))
+        self.am_hz_max_log2 = tr.log2(tr.tensor(am_hz_max))
+        self.fm_hz_min_log2 = tr.log2(tr.tensor(fm_hz_min))
+        self.fm_hz_max_log2 = tr.log2(tr.tensor(fm_hz_max))
+        self.rand_gen = tr.Generator(device="cpu")
+        self.register_buffer("t", tr.arange(n_samples) / sr)
+        self.register_buffer("ones", tr.ones((n_samples,)))
+
+    def make_x(self, theta_am: T, theta_fm: T, seed: Optional[T] = None) -> T:
+        assert theta_am.ndim == theta_fm.ndim == 0
+        if seed is not None:
+            assert seed.ndim == 0 or seed.shape == (1,)
+            self.rand_gen.manual_seed(int(seed.item()))
+        if self.theta_am_is_mod_index:
+            mi_am = theta_am
+            theta_am_hz = tr.rand((1,), generator=self.rand_gen)
+            am_hz_log2 = (
+                theta_am_hz * (self.am_hz_max_log2 - self.am_hz_min_log2)
+                + self.am_hz_min_log2
+            )
+            am_hz = 2**am_hz_log2
+        else:
+            mi_am = tr.rand((1,), generator=self.rand_gen) * (self.mi_am_max - self.mi_am_min) + self.mi_am_min
+            am_hz = theta_am
+        if self.theta_fm_is_mod_index:
+            mi_fm = theta_fm
+            theta_fm_hz = tr.rand((1,), generator=self.rand_gen)
+            fm_hz_log2 = (
+                theta_fm_hz * (self.fm_hz_max_log2 - self.fm_hz_min_log2)
+                + self.fm_hz_min_log2
+            )
+            fm_hz = 2**fm_hz_log2
+        else:
+            mi_fm = tr.rand((1,), generator=self.rand_gen) * (self.mi_fm_max - self.mi_fm_min) + self.mi_fm_min
+            fm_hz = theta_fm
+        theta_f0_hz = tr.rand((1,), generator=self.rand_gen)
+        f0_hz_log2 = (
+            theta_f0_hz * (self.f0_hz_max_log2 - self.f0_hz_min_log2)
+            + self.f0_hz_min_log2
+        )
+        f0_hz = 2**f0_hz_log2
+        phase = tr.rand((1,), generator=self.rand_gen) * 2 * tr.pi
+        phase_am = tr.rand((1,), generator=self.rand_gen) * 2 * tr.pi
+        phase_fm = tr.rand((1,), generator=self.rand_gen) * 2 * tr.pi
+
+        am_sig = tr.cos(2 * tr.pi * am_hz * self.t + phase_am) * mi_am
+        am_sig = (am_sig + 1.0) / 2.0
+        # from matplotlib import pyplot as plt
+        # plt.plot(am_sig.numpy())
+        # plt.title("am_sig")
+        # plt.show()
+        fm_sig = tr.cos(2 * tr.pi * fm_hz * self.t + phase_fm) * mi_fm
+        # from matplotlib import pyplot as plt
+        # plt.plot(fm_sig.numpy())
+        # plt.title("fm_sig")
+        # plt.show()
+        f0_hz = self.ones * f0_hz.item()
+        f0_hz_modulated = f0_hz + fm_sig * f0_hz
+        if f0_hz_modulated.min() < 0.0:
+            log.warning(f"FM modulation is negative: {f0_hz_modulated.min():.0f}")
+        if f0_hz_modulated.max() > self.nyquist:
+            log.warning(f"FM modulation exceeds Nyquist: {f0_hz_modulated.max():.0f}")
+        arg = tr.cumsum(2 * tr.pi * f0_hz_modulated / sr, dim=0) + phase
+        x = tr.cos(arg) * am_sig
+        return x
+
+    def forward(self, theta_am_0to1: T, theta_fm_0to1: T, seed: T) -> T:
+        assert theta_am_0to1.ndim == theta_fm_0to1.ndim == 1
+        assert theta_am_0to1.min() >= 0.0
+        assert theta_am_0to1.max() <= 1.0
+        assert theta_fm_0to1.min() >= 0.0
+        assert theta_fm_0to1.max() <= 1.0
+
+        if self.theta_am_is_mod_index:
+            theta_am = (
+                theta_am_0to1 * (self.mi_am_max - self.mi_am_min) + self.mi_am_min
+            )
+        else:
+            theta_am = (
+                theta_am_0to1 * (self.am_hz_max_log2 - self.am_hz_min_log2)
+                + self.am_hz_min_log2
+            )
+            theta_am = 2**theta_am
+
+        if self.theta_fm_is_mod_index:
+            theta_fm = (
+                theta_fm_0to1 * (self.mi_fm_max - self.mi_fm_min) + self.mi_fm_min
+            )
+        else:
+            theta_fm = (
+                theta_fm_0to1 * (self.fm_hz_max_log2 - self.fm_hz_min_log2)
+                + self.fm_hz_min_log2
+            )
+            theta_fm = 2**theta_fm
+        x = []
+        for idx in range(theta_am.size(0)):
+            curr_x = self.make_x(theta_am[idx], theta_fm[idx], seed[idx])
+            x.append(curr_x)
+        x = tr.stack(x, dim=0).unsqueeze(1)
+        return x
+
+
 if __name__ == "__main__":
+    sr = 44100
+    n_samples = 2 * sr
+    f0_min_hz = 440.0
+    f0_max_hz = 440.0
+    am_hz_min = 1.0
+    am_hz_max = 4.0
+    fm_hz_min = 220.0
+    fm_hz_max = 220.0
+    mi_am_min = 0.0
+    mi_am_max = 1.0
+    mi_fm_min = 0.0
+    mi_fm_max = 1.0
+
+    synth = AMFMSynth(
+        sr=sr,
+        n_samples=n_samples,
+        f0_hz_min=f0_min_hz,
+        f0_hz_max=f0_max_hz,
+        am_hz_min=am_hz_min,
+        am_hz_max=am_hz_max,
+        fm_hz_min=fm_hz_min,
+        fm_hz_max=fm_hz_max,
+        mi_am_min=mi_am_min,
+        mi_am_max=mi_am_max,
+        mi_fm_min=mi_fm_min,
+        mi_fm_max=mi_fm_max,
+        theta_am_is_mod_index=True,
+        theta_fm_is_mod_index=True,
+    )
+    # theta_am_0to1 = tr.tensor([0.5])
+    theta_fm_0to1 = tr.tensor([0.0, 0.25, 0.5, 0.75, 1.0])
+    theta_am_0to1 = tr.full_like(theta_fm_0to1, 0.5)
+    seed = tr.full_like(theta_fm_0to1, 0).long()
+    x = synth.forward(theta_am_0to1=theta_am_0to1, theta_fm_0to1=theta_fm_0to1, seed=seed)
+    for idx, curr_x in enumerate(x):
+        save_path = os.path.join(OUT_DIR, f"am_fm_{idx}.wav")
+        torchaudio.save(save_path, curr_x, sr)
+    exit()
+
     sr = 2**13
     duration = 2**2
     grain_duration = 2**2

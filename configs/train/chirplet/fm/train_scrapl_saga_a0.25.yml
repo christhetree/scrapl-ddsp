@@ -1,7 +1,7 @@
 custom:
   project_name: scrapl
-  model_name: scrapl_saga_sgd_1e-4_b32
-  dataset_name: chirplet_32_32_5_meso
+  model_name: scrapl_saga_a0.25_sgd_1e-4_b32
+  dataset_name: chirplet_fm_32_32_5_meso
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: false
@@ -30,14 +30,14 @@ data:
 model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
-    model: ../../../configs/models/spectral_2dcnn.yml
-    synth: ../../../configs/synths/chirplet_8khz.yml
-    loss_func: ../../../configs/losses/scrapl_adaptive.yml
+    model: ../../../../configs/models/spectral_2dcnn.yml
+    synth: ../../../../configs/synths/chirplet_8khz_fm.yml
+    loss_func: ../../../../configs/losses/scrapl_adaptive.yml
 
     grad_multiplier: 1e8
     use_pathwise_adam: true
     vr_algo: saga
-    update_paths: false
+    update_paths: true
 
     use_p_loss: false
     use_train_rand_seed: false
@@ -51,6 +51,6 @@ model:
     log_x_hat: false
     log_val_grads: false
 
-    run_name: scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso
+    run_name: scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_fm_32_32_5_meso
 
-optimizer: ../../../configs/opt/sgd_1e-4.yml
+optimizer: ../../../../configs/opt/sgd_1e-4.yml
