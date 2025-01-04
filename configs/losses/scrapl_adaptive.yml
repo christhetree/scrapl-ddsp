@@ -11,6 +11,7 @@ init_args:
 #  T: 2048
 #  T: global
   F: null
+#  F: global
 #  p: 1
   p: 2
 #  sample_all_paths_first: true

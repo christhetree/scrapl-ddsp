@@ -161,6 +161,17 @@ class SCRAPLLoss(nn.Module):
         Sx = Sx["coef"].squeeze(-1)
         Sx_target = self.jtfs.scattering_singlepath(x_target, n2, n_fr)
         Sx_target = Sx_target["coef"].squeeze(-1)
+        # from matplotlib import pyplot as plt
+        # plt_Sx = Sx[0, 0, ...].detach().cpu().numpy()
+        # plt_Sx_target = Sx_target[0, 0, ...].detach().cpu().numpy()
+        # vmin = min(plt_Sx.min(), plt_Sx_target.min())
+        # vmax = max(plt_Sx.max(), plt_Sx_target.max())
+        # plt.imshow(plt_Sx, aspect="auto", interpolation="none", origin="lower", vmin=vmin, vmax=vmax)
+        # plt.title("Sx")
+        # plt.show()
+        # plt.imshow(plt_Sx_target, aspect="auto", interpolation="none", origin="lower", vmin=vmin, vmax=vmax)
+        # plt.title("Sx_target")
+        # plt.show()
         diff = Sx_target - Sx
         dist = tr.linalg.vector_norm(diff, ord=self.p, dim=(-2, -1))
         dist = tr.mean(dist)
@@ -292,6 +303,14 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         # log.info(f"probs.min() = {probs.min()}, "
         #          f"probs.max() = {probs.max()}, "
         #          f"probs.sum() = {probs.sum()}")
+
+        # less_than_unif = probs < self.unif_prob
+        # n_less_than_unif = less_than_unif.sum().item()
+        # log.info(f"n_less_than_unif = {n_less_than_unif}")
+        # new_unif_prob = 1 / (self.n_paths - n_less_than_unif)
+        # probs[less_than_unif] = 0.0
+        # probs[~less_than_unif] = new_unif_prob
+
         self.probs = probs
 
         # Check that the probabilities are valid

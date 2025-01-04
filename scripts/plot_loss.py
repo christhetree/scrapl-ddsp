@@ -63,6 +63,10 @@ def prepare_tsv_data(
     log.info(f"Number of trials: {n}")
     print_tsv_vals.append(n)
 
+    # if "warmup" in tsv_path:
+    #     # subtract 315 from step column
+    #     df["step"] = df["step"] - 314
+
     x_val_mins = []
     x_val_maxs = []
     x_val_ranges = []
@@ -267,11 +271,11 @@ if __name__ == "__main__":
         # ("saga_a0.25_prev", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32_a0.25__texture_32_32_5_meso.tsv")),
         # ("jtfs_prev", os.path.join(OUT_DIR, f"jtfs_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("clap_prev", os.path.join(OUT_DIR, f"clap_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("adam", os.path.join(OUT_DIR, f"scrapl_adamw_1e-5_b32_fixed_norm__texture_32_32_5_meso.tsv")),
-        # ("pwa", os.path.join(OUT_DIR, f"scrapl_pwa_sgd_1e-5_b32_fixed_norm__texture_32_32_5_meso.tsv")),
-        # ("saga", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32_fixed_norm__texture_32_32_5_meso.tsv")),
-        # ("saga_a0.25", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32_a0.25_fixed_norm__texture_32_32_5_meso.tsv")),
-        # ("jtfs", os.path.join(OUT_DIR, f"jtfs_adamw_1e-5_b32_fixed_norm__texture_32_32_5_meso.tsv")),
+        # ("saga_adam", os.path.join(OUT_DIR, f"texture/scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("saga_pwa", os.path.join(OUT_DIR, f"texture/scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("saga", os.path.join(OUT_DIR, f"texture/scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("saga_a0.25", os.path.join(OUT_DIR, f"texture/scrapl_saga_a0.25_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("jtfs", os.path.join(OUT_DIR, f"texture/jtfs_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("clap", os.path.join(OUT_DIR, f"clap_adamw_1e-5_b32_fixed_norm__texture_32_32_5_meso.tsv")),
         # ("mss", os.path.join(OUT_DIR, f"mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("r_mss", os.path.join(OUT_DIR, f"rand_mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
@@ -281,26 +285,38 @@ if __name__ == "__main__":
         # ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/b16/scrapl_saga_a0.25_sgd_1e-4_b16__chirplet_32_32_5_meso.tsv")),
         # ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/b16/scrapl_saga_a0.125_sgd_1e-4_b16__chirplet_32_32_5_meso.tsv")),
         # ("saga_am_or_fm", os.path.join(OUT_DIR, f"chirplet/b16/scrapl_saga_am_or_fm_sgd_1e-4_b16__chirplet_32_32_5_meso.tsv")),
-        ("saga", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        ("saga_am_or_fm", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_am_or_fm_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
+        # ("saga", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_w_a0.25", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_warmup_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_w_bin", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_am_or_fm", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_am_or_fm_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+
+        ("saga", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
         # ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-        # ("saga_am", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_am_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
+        # ("saga_w_a0.25", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_warmup_a0.25_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
+        # ("saga_w_bin", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
+        ("saga_am", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_am_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
+        ("saga_am2", os.path.join(OUT_DIR, f"out/scrapl_saga_am_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
+        ("saga_am_bin", os.path.join(OUT_DIR, f"out/scrapl_saga_am_bin_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
+
         # ("saga", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
         # ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
+        # ("saga_w_a0.25", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_warmup_a0.25_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
+        # ("saga_w_bin", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
         # ("saga_fm", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_fm_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
+        # ("saga_fm2", os.path.join(OUT_DIR, f"out/scrapl_saga_fm_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
+        # ("saga_fm_bin", os.path.join(OUT_DIR, f"out/scrapl_saga_fm_bin_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
     ]
     # stage = "train"
     stage = "val"
     # stage = "test"
     x_col = "step"
     # x_col = "global_n"
-    y_col = "l1_theta"
-    # y_col = "l1_d"
+    # y_col = "l1_theta"
+    y_col = "l1_d"
     # y_col = "l1_s"
 
     # Plot

@@ -10,7 +10,8 @@ from torch import Tensor as T
 from tqdm import tqdm
 
 from experiments.losses import AdaptiveSCRAPLLoss
-from experiments.paths import OUT_DIR, CONFIGS_DIR
+from experiments.paths import OUT_DIR, CONFIGS_DIR, DATA_DIR
+from experiments.util import stable_softmax
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -150,7 +151,9 @@ def calc_spec_norm(g: T) -> T:
 
 
 if __name__ == "__main__":
-    scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_adaptive.yml")
+    scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_am.yml")
+    # scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_fm.yml")
+    # scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_am_or_fm.yml")
     with open(scrapl_config_path, "r") as f:
         scrapl_config = yaml.safe_load(f)
     scrapl = AdaptiveSCRAPLLoss(**scrapl_config["init_args"])
@@ -174,17 +177,17 @@ if __name__ == "__main__":
     # name = "scrapl_b16_ds_eps_no_do__chirplet_32_32_5_only_fm_meso"
     # name = "scrapl_b16_ds_eps_no_do__chirplet_32_32_5_meso"
 
-    # name = "scrapl_b32_no_do_power__chirplet_32_32_5_meso_am"
+    name = "scrapl_b32_no_do_power__chirplet_32_32_5_meso_am"
     # name = "scrapl_b32_no_do_power__chirplet_32_32_5_meso_fm"
     # name = "scrapl_b32_no_do_power__chirplet_32_32_5_meso"
 
     # name = "scrapl_b32_no_do_power__chirplet_32_32_5_fast_meso_am"
     # name = "scrapl_b32_no_do_power__chirplet_32_32_5_fast_meso_fm"
-    name = "scrapl_b32_no_do_power__chirplet_32_32_5_fast_meso"
+    # name = "scrapl_b32_no_do_power__chirplet_32_32_5_fast_meso"
 
     data_path = os.path.join(dir_path, name)
-    # grad_id = "__g_raw_"
-    grad_id = "__eig1_"
+    grad_id = "__g_raw_"
+    # grad_id = "__eig1_"
     # grad_id = "__h_"
     # grad_id = "__g_adam_"
     # grad_id = "__g_saga_"
@@ -338,6 +341,12 @@ if __name__ == "__main__":
 
     scaling_factor = 1.0 - (n_paths * target_min_prob)
     prob = logits / logits.sum() * scaling_factor + target_min_prob
+
+    # prob = tr.load(os.path.join(DATA_DIR, "scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_am_32_32_5_meso_probs.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_fm_32_32_5_meso_probs.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_32_32_5_meso_probs.pt"))
+    # prob = prob.float()
+
     assert tr.allclose(prob.sum(), tr.tensor(1.0)), f"prob.sum() = {prob.sum()}"
 
     # target_range = target_max_prob - target_min_prob

@@ -1,0 +1,14 @@
+class_path: experiments.losses.AdaptiveSCRAPLLoss
+init_args:
+  shape: 32768
+  J: 12
+  Q1: 8
+  Q2: 2
+  J_fr: 3
+  Q_fr: 2
+  T: null
+  F: null
+  p: 2
+  sample_all_paths_first: false
+  min_prob_fac: 0.25
+  probs_path: ../data/scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_fm_32_32_5_meso_probs.pt

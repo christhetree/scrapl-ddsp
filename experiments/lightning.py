@@ -4,18 +4,17 @@ import os
 import time
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List, Any, Union, Callable
 
-import hessian_eigenthings
-import numpy as np
 import pytorch_lightning as pl
 import torch as tr
 from nnAudio.features import CQT
+from pytorch_lightning.core.optimizer import LightningOptimizer
+from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import Tensor as T
 from torch import nn
-from tqdm import tqdm
+from torch.optim import Optimizer
 
-from experiments.hessian import HVPAutograd
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss, Scat1DLoss
 from experiments.paths import OUT_DIR
 from experiments.util import ReadOnlyTensorDict
@@ -45,6 +44,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         log_x_hat: bool = False,
         log_val_grads: bool = False,
         update_paths: bool = False,
+        warmup_paths: bool = False,
         run_name: Optional[str] = None,
     ):
         super().__init__()
@@ -52,9 +52,6 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.synth = synth
         self.loss_func = loss_func
         self.grad_multiplier = grad_multiplier
-        # if use_pathwise_adam:
-        #     assert self.trainer.accumulate_grad_batches == 1, \
-        #         "Pathwise ADAM does not support gradient accumulation"
         self.use_pathwise_adam = use_pathwise_adam
         if vr_algo is not None:
             assert vr_algo in ["sag", "saga", "none"]
@@ -80,11 +77,27 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.log_x = log_x
         self.log_x_hat = log_x_hat
         self.log_val_grads = log_val_grads
-        self.update_paths = update_paths
         if update_paths:
             log.info("Updating path probabilities")
-            assert vr_algo or use_pathwise_adam, \
-                "VR or PWA is required for path updates"
+            assert (
+                vr_algo or use_pathwise_adam
+            ), "VR or PWA is required for path updates"
+            assert isinstance(
+                self.loss_func, AdaptiveSCRAPLLoss
+            ), "update_paths is only for AdaptiveSCRAPL"
+        self.update_paths = update_paths
+        if warmup_paths:
+            log.info("Warming up path probabilities")
+            assert (
+                vr_algo or use_pathwise_adam
+            ), "VR or PWA is required for warmup_paths"
+            assert isinstance(
+                self.loss_func, AdaptiveSCRAPLLoss
+            ), "warmup_paths is only for AdaptiveSCRAPL"
+            assert (
+                self.loss_func.sample_all_paths_first
+            ), "warmup_paths requires sample_all_paths_first to be True"
+        self.warmup_paths = warmup_paths
         if run_name is None:
             self.run_name = f"run__{datetime.now().strftime('%Y-%m-%d__%H-%M-%S')}"
         else:
@@ -185,6 +198,31 @@ class SCRAPLLightingModule(pl.LightningModule):
                     f.write("\t".join(tsv_cols) + "\n")
         else:
             self.tsv_path = None
+
+    def clear(self) -> None:
+        for _, grad in self.prev_path_grads:
+            grad.fill_(0.0)
+        self.sag_m = defaultdict(lambda: {})
+        self.sag_v = defaultdict(lambda: {})
+        self.sag_t = defaultdict(lambda: {})
+
+    def is_warming_up(self) -> bool:
+        if not self.warmup_paths:
+            return False
+        n_paths = self.loss_func.n_paths
+        n_updates = len(self.loss_func.updated_indices)
+        is_warming_up = n_updates < n_paths
+        return is_warming_up
+
+    def on_train_epoch_start(self) -> None:
+        if self.use_pathwise_adam:
+            assert (
+                self.trainer.accumulate_grad_batches == 1
+            ), "Pathwise ADAM does not support gradient accumulation"
+        if self.warmup_paths:
+            assert (
+                self.trainer.accumulate_grad_batches == 1
+            ), "warmup_paths does not support gradient accumulation"
 
     @staticmethod
     def adam_grad_norm(
@@ -384,7 +422,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             log.warning("vr_hook called during eval")
             return grad
 
-        if self.update_paths:
+        if self.update_paths or self.is_warming_up():
             # For adaptive SCRAPL, update path probabilities
             grad_norm = grad.detach().cpu().view(-1).norm(p=2)
             self.param_idx_to_lc[param_idx] = grad_norm
@@ -485,20 +523,44 @@ class SCRAPLLightingModule(pl.LightningModule):
         else:
             raise NotImplementedError
 
-    def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
-        if self.update_paths:
-            # For adaptive SCRAPL, update path probabilities
-            if stage == "train" and isinstance(self.loss_func, AdaptiveSCRAPLLoss):
-                if self.loss_func.curr_path_idx is not None:
-                    prev_path_idx = self.loss_func.curr_path_idx
-                    if self.param_idx_to_lc:
-                        # assert len(self.param_idx_to_lc) == 28, f"len = {len(self.param_idx_to_lc)}"
-                        lc_s = [lc for lc in self.param_idx_to_lc.values()]
-                        lc = tr.stack(lc_s, dim=0).mean().item()
-                        # log.info(f"Path {prev_path_idx} LC: {lc}")
-                        self.loss_func.update_prob(prev_path_idx, lc)
+    def on_train_batch_end(
+        self, outputs: STEP_OUTPUT, batch: Any, batch_idx: int
+    ) -> None:
+        if self.update_paths or self.is_warming_up():
+            assert isinstance(self.loss_func, AdaptiveSCRAPLLoss)
+            assert self.loss_func.curr_path_idx is not None
+            prev_path_idx = self.loss_func.curr_path_idx
+            n_updates = len(self.loss_func.updated_indices)
+            if self.is_warming_up():
+                assert prev_path_idx == n_updates, (
+                    f"warming up is out of sync: "
+                    f"(prev_path_idx {prev_path_idx}, n_updates: {n_updates})"
+                )
+            assert self.param_idx_to_lc
+            lc_s = [lc for lc in self.param_idx_to_lc.values()]
+            assert lc_s
+            lc = tr.stack(lc_s, dim=0).mean().item()
+            log.info(
+                f"Warming up: {self.is_warming_up()}, "
+                f"n_updates: {n_updates}, "
+                f"n_paths: {self.loss_func.n_paths}, len(lc_s): {len(lc_s)}"
+            )
+            log.info(f"Updating path {prev_path_idx} LC: {lc}")
+            self.loss_func.update_prob(prev_path_idx, lc)
+
+            # Check whether warming up has completed
+            n_updates = len(self.loss_func.updated_indices)
+            if n_updates == self.loss_func.n_paths:
+                log.info(f"Warmup completed")
+                self.clear()
+                # Save probs for analysis
+                probs = self.loss_func.probs
+                save_path = os.path.join(OUT_DIR, f"{self.run_name}_probs.pt")
+                tr.save(probs, save_path)
+
             self.param_idx_to_lc.clear()
 
+    def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         theta_d_0to1, theta_s_0to1, seed, batch_indices = batch
 
         # # Grad collection setup ======================================================
@@ -573,9 +635,15 @@ class SCRAPLLightingModule(pl.LightningModule):
             )
         else:
             x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat)
+            # x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat, seed_target=seed)
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
-            loss = self.loss_func(x_hat, x)
+            # TODO(cm): tmp
+            if stage != "train" and self.is_warming_up():
+                path_idx = tr.randint(0, self.loss_func.n_paths, (1,)).item()
+                loss = self.loss_func(x_hat, x, path_idx)
+            else:
+                loss = self.loss_func(x_hat, x)
             self.log(f"{stage}/{self.loss_name}", loss, prog_bar=True, sync_dist=True)
 
         self.log(f"{stage}/l1_d", l1_d, prog_bar=True, sync_dist=True)
@@ -590,6 +658,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                 x = self.synth(theta_d_0to1, theta_s_0to1, seed)
             if x_hat is None and self.log_x_hat:
                 x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat)
+                # x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat, seed_target=seed)
                 U_hat = self.calc_U(x_hat)
 
         # # HVP calculation ============================================================
@@ -726,13 +795,31 @@ class SCRAPLLightingModule(pl.LightningModule):
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         state_dict = checkpoint["state_dict"]
-        excluded_keys = [k for k in state_dict
-                         if k.startswith("synth")
-                         or k.startswith("loss_func.jtfs")
-                         or k.startswith("prev_path_grads")  # Tmp to reduce chkpt size
-                         or k.startswith("cqt")]
+        excluded_keys = [
+            k
+            for k in state_dict
+            if k.startswith("synth")
+            or k.startswith("loss_func.jtfs")
+            or k.startswith("prev_path_grads")  # Tmp to reduce chkpt size
+            or k.startswith("cqt")
+        ]
         for k in excluded_keys:
             del state_dict[k]
+
+    def optimizer_step(
+        self,
+        epoch: int,
+        batch_idx: int,
+        optimizer: Union[Optimizer, LightningOptimizer],
+        optimizer_closure: Optional[Callable[[], Any]] = None,
+    ) -> None:
+        if self.is_warming_up():
+            log.info("Warming up paths, skipping optimizer step")
+            model_param = list(self.model.parameters())[0]
+            log.info(f"model_param.max() = {model_param.max()}")
+            optimizer_closure()
+        else:
+            super().optimizer_step(epoch, batch_idx, optimizer, optimizer_closure)
 
     @staticmethod
     def calc_total_variation(x: List[T], norm_by_len: bool = True) -> T:

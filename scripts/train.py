@@ -14,6 +14,7 @@ torch.set_float32_matmul_precision("high")
 
 if __name__ == "__main__":
     config_name = "train.yml"
+    # config_name = "train/am_fm/train.yml"
     # config_name = "train/texture/train_scrapl_saga_a0.125.yml"
 
     # config_name = "train/chirplet/train_scrapl_adam.yml"
@@ -21,19 +22,27 @@ if __name__ == "__main__":
     # config_name = "train/chirplet/train_scrapl_saga.yml"
     # config_name = "train/chirplet/train_scrapl_saga_a0.25.yml"
     # config_name = "train/chirplet/train_scrapl_saga_a0.125.yml"
+    # config_name = "train/chirplet/train_scrapl_saga_warmup_a0.25.yml"
     # config_name = "train/chirplet/train_scrapl_saga_am_or_fm.yml"
+
     # config_name = "train/chirplet/am/train_scrapl_adam.yml"
     # config_name = "train/chirplet/am/train_scrapl_pwa.yml"
     # config_name = "train/chirplet/am/train_scrapl_saga.yml"
     # config_name = "train/chirplet/am/train_scrapl_saga_a0.25.yml"
     # config_name = "train/chirplet/am/train_scrapl_saga_a0.125.yml"
+    # config_name = "train/chirplet/am/train_scrapl_saga_warmup_a0.25.yml"
     # config_name = "train/chirplet/am/train_scrapl_saga_am.yml"
+    # config_name = "train/chirplet/am/train_scrapl_saga_am_bin.yml"
+
     # config_name = "train/chirplet/fm/train_scrapl_adam.yml"
     # config_name = "train/chirplet/fm/train_scrapl_pwa.yml"
     # config_name = "train/chirplet/fm/train_scrapl_saga.yml"
     # config_name = "train/chirplet/fm/train_scrapl_saga_a0.25.yml"
     # config_name = "train/chirplet/fm/train_scrapl_saga_a0.125.yml"
+    # config_name = "train/chirplet/fm/train_scrapl_saga_warmup_a0.25.yml"
     # config_name = "train/chirplet/fm/train_scrapl_saga_fm.yml"
+    # config_name = "train/chirplet/fm/train_scrapl_saga_fm_bin.yml"
+
     log.info(f"Running with config: {config_name}")
     seeds = None
     # seeds = [0, 1, 2]

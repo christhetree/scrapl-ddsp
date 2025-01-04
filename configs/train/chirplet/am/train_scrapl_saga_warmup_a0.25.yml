@@ -1,6 +1,6 @@
 custom:
   project_name: scrapl
-  model_name: scrapl_saga_am_sgd_1e-4_b32
+  model_name: scrapl_saga_warmup_bin_sgd_1e-4_b32
   dataset_name: chirplet_am_32_32_5_meso
   cpu_batch_size: 3
   use_wandb_cpu: false
@@ -9,7 +9,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [2]
+  devices: [4]
   max_epochs: 50
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
@@ -32,12 +32,13 @@ model:
   init_args:
     model: ../../../../configs/models/spectral_2dcnn.yml
     synth: ../../../../configs/synths/chirplet_8khz_am.yml
-    loss_func: ../../../../configs/losses/scrapl_am.yml
+    loss_func: ../../../../configs/losses/scrapl_warmup_a0.25.yml
 
     grad_multiplier: 1e8
     use_pathwise_adam: true
     vr_algo: saga
     update_paths: false
+    warmup_paths: true
 
     use_p_loss: false
     use_train_rand_seed: false
@@ -51,6 +52,6 @@ model:
     log_x_hat: false
     log_val_grads: false
 
-    run_name: scrapl_saga_am_sgd_1e-4_b32__chirplet_am_32_32_5_meso
+    run_name: scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_am_32_32_5_meso
 
 optimizer: ../../../../configs/opt/sgd_1e-4.yml
