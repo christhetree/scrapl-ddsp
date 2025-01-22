@@ -205,12 +205,14 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         min_prob_fac: float = 0.25,
         probs_path: Optional[str] = None,
         get_path_keys_kw_args: Optional[Dict[str, Any]] = None,
+        update_prob_is_bin: bool = False,
         eps: float = 1e-12,
     ):
         super().__init__(shape, J, Q1, Q2, J_fr, Q_fr, T, F, p, sample_all_paths_first)
         assert 0 <= min_prob_fac <= 1.0
         self.min_prob_fac = min_prob_fac
         self.get_path_indices_kw_args = get_path_keys_kw_args
+        self.update_prob_is_bin = update_prob_is_bin
         self.eps = eps
 
         self.unif_prob = 1.0 / self.n_paths
@@ -231,9 +233,10 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
 
         self.enabled_path_indices = []
         if probs_path is not None:
-            log.info(f"Loading probs from {probs_path}")
             probs = tr.load(probs_path).double()
             assert probs.shape == (self.n_paths,)
+            log.info(f"Loading probs from {probs_path}, min = {probs.min():.6f}, "
+                     f"max = {probs.max():.6f}, mean = {probs.mean():.6f}")
             self.probs = probs
         elif get_path_keys_kw_args is not None:
             log.info(f"Disabling a subset of paths")
@@ -304,12 +307,13 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         #          f"probs.max() = {probs.max()}, "
         #          f"probs.sum() = {probs.sum()}")
 
-        # less_than_unif = probs < self.unif_prob
-        # n_less_than_unif = less_than_unif.sum().item()
-        # log.info(f"n_less_than_unif = {n_less_than_unif}")
-        # new_unif_prob = 1 / (self.n_paths - n_less_than_unif)
-        # probs[less_than_unif] = 0.0
-        # probs[~less_than_unif] = new_unif_prob
+        if self.update_prob_is_bin:
+            less_than_unif = probs < self.unif_prob
+            n_less_than_unif = less_than_unif.sum().item()
+            log.info(f"n_less_than_unif = {n_less_than_unif}")
+            new_unif_prob = 1 / (self.n_paths - n_less_than_unif)
+            probs[less_than_unif] = 0.0
+            probs[~less_than_unif] = new_unif_prob
 
         self.probs = probs
 
@@ -317,17 +321,19 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         assert tr.allclose(
             probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=self.eps
         ), f"probs.sum() = {probs.sum()}"
-        assert probs.min() >= self.min_prob - self.eps, f"probs.min() = {probs.min()}"
 
-        # Check ratios
-        vals = self.log_vals[updated_indices].exp()
-        val_ratios = vals / vals.min()
-        raw_probs = self.probs[updated_indices] - self.min_prob
-        prob_ratios = raw_probs / raw_probs.min()
-        # log.info(f"val_ratios = {val_ratios}, prob_ratios = {prob_ratios}")
-        assert tr.allclose(
-            val_ratios, prob_ratios, atol=1e-3, rtol=1e-3, equal_nan=True
-        ), f"val_ratios = {val_ratios}, prob_ratios = {prob_ratios}"
+        if not self.update_prob_is_bin:
+            assert probs.min() >= self.min_prob - self.eps, f"probs.min() = {probs.min()}"
+
+            # Check ratios
+            vals = self.log_vals[updated_indices].exp()
+            val_ratios = vals / vals.min()
+            raw_probs = self.probs[updated_indices] - self.min_prob
+            prob_ratios = raw_probs / raw_probs.min()
+            # log.info(f"val_ratios = {val_ratios}, prob_ratios = {prob_ratios}")
+            assert tr.allclose(
+                val_ratios, prob_ratios, atol=1e-3, rtol=1e-3, equal_nan=True
+            ), f"val_ratios = {val_ratios}, prob_ratios = {prob_ratios}"
 
 
 class EmbeddingLoss(ABC, nn.Module):

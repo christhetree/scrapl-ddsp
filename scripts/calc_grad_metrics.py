@@ -123,7 +123,8 @@ def calc_mag_entropy(x: T, eps: float = 1e-12) -> T:
 
 
 def calc_abs_val(g: T) -> T:
-    assert g.numel() == 1
+    # assert g.numel() == 1
+    assert g.shape == (32,)
     val = g.squeeze().abs()
     return val
 
@@ -151,6 +152,12 @@ def calc_spec_norm(g: T) -> T:
 
 
 if __name__ == "__main__":
+    # prob_am = tr.load(os.path.join(OUT_DIR, "out/scrapl_saga_w0_sgd_1e-5_b32__texture_32_32_5_meso__d.pt"))
+    # prob_fm = tr.load(os.path.join(OUT_DIR, "out/scrapl_saga_w0_sgd_1e-5_b32__texture_32_32_5_meso__s.pt"))
+    # prob_am_fm = (prob_am + prob_fm) / 2.0
+    # tr.save(prob_am_fm, os.path.join(OUT_DIR, "out/scrapl_saga_w0_sgd_1e-5_b32__texture_32_32_5_meso__ds.pt"))
+    # exit()
+
     scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_am.yml")
     # scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_fm.yml")
     # scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_am_or_fm.yml")
@@ -163,7 +170,8 @@ if __name__ == "__main__":
     ]
 
     n_paths = scrapl.n_paths
-    sampling_factor = 4
+    # sampling_factor = 0.25
+    sampling_factor = 0.0
 
     dir_path = OUT_DIR
     # name = "scrapl_saga_sgd_1e-4_b16__chirplet_32_32_5_only_fm_meso"
@@ -177,7 +185,7 @@ if __name__ == "__main__":
     # name = "scrapl_b16_ds_eps_no_do__chirplet_32_32_5_only_fm_meso"
     # name = "scrapl_b16_ds_eps_no_do__chirplet_32_32_5_meso"
 
-    name = "scrapl_b32_no_do_power__chirplet_32_32_5_meso_am"
+    # name = "scrapl_b32_no_do_power__chirplet_32_32_5_meso_am"
     # name = "scrapl_b32_no_do_power__chirplet_32_32_5_meso_fm"
     # name = "scrapl_b32_no_do_power__chirplet_32_32_5_meso"
 
@@ -185,15 +193,22 @@ if __name__ == "__main__":
     # name = "scrapl_b32_no_do_power__chirplet_32_32_5_fast_meso_fm"
     # name = "scrapl_b32_no_do_power__chirplet_32_32_5_fast_meso"
 
+    # name = "out/scrapl_saga_warmup_a0_sgd_1e-4_b32__chirplet_32_32_5_meso"
+    # name = "out/scrapl_saga_warmup_a0_sgd_1e-4_b32__chirplet_am_32_32_5_meso"
+    # name = "out/scrapl_saga_warmup_a0_sgd_1e-4_b32__chirplet_fm_32_32_5_meso"
+
+    name = "out/scrapl_saga_w0_sgd_1e-5_b32__texture_32_32_5_meso"
+
     data_path = os.path.join(dir_path, name)
-    grad_id = "__g_raw_"
+    grad_id = "0to1_hat"
+    # grad_id = "__g_raw_"
     # grad_id = "__eig1_"
     # grad_id = "__h_"
     # grad_id = "__g_adam_"
     # grad_id = "__g_saga_"
 
-    metric_name = "norm"
-    # metric_name = "abs"
+    # metric_name = "norm"
+    metric_name = "abs"
     # metric_name = "spec_norm"
     # metric_name = "ent"
     # metric_name = "est_lc"
@@ -204,10 +219,10 @@ if __name__ == "__main__":
     # param_reduction = "rescaled_mean"
     # param_reduction = "sqrt_numel_scaled"
 
-    allowed_param_indices = None
+    # allowed_param_indices = None
     # allowed_param_indices = {15}
     # allowed_param_indices = {"theta_d_0to1_hat"}
-    # allowed_param_indices = {"theta_s_0to1_hat"}
+    allowed_param_indices = {"theta_s_0to1_hat"}
     # allowed_param_indices = {"theta_d_0to1_hat", "theta_s_0to1_hat"}
 
     max_t = None
@@ -266,6 +281,7 @@ if __name__ == "__main__":
 
                 if metric_name == "abs":
                     vals = [calc_abs_val(g) for g in grads]
+                    assert len(vals) == 1
                     metric = tr.stack(vals).mean()
                 elif metric_name == "norm":
                     vals = [calc_norm(g) for g in grads]
@@ -305,6 +321,7 @@ if __name__ == "__main__":
 
     # TODO(cm): look into different aggregation techniques
     logits = tr.stack(logits_all, dim=0)
+    assert logits.size(0) == 1
 
     if param_reduction == "mean":
         logits = logits.mean(dim=0)
@@ -336,8 +353,7 @@ if __name__ == "__main__":
     # plt.show()
 
     uniform_prob = 1 / n_paths
-    target_min_prob = uniform_prob / sampling_factor
-    target_max_prob = uniform_prob * sampling_factor
+    target_min_prob = uniform_prob * sampling_factor
 
     scaling_factor = 1.0 - (n_paths * target_min_prob)
     prob = logits / logits.sum() * scaling_factor + target_min_prob
@@ -376,7 +392,7 @@ if __name__ == "__main__":
 
     colors = ["r" if idx in subset_indices else "b" for idx in range(n_paths)]
     plt.bar(range(prob.size(0)), prob.numpy(), color=colors)
-    plt.ylim(0, (sampling_factor + 0.5) * uniform_prob)
+    plt.ylim(0, 8 * uniform_prob)
     plt.title(title)
     plt.show()
 
@@ -404,7 +420,6 @@ if __name__ == "__main__":
     log.info(
         f"uniform_prob = {uniform_prob:.6f}, "
         f"target_min_prob = {target_min_prob:.6f}, "
-        f"target_max_prob = {target_max_prob:.6f}"
     )
     log.info(
         f"Min prob: {prob.min().item():.6f}, "
@@ -414,9 +429,7 @@ if __name__ == "__main__":
 
     # out_path = os.path.join(
     #     OUT_DIR,
-    #     f"{name}_{metric_name}_{reduction}"
-    #     f"_elem_{str(elementwise)[0]}"
-    #     f"_adj_{str(compare_adj_only)[0]}_{sampling_factor}x.pt",
+    #     f"{name}_{metric_name}_{param_reduction}_a{sampling_factor}.pt",
     # )
     # log.info(f"Saving to {out_path}")
     # tr.save(prob, out_path)

@@ -63,9 +63,9 @@ def prepare_tsv_data(
     log.info(f"Number of trials: {n}")
     print_tsv_vals.append(n)
 
-    # if "warmup" in tsv_path:
-    #     # subtract 315 from step column
-    #     df["step"] = df["step"] - 314
+    if "warmup" in tsv_path:
+        # subtract 315 from step column
+        df["step"] = df["step"] - 314
 
     x_val_mins = []
     x_val_maxs = []
@@ -273,42 +273,40 @@ if __name__ == "__main__":
         # ("clap_prev", os.path.join(OUT_DIR, f"clap_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("saga_adam", os.path.join(OUT_DIR, f"texture/scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("saga_pwa", os.path.join(OUT_DIR, f"texture/scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("saga", os.path.join(OUT_DIR, f"texture/scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("just_saga", os.path.join(OUT_DIR, f"texture/scrapl_just_saga_adam_1e-5_b32__texture_32_32_5_meso.tsv")),
+        ("saga", os.path.join(OUT_DIR, f"texture/scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"texture/scrapl_saga_a0.25_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("jtfs", os.path.join(OUT_DIR, f"texture/jtfs_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("clap", os.path.join(OUT_DIR, f"clap_adamw_1e-5_b32_fixed_norm__texture_32_32_5_meso.tsv")),
-        # ("mss", os.path.join(OUT_DIR, f"mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("r_mss", os.path.join(OUT_DIR, f"rand_mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("mss_rev", os.path.join(OUT_DIR, f"mss_revisited_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        ("saga_a0.125", os.path.join(OUT_DIR, f"texture/scrapl_saga_a0.125_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("saga_bin", os.path.join(OUT_DIR, f"texture/scrapl_saga_bin_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        ("saga_ds_w0", os.path.join(OUT_DIR, f"out/scrapl_saga_ds_w0_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        ("jtfs", os.path.join(OUT_DIR, f"texture/jtfs_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("clap", os.path.join(OUT_DIR, f"texture/clap_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("mss", os.path.join(OUT_DIR, f"texture/mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("rand_mss", os.path.join(OUT_DIR, f"texture/rand_mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("mss_rev", os.path.join(OUT_DIR, f"texture/mss_revisited_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
 
-        # ("saga", os.path.join(OUT_DIR, f"chirplet/b16/scrapl_saga_sgd_1e-4_b16__chirplet_32_32_5_meso.tsv")),
-        # ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/b16/scrapl_saga_a0.25_sgd_1e-4_b16__chirplet_32_32_5_meso.tsv")),
-        # ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/b16/scrapl_saga_a0.125_sgd_1e-4_b16__chirplet_32_32_5_meso.tsv")),
-        # ("saga_am_or_fm", os.path.join(OUT_DIR, f"chirplet/b16/scrapl_saga_am_or_fm_sgd_1e-4_b16__chirplet_32_32_5_meso.tsv")),
         # ("saga", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga_w_a0.25", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_warmup_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga_w_bin", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_am_or_fm", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_am_or_fm_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_bin", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_bin_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_ds_w0", os.path.join(OUT_DIR, f"out/scrapl_saga_ds_w0_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_d_w0", os.path.join(OUT_DIR, f"out/scrapl_saga_d_w0_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_s_w0", os.path.join(OUT_DIR, f"out/scrapl_saga_s_w0_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
 
-        ("saga", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
+        # ("saga", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
         # ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-        # ("saga_w_a0.25", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_warmup_a0.25_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-        # ("saga_w_bin", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-        ("saga_am", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_am_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-        ("saga_am2", os.path.join(OUT_DIR, f"out/scrapl_saga_am_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-        ("saga_am_bin", os.path.join(OUT_DIR, f"out/scrapl_saga_am_bin_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
+        # ("saga_am", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_am_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
+        # ("saga_bin", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_am_bin_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
+        # ("saga_w0", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_w0_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
 
         # ("saga", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
         # ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
-        # ("saga_w_a0.25", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_warmup_a0.25_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
-        # ("saga_w_bin", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
         # ("saga_fm", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_fm_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
-        # ("saga_fm2", os.path.join(OUT_DIR, f"out/scrapl_saga_fm_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
-        # ("saga_fm_bin", os.path.join(OUT_DIR, f"out/scrapl_saga_fm_bin_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
+        # ("saga_bin", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_fm_bin_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
+        # ("saga_w0", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_w0_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
     ]
     # stage = "train"
     stage = "val"
@@ -329,4 +327,6 @@ if __name__ == "__main__":
         tsv_vals = [name] + data["tsv_vals"]
         tsv_string = "\t".join(str(val) for val in tsv_vals)
         print(f"{tsv_string}")
-    plt.show()
+
+    if stage != "test":
+        plt.show()

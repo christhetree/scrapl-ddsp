@@ -10,4 +10,4 @@ init_args:
   F: null
   p: 2
   sample_all_paths_first: false
-  probs_path: ../data/scrapl_saga_warmup_bin_sgd_1e-4_b32__chirplet_fm_32_32_5_meso_probs__after_t_fix.pt
+  probs_path: ../data/scrapl_saga_warmup_a0_sgd_1e-4_b32__chirplet_fm_32_32_5_meso_probs.pt

@@ -1,3 +1,4 @@
+import importlib
 import logging
 import os
 import random
@@ -12,7 +13,7 @@ from torch import nn
 from tqdm import tqdm
 
 from experiments.losses import AdaptiveSCRAPLLoss, JTFSTLoss, ClapEmbeddingLoss
-from experiments.paths import CONFIGS_DIR
+from experiments.paths import CONFIGS_DIR, OUT_DIR
 from experiments.synths import ChirpTextureSynth
 
 logging.basicConfig()
@@ -53,14 +54,14 @@ def calc_grad_stats(
         theta_d = tr.rand(bs, device=device)
         theta_d_hat = tr.rand(bs, device=device)
         if fixed_d_val is not None:
-            theta_d.fill_(fixed_d_val)
+            # theta_d.fill_(fixed_d_val)
             theta_d_hat.fill_(fixed_d_val)
         theta_d_hat.requires_grad = True
 
         theta_s = tr.rand(bs, device=device)
         theta_s_hat = tr.rand(bs, device=device)
         if fixed_s_val is not None:
-            theta_s.fill_(fixed_s_val)
+            # theta_s.fill_(fixed_s_val)
             theta_s_hat.fill_(fixed_s_val)
         theta_s_hat.requires_grad = True
 
@@ -111,6 +112,8 @@ def calc_grad_stats(
     # Calc grad magnitude metric
     for theta_name in ["theta_d", "theta_s"]:
         grad_vals = tr.cat(grads[theta_name], dim=0)
+        grad_mag_std = grad_vals.abs().std()
+        results[f"{theta_name}_mag_std"] = grad_mag_std
         correct_grad_signs = tr.cat(grad_signs[theta_name], dim=0)
         # grad_mean = grad_vals.mean()  # This should be close to 0
         # grad_std = grad_vals.std()
@@ -127,9 +130,14 @@ def calc_grad_stats(
         results[f"{theta_name}_mag"] = grad_mag_metric.item()
 
     for k, v in accs.items():
-        v = tr.cat(v, dim=0)
-        mean_acc = v.float().mean().item()
+        means = tr.stack([batch_v.float().mean() for batch_v in v], dim=0)
+        mean_acc = means.mean().item()
+        # mean_acc_2 = tr.cat(v, dim=0).float().mean().item()
+        # assert mean_acc == mean_acc_2
         results[f"{k}"] = mean_acc
+        # if k in ["theta_d", "theta_s"]:
+        #     mean_batch_std = means.std().item()
+        #     results[f"{k}_batch_std"] = mean_batch_std
 
     return results
 
@@ -139,9 +147,10 @@ if __name__ == "__main__":
     tr.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-    os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+    gpu_idx = 7
+    os.environ["CUDA_VISIBLE_DEVICES"] = f"{gpu_idx}"
     if tr.cuda.is_available():
-        log.info("Using GPU")
+        log.info(f"Using GPU {gpu_idx}")
         device = tr.device("cuda")
     else:
         log.info("Using CPU")
@@ -152,30 +161,38 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
     synth = ChirpTextureSynth(**config["init_args"]).to(device)
 
-    # config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_adaptive.yml")
+    config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_adaptive.yml")
     # config_path = os.path.join(CONFIGS_DIR, "losses/jtfst_dtfa.yml")
     # config_path = os.path.join(CONFIGS_DIR, "losses/clap.yml")
-    config_path = os.path.join(CONFIGS_DIR, "losses/mss.yml")
+    # config_path = os.path.join(CONFIGS_DIR, "losses/mss.yml")
+    # config_path = os.path.join(CONFIGS_DIR, "losses/rand_mss.yml")
+    # config_path = os.path.join(CONFIGS_DIR, "losses/mss_revisited.yml")
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
-    # loss_fn = AdaptiveSCRAPLLoss(**config["init_args"]).to(device)
-    # loss_fn = JTFSTLoss(**config["init_args"]).to(device)
-    # loss_fn = ClapEmbeddingLoss(**config["init_args"]).to(device)
-    loss_fn = auraloss.freq.MultiResolutionSTFTLoss(**config["init_args"])
+    class_path = config["class_path"]
+    module_name, class_name = class_path.rsplit(".", 1)
+    module = importlib.import_module(module_name)
+    loss_fn_cls = getattr(module, class_name)
+    loss_fn = loss_fn_cls(**config["init_args"])
+    loss_fn = loss_fn.to(device)
     # loss_fn = nn.L1Loss()
 
-    # n_batches = 1000
-    # bs = 32
-    n_batches = 1000
-    bs = 1
+    n_batches = 100
+    # n_batches = 10000
+    bs = 32
+    # n_batches = 400
+    # bs = 8
     is_meso = True
     # is_meso = False
     grad_mult = 1.0
     # grad_mult = 1e8
-    fixed_d_val = None
-    fixed_s_val = None
+    # fixed_d_val = None
+    # fixed_s_val = None
+    fixed_d_val = 0.5
+    fixed_s_val = 0.5
 
     if type(loss_fn) == AdaptiveSCRAPLLoss:
+    # if False:
         all_stats = defaultdict(list)
         for path_idx in tqdm(range(loss_fn.n_paths)):
             stats = calc_grad_stats(
@@ -193,6 +210,8 @@ if __name__ == "__main__":
             for k, v in stats.items():
                 log.info(f"{k:>16}: {v:.4f}")
                 all_stats[k].append(v)
+        save_path = os.path.join(OUT_DIR, "path_grad_accs.pt")
+        tr.save(all_stats, save_path)
         stats = {k: np.mean(v) for k, v in all_stats.items()}
     else:
         stats = calc_grad_stats(
@@ -219,135 +238,123 @@ if __name__ == "__main__":
         log.info(f"{k:>16}: {v:.4f}")
 
 
-# INFO:__main__:loss_fn: MultiResolutionSTFTLoss, synth: ChirpTextureSynth
-# INFO:__main__:n_batches = 1000, bs = 32, n_trials = 32000
-# INFO:__main__:is_meso = True, fixed_d_val = None, fixed_s_val = None
-# INFO:__main__:theta_d sign accuracy: 0.6367
-# INFO:__main__:theta_s sign accuracy: 0.7256
-# INFO:__main__:both sign accuracy: 0.4581
-# INFO:__main__:only_d sign accuracy: 0.1787
-# INFO:__main__:only_s sign accuracy: 0.2675
-# INFO:__main__:neither sign accuracy: 0.0958
-# INFO:__main__:either sign accuracy: 0.9042
-
-# INFO:__main__:loss_fn: AdaptiveSCRAPLLoss, synth: ChirpTextureSynth
-# INFO:__main__:n_batches = 1000, bs = 32, n_trials = 32000
-# INFO:__main__:is_meso = True, fixed_d_val = None, fixed_s_val = None
-# INFO:__main__:theta_d sign accuracy: 0.6353
-# INFO:__main__:theta_s sign accuracy: 0.5704
-# INFO:__main__:both sign accuracy: 0.3543
-# INFO:__main__:only_d sign accuracy: 0.2810
-# INFO:__main__:only_s sign accuracy: 0.2161
-# INFO:__main__:neither sign accuracy: 0.1486
-# INFO:__main__:either sign accuracy: 0.8514
-
-# INFO:__main__:loss_fn: ClapEmbeddingLoss, synth: ChirpTextureSynth
-# INFO:__main__:n_batches = 1000, bs = 32, n_trials = 32000
-# INFO:__main__:is_meso = True, fixed_d_val = None, fixed_s_val = None
-# INFO:__main__:theta_d sign accuracy: 0.6359
-# INFO:__main__:theta_s sign accuracy: 0.6693
-# INFO:__main__:both sign accuracy: 0.4282
-# INFO:__main__:only_d sign accuracy: 0.2077
-# INFO:__main__:only_s sign accuracy: 0.2412
-# INFO:__main__:neither sign accuracy: 0.1230
-# INFO:__main__:either sign accuracy: 0.8770
-
-# INFO:__main__:loss_fn: JTFSTLoss, synth: ChirpTextureSynth
-# INFO:__main__:n_batches = 1000, bs = 8, n_trials = 8000
-# INFO:__main__:is_meso = True, fixed_d_val = None, fixed_s_val = None
-# INFO:__main__:theta_d sign accuracy: 0.7165
-# INFO:__main__:theta_s sign accuracy: 0.9034
-# INFO:__main__:both sign accuracy: 0.6472
-# INFO:__main__:only_d sign accuracy: 0.0693
-# INFO:__main__:only_s sign accuracy: 0.2561
-# INFO:__main__:neither sign accuracy: 0.0274
-# INFO:__main__:either sign accuracy: 0.9726
-
-# INFO:__main__:loss_fn: JTFSTLoss, synth: ChirpTextureSynth
-# INFO:__main__:n_batches = 1000, bs = 1, n_trials = 1000
-# INFO:__main__:is_meso = True, fixed_d_val = None, fixed_s_val = None
-# INFO:__main__:theta_d sign accuracy: 0.7170
-# INFO:__main__:theta_s sign accuracy: 0.9110
-# INFO:__main__:both sign accuracy: 0.6490
-# INFO:__main__:only_d sign accuracy: 0.0680
-# INFO:__main__:only_s sign accuracy: 0.2620
-# INFO:__main__:neither sign accuracy: 0.0210
-# INFO:__main__:either sign accuracy: 0.9790
-# INFO:__main__:theta_d grad mean: -248.9628, std: 3050.1624
-# INFO:__main__:theta_s grad mean: 345.2253, std: 24780.7773
-# INFO:__main__:theta_d grad z-score mean: 0.4559, var: 0.8664
-# INFO:__main__:theta_s grad z-score mean: 0.2656, var: 0.9220
-
-# INFO:__main__:loss_fn: MultiResolutionSTFTLoss, synth: ChirpTextureSynth
-# INFO:__main__:n_batches = 1000, bs = 1, n_trials = 1000
-# INFO:__main__:is_meso = True, fixed_d_val = None, fixed_s_val = None
-# INFO:__main__:theta_d sign accuracy: 0.6320
-# INFO:__main__:theta_s sign accuracy: 0.7240
-# INFO:__main__:both sign accuracy: 0.4600
-# INFO:__main__:only_d sign accuracy: 0.1720
-# INFO:__main__:only_s sign accuracy: 0.2640
-# INFO:__main__:neither sign accuracy: 0.1040
-# INFO:__main__:either sign accuracy: 0.8960
-# INFO:__main__:theta_d grad mean: 0.4560, std: 0.6196
-# INFO:__main__:theta_s grad mean: 0.0304, std: 10.3713
-# INFO:__main__:theta_d grad z-score mean: -0.3146, var: 1.3645
-# INFO:__main__:theta_s grad z-score mean: 0.1409, var: 0.9793
-
-# INFO:__main__:loss_fn: AdaptiveSCRAPLLoss, synth: ChirpTextureSynth
-# INFO:__main__:n_batches = 1000, bs = 1, n_trials = 1000
-# INFO:__main__:is_meso = True, fixed_d_val = None, fixed_s_val = None
-# INFO:__main__:theta_d sign accuracy: 0.6000
-# INFO:__main__:theta_s sign accuracy: 0.5780
-# INFO:__main__:both sign accuracy: 0.3400
-# INFO:__main__:only_d sign accuracy: 0.2600
-# INFO:__main__:only_s sign accuracy: 0.2380
-# INFO:__main__:neither sign accuracy: 0.1620
-# INFO:__main__:either sign accuracy: 0.8380
-# INFO:__main__:theta_d grad mean: -221.2339, std: 16201.7988
-# INFO:__main__:theta_s grad mean: -23151.0312, std: 831001.5000
-# INFO:__main__:theta_d grad z-score mean: 0.0892, var: 0.9945
-# INFO:__main__:theta_s grad z-score mean: 0.0677, var: 0.9992
-
-
-
-
+# INFO:__main__:loss_fn: L1Loss, synth: ChirpTextureSynth
+# INFO:__main__:n_batches = 100, bs = 32, n_trials = 3200
+# INFO:__main__:is_meso = True, fixed_d_val = 0.5, fixed_s_val = 0.5
+# INFO:__main__: theta_d_mag_std: 0.0000
+# INFO:__main__:     theta_d_mag: 0.6212
+# INFO:__main__: theta_s_mag_std: 0.0001
+# INFO:__main__:     theta_s_mag: 0.5332
+# INFO:__main__:         theta_d: 0.5169
+# INFO:__main__:         theta_s: 0.5144
+# INFO:__main__:            both: 0.2728
+# INFO:__main__:          only_d: 0.2441
+# INFO:__main__:          only_s: 0.2416
+# INFO:__main__:         neither: 0.2416
+# INFO:__main__:          either: 0.7584
 
 # INFO:__main__:loss_fn: MultiResolutionSTFTLoss, synth: ChirpTextureSynth
 # INFO:__main__:n_batches = 100, bs = 32, n_trials = 3200
-# INFO:__main__:is_meso = True, fixed_d_val = None, fixed_s_val = None
-# INFO:__main__:     theta_d_mag: 0.7247
-# INFO:__main__:     theta_s_mag: 0.8987
-# INFO:__main__:         theta_d: 0.6350
-# INFO:__main__:         theta_s: 0.7309
-# INFO:__main__:            both: 0.4591
-# INFO:__main__:          only_d: 0.1759
-# INFO:__main__:          only_s: 0.2719
-# INFO:__main__:         neither: 0.0931
-# INFO:__main__:          either: 0.9069
+# INFO:__main__:is_meso = True, fixed_d_val = 0.5, fixed_s_val = 0.5
+# INFO:__main__: theta_d_mag_std: 0.0105
+# INFO:__main__:     theta_d_mag: 0.7954
+# INFO:__main__: theta_s_mag_std: 0.0014
+# INFO:__main__:     theta_s_mag: 0.5138
+# INFO:__main__:         theta_d: 0.6900
+# INFO:__main__:         theta_s: 0.4934
+# INFO:__main__:            both: 0.3341
+# INFO:__main__:          only_d: 0.3559
+# INFO:__main__:          only_s: 0.1594
+# INFO:__main__:         neither: 0.1506
+# INFO:__main__:          either: 0.8494
 
+# INFO:__main__:loss_fn: RandomResolutionSTFTLoss, synth: ChirpTextureSynth
+# INFO:__main__:n_batches = 100, bs = 32, n_trials = 3200
+# INFO:__main__:is_meso = True, fixed_d_val = 0.5, fixed_s_val = 0.5
+# INFO:__main__: theta_d_mag_std: 0.0208
+# INFO:__main__:     theta_d_mag: 0.8293
+# INFO:__main__: theta_s_mag_std: 0.1018
+# INFO:__main__:     theta_s_mag: 0.5065
+# INFO:__main__:         theta_d: 0.7506
+# INFO:__main__:         theta_s: 0.4941
+# INFO:__main__:            both: 0.3672
+# INFO:__main__:          only_d: 0.3834
+# INFO:__main__:          only_s: 0.1269
+# INFO:__main__:         neither: 0.1225
+# INFO:__main__:          either: 0.8775
+
+# INFO:__main__:loss_fn: LogMSSLoss, synth: ChirpTextureSynth
+# INFO:__main__:n_batches = 100, bs = 32, n_trials = 3200
+# INFO:__main__:is_meso = True, fixed_d_val = 0.5, fixed_s_val = 0.5
+# INFO:__main__: theta_d_mag_std: 0.2084
+# INFO:__main__:     theta_d_mag: 0.6880
+# INFO:__main__: theta_s_mag_std: 0.0618
+# INFO:__main__:     theta_s_mag: 0.5205
+# INFO:__main__:         theta_d: 0.6378
+# INFO:__main__:         theta_s: 0.5150
+# INFO:__main__:            both: 0.3291
+# INFO:__main__:          only_d: 0.3088
+# INFO:__main__:          only_s: 0.1859
+# INFO:__main__:         neither: 0.1762
+# INFO:__main__:          either: 0.8238
+
+# INFO:__main__:loss_fn: ClapEmbeddingLoss, synth: ChirpTextureSynth
+# INFO:__main__:n_batches = 100, bs = 32, n_trials = 3200
+# INFO:__main__:is_meso = True, fixed_d_val = 0.5, fixed_s_val = 0.5
+# INFO:__main__: theta_d_mag_std: 0.3162
+# INFO:__main__:     theta_d_mag: 0.5762
+# INFO:__main__: theta_s_mag_std: 1.5415
+# INFO:__main__:     theta_s_mag: 0.6023
+# INFO:__main__:         theta_d: 0.5500
+# INFO:__main__:         theta_s: 0.5497
+# INFO:__main__:            both: 0.3075
+# INFO:__main__:          only_d: 0.2425
+# INFO:__main__:          only_s: 0.2422
+# INFO:__main__:         neither: 0.2078
+# INFO:__main__:          either: 0.7922
 
 # INFO:__main__:loss_fn: JTFSTLoss, synth: ChirpTextureSynth
-# INFO:__main__:n_batches = 800, bs = 4, n_trials = 3200
-# INFO:__main__:is_meso = True, fixed_d_val = None, fixed_s_val = None
-# INFO:__main__:     theta_d_mag: 0.7700
-# INFO:__main__:     theta_s_mag: 0.8708
-# INFO:__main__:         theta_d: 0.7050
-# INFO:__main__:         theta_s: 0.9013
-# INFO:__main__:            both: 0.6344
-# INFO:__main__:          only_d: 0.0706
-# INFO:__main__:          only_s: 0.2669
-# INFO:__main__:         neither: 0.0281
-# INFO:__main__:          either: 0.9719
+# INFO:__main__:n_batches = 400, bs = 8, n_trials = 3200
+# INFO:__main__:is_meso = True, fixed_d_val = 0.5, fixed_s_val = 0.5
+# INFO:__main__: theta_d_mag_std: 0.0000
+# INFO:__main__:     theta_d_mag: 0.8120
+# INFO:__main__: theta_s_mag_std: 0.0000
+# INFO:__main__:     theta_s_mag: 0.9664
+# INFO:__main__:         theta_d: 0.7422
+# INFO:__main__:         theta_s: 0.9203
+# INFO:__main__:            both: 0.6850
+# INFO:__main__:          only_d: 0.0572
+# INFO:__main__:          only_s: 0.2353
+# INFO:__main__:         neither: 0.0225
+# INFO:__main__:          either: 0.9775
+
+# Averaged across paths (each path has 3200 trials)
+# INFO:__main__:loss_fn: AdaptiveSCRAPLLoss, synth: ChirpTextureSynth
+# INFO:__main__:n_batches = 100, bs = 32, n_trials = 3200
+# INFO:__main__:is_meso = True, fixed_d_val = 0.5, fixed_s_val = 0.5
+# INFO:__main__: theta_d_mag_std: 0.0000
+# INFO:__main__:     theta_d_mag: 0.6730
+# INFO:__main__: theta_s_mag_std: 0.0000
+# INFO:__main__:     theta_s_mag: 0.5808
+# INFO:__main__:         theta_d: 0.5955
+# INFO:__main__:         theta_s: 0.5739
+# INFO:__main__:            both: 0.3361
+# INFO:__main__:          only_d: 0.2594
+# INFO:__main__:          only_s: 0.2378
+# INFO:__main__:         neither: 0.1667
+# INFO:__main__:          either: 0.8333
 
 # INFO:__main__:loss_fn: AdaptiveSCRAPLLoss, synth: ChirpTextureSynth
-# INFO:__main__:n_batches = 10, bs = 32, n_trials = 320
-# INFO:__main__:is_meso = True, fixed_d_val = None, fixed_s_val = None
-# INFO:__main__:     theta_d_mag: 0.6679
-# INFO:__main__:     theta_s_mag: 0.5713
-# INFO:__main__:         theta_d: 0.6331
-# INFO:__main__:         theta_s: 0.5704
-# INFO:__main__:            both: 0.3522
-# INFO:__main__:          only_d: 0.2808
-# INFO:__main__:          only_s: 0.2181
-# INFO:__main__:         neither: 0.1488
-# INFO:__main__:          either: 0.8512
+# INFO:__main__:n_batches = 10000, bs = 32, n_trials = 320000
+# INFO:__main__:is_meso = True, fixed_d_val = 0.5, fixed_s_val = 0.5
+# INFO:__main__: theta_d_mag_std: 0.0000
+# INFO:__main__:     theta_d_mag: 0.5621
+# INFO:__main__: theta_s_mag_std: 0.0000
+# INFO:__main__:     theta_s_mag: 0.7033
+# INFO:__main__:         theta_d: 0.5938
+# INFO:__main__:         theta_s: 0.5745
+# INFO:__main__:            both: 0.3350
+# INFO:__main__:          only_d: 0.2589
+# INFO:__main__:          only_s: 0.2395
+# INFO:__main__:         neither: 0.1666
+# INFO:__main__:          either: 0.8334

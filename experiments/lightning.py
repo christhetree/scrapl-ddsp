@@ -162,6 +162,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.sag_m = defaultdict(lambda: {})
             self.sag_v = defaultdict(lambda: {})
             self.sag_t = defaultdict(lambda: {})
+            self.scrapl_t = 0
 
             paths_beta = self.vr_beta
             # importance_after_n_path_steps = 0.05
@@ -200,11 +201,13 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.tsv_path = None
 
     def clear(self) -> None:
-        for _, grad in self.prev_path_grads:
+        for _, grad in self.prev_path_grads.items():
             grad.fill_(0.0)
         self.sag_m = defaultdict(lambda: {})
         self.sag_v = defaultdict(lambda: {})
         self.sag_t = defaultdict(lambda: {})
+        self.scrapl_t = 0
+        self.paths_seen.clear()
 
     def is_warming_up(self) -> bool:
         if not self.warmup_paths:
@@ -403,7 +406,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             return grad
 
         if curr_t is None:
-            curr_t = self.global_step + 1
+            curr_t = self.scrapl_t + 1
         try:
             path_idx = self.loss_func.curr_path_idx
         except AttributeError:
@@ -432,7 +435,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         # path_idx = 250
         self.paths_seen.add(path_idx)
         n_paths = scrapl.n_paths
-        curr_t = self.global_step + 1
+        curr_t = self.scrapl_t + 1
+        # if param_idx == 0:
+        #     log.info(f"curr_t: {curr_t}")
 
         # curr_t = 1
         # self.save_grad_hook(grad, f"g_raw_{param_idx}", curr_t)
@@ -526,6 +531,7 @@ class SCRAPLLightingModule(pl.LightningModule):
     def on_train_batch_end(
         self, outputs: STEP_OUTPUT, batch: Any, batch_idx: int
     ) -> None:
+        self.scrapl_t += 1
         if self.update_paths or self.is_warming_up():
             assert isinstance(self.loss_func, AdaptiveSCRAPLLoss)
             assert self.loss_func.curr_path_idx is not None
@@ -557,6 +563,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                 probs = self.loss_func.probs
                 save_path = os.path.join(OUT_DIR, f"{self.run_name}_probs.pt")
                 tr.save(probs, save_path)
+                exit()
 
             self.param_idx_to_lc.clear()
 
