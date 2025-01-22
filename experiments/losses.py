@@ -202,7 +202,7 @@ class AdaptiveSCRAPLLoss(SCRAPLLoss):
         F: Optional[Union[str, int]] = None,
         p: int = 2,
         sample_all_paths_first: bool = False,
-        min_prob_fac: float = 0.25,
+        min_prob_fac: float = 0.0,
         probs_path: Optional[str] = None,
         get_path_keys_kw_args: Optional[Dict[str, Any]] = None,
         update_prob_is_bin: bool = False,

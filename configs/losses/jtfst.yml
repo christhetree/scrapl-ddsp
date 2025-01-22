@@ -1,13 +1,12 @@
 class_path: experiments.losses.JTFSTLoss
 init_args:
   shape: 32768
-  J: 6
-  Q1: 24
+  J: 12
+  Q1: 8
   Q2: 2
-  J_fr: 5
+  J_fr: 3
   Q_fr: 2
-  T: 64
-#  T: global
-  F: 32
-#  F: global
-  format: time
+  T: null
+  F: null
+  format_: joint
+  p: 2

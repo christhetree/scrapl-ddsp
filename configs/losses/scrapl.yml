@@ -1,10 +1,14 @@
-class_path: experiments.losses.SCRAPLLoss
+class_path: experiments.losses.AdaptiveSCRAPLLoss
 init_args:
   shape: 32768
-  J: 6
-  Q1: 24
-  Q2: 1
-  J_fr: 4
-  Q_fr: 12
-  T: 128
-  F: 16
+  J: 12
+  Q1: 8
+  Q2: 2
+  J_fr: 3
+  Q_fr: 2
+  T: null
+  F: null
+  p: 2
+  sample_all_paths_first: false
+  min_prob_fac: 0.0
+  update_prob_is_bin: false
