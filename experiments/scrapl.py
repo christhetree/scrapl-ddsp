@@ -43,15 +43,9 @@ class SCRAPLLoss(nn.Module):
     ):
         super().__init__()
         self.p = p
-        if grad_mult != 1.0:
-            assert parameters, "parameters must be provided if grad_mult != 1.0"
         self.grad_mult = grad_mult
         self.use_pwa = use_pwa
-        if use_pwa:
-            assert parameters, "parameters must be provided if use_pwa is True"
         self.use_saga = use_saga
-        if use_saga:
-            assert parameters, "parameters must be provided if use_saga is True"
         self.parameters = parameters
         self.sample_all_paths_first = sample_all_paths_first
         self.eps = eps
@@ -59,6 +53,7 @@ class SCRAPLLoss(nn.Module):
         self.pwa_b2 = pwa_b2
         self.pwa_eps = pwa_eps
 
+        # Path related setup
         self.jtfs = TimeFrequencyScrapl(
             shape=(shape,),
             J=J,
@@ -81,48 +76,69 @@ class SCRAPLLoss(nn.Module):
         )
         self.curr_path_idx = None
         self.path_counts = defaultdict(int)
+        self.rand_gen = tr.Generator(device="cpu")
+        self.unsampled_paths = list(range(self.n_paths))
 
-        prev_path_grads = {}
-        if parameters:
-            for idx, p in enumerate(parameters):
-                prev_path_grads[idx] = tr.zeros((self.n_paths, *p.shape))
-                p.register_hook(functools.partial(self.grad_hook, param_idx=idx))
-        self.prev_path_grads = ReadOnlyTensorDict(prev_path_grads)
+        # Grad related setup
         self.pwa_m = defaultdict(lambda: {})
         self.pwa_v = defaultdict(lambda: {})
         self.pwa_t = defaultdict(lambda: {})
         self.scrapl_t = 0
+        self.prev_path_grads = {}
+        if parameters is not None:
+            self.attach_params(parameters)
 
+        # Sampling probs setup
         if probs_path is not None:
-            log.info(f"Loading probs from {probs_path}")
             probs = tr.load(probs_path).double()
-            assert probs.shape == (self.n_paths,)
+            assert probs.shape == (self.n_paths,), \
+                f"probs.shape = {probs.shape}, expected {(self.n_paths,)}"
+            log.info(f"Loading probs from {probs_path}, min = {probs.min():.6f}, "
+                     f"max = {probs.max():.6f}, mean = {probs.mean():.6f}")
             self.probs = probs
         else:
             self.probs = tr.full((self.n_paths,), self.unif_prob, dtype=tr.double)
+        assert tr.allclose(
+            self.probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=self.eps
+        ), f"self.probs.sum() = {self.probs.sum()}"
 
     def clear(self) -> None:
+        # Path related setup
         self.curr_path_idx = None
         self.path_counts.clear()
-
-        for _, grad in self.prev_path_grads.items():
-            grad.fill_(0.0)
-        self.sag_m = defaultdict(lambda: {})
-        self.sag_v = defaultdict(lambda: {})
-        self.sag_t = defaultdict(lambda: {})
+        self.unsampled_paths = list(range(self.n_paths))
+        # Grad related setup
+        self.pwa_m = defaultdict(lambda: {})
+        self.pwa_v = defaultdict(lambda: {})
+        self.pwa_t = defaultdict(lambda: {})
         self.scrapl_t = 0
+        for grad in self.prev_path_grads.values():
+            grad.fill_(0.0)
+        # TODO(cm): clear probs?
+
+    def attach_params(self, parameters: Iterable[T]) -> None:
+        prev_path_grads = {}
+        for idx, p in enumerate(parameters):
+            prev_path_grads[idx] = tr.zeros((self.n_paths, *p.shape))
+            p.register_hook(functools.partial(self.grad_hook, param_idx=idx))
+        self.prev_path_grads = ReadOnlyTensorDict(prev_path_grads)
+        log.info(f"Attached {len(self.prev_path_grads)} parameters")
+        self.clear()
 
     def grad_hook(self, grad: T, param_idx: int) -> T:
+        # TODO(cm): check if this works
         if not self.training:
             return grad
 
         if self.grad_mult != 1.0:
             grad *= self.grad_mult
 
+        assert self.curr_path_idx is not None
         path_idx = self.curr_path_idx
         curr_t = self.scrapl_t + 1
 
         if self.use_pwa:
+            # TODO(cm): preallocate memory
             prev_m_s = self.pwa_m[param_idx]
             prev_v_s = self.pwa_v[param_idx]
             prev_t_s = self.pwa_t[param_idx]
@@ -171,27 +187,17 @@ class SCRAPLLoss(nn.Module):
 
         return grad
 
-    def sample_path(self) -> int:
-        if self.training:
-            self.scrapl_t += 1
-
+    def sample_path(self, seed: Optional[int] = None) -> int:
+        if seed is not None:
+            self.rand_gen.manual_seed(seed)
         if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
-            path_idx = len(self.path_counts)
+            assert len(self.unsampled_paths) > 0
+            unsampled_idx = tr.randint(
+                0, len(self.unsampled_paths), (1,), generator=self.rand_gen).item()
+            path_idx = self.unsampled_paths.pop(unsampled_idx)
         else:
-            assert tr.allclose(
-                self.probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=self.eps
-            ), f"self.probs.sum() = {self.probs.sum()}"
-            path_idx = tr.multinomial(self.probs, 1).item()
-        self.path_counts[path_idx] += 1
-        self.curr_path_idx = path_idx
-        return path_idx
-
-    def sample_path(self) -> int:
-        if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
-            path_idx = len(self.path_counts)
-        else:
-            path_idx = tr.randint(0, self.n_paths, (1,)).item()
-        self.path_counts[path_idx] += 1
+            path_idx = tr.multinomial(
+                self.probs, 1, generator=self.rand_gen).item()
         return path_idx
 
     def calc_dist(self, x: T, x_target: T, path_idx: int) -> (T, T, T):
@@ -200,31 +206,25 @@ class SCRAPLLoss(nn.Module):
         Sx = Sx["coef"].squeeze(-1)
         Sx_target = self.jtfs.scattering_singlepath(x_target, n2, n_fr)
         Sx_target = Sx_target["coef"].squeeze(-1)
-        # from matplotlib import pyplot as plt
-        # plt_Sx = Sx[0, 0, ...].detach().cpu().numpy()
-        # plt_Sx_target = Sx_target[0, 0, ...].detach().cpu().numpy()
-        # vmin = min(plt_Sx.min(), plt_Sx_target.min())
-        # vmax = max(plt_Sx.max(), plt_Sx_target.max())
-        # plt.imshow(plt_Sx, aspect="auto", interpolation="none", origin="lower", vmin=vmin, vmax=vmax)
-        # plt.title("Sx")
-        # plt.show()
-        # plt.imshow(plt_Sx_target, aspect="auto", interpolation="none", origin="lower", vmin=vmin, vmax=vmax)
-        # plt.title("Sx_target")
-        # plt.show()
         diff = Sx_target - Sx
         dist = tr.linalg.vector_norm(diff, ord=self.p, dim=(-2, -1))
         dist = tr.mean(dist)
         return dist, Sx, Sx_target
 
-    def forward(self, x: T, x_target: T, path_idx: Optional[int] = None) -> T:
+    def forward(self, x: T, x_target: T, seed: Optional[int] = None, path_idx: Optional[int] = None) -> T:
         assert x.ndim == x_target.ndim == 3
         assert x.size(1) == x_target.size(1) == 1
         if path_idx is None:
-            path_idx = self.sample_path()
+            path_idx = self.sample_path(seed)
         else:
             log.info(f"Using specified path_idx = {path_idx}")
             assert 0 <= path_idx < self.n_paths
         dist, _, _ = self.calc_dist(x, x_target, path_idx)
+
+        self.curr_path_idx = path_idx
+        if self.training:  # TODO(cm): check if this works
+            self.path_counts[path_idx] += 1
+            self.scrapl_t += 1
         return dist
 
     @staticmethod
