@@ -271,12 +271,12 @@ if __name__ == "__main__":
         # ("saga_a0.25_prev", os.path.join(OUT_DIR, f"scrapl_saga_sgd_1e-5_b32_a0.25__texture_32_32_5_meso.tsv")),
         # ("jtfs_prev", os.path.join(OUT_DIR, f"jtfs_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("clap_prev", os.path.join(OUT_DIR, f"clap_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("saga_adam", os.path.join(OUT_DIR, f"texture/scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("saga_pwa", os.path.join(OUT_DIR, f"texture/scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("just_saga", os.path.join(OUT_DIR, f"texture/scrapl_just_saga_adam_1e-5_b32__texture_32_32_5_meso.tsv")),
+        ("adam", os.path.join(OUT_DIR, f"texture/scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
+        ("pwa", os.path.join(OUT_DIR, f"texture/scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        ("saga_adam", os.path.join(OUT_DIR, f"texture/scrapl_just_saga_adam_1e-5_b32__texture_32_32_5_meso.tsv")),
         ("saga", os.path.join(OUT_DIR, f"texture/scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"texture/scrapl_saga_a0.25_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
-        ("saga_a0.125", os.path.join(OUT_DIR, f"texture/scrapl_saga_a0.125_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+        # ("saga_a0.125", os.path.join(OUT_DIR, f"texture/scrapl_saga_a0.125_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("saga_bin", os.path.join(OUT_DIR, f"texture/scrapl_saga_bin_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
         ("saga_ds_w0", os.path.join(OUT_DIR, f"out/scrapl_saga_ds_w0_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
         ("jtfs", os.path.join(OUT_DIR, f"texture/jtfs_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
@@ -322,7 +322,7 @@ if __name__ == "__main__":
     ax.set_title(f"{stage} {y_col}")
     for name, tsv_path in tsv_names_and_paths:
         log.info(f"Plotting {name}, stage: {stage} ===================================")
-        data = prepare_tsv_data(tsv_path, stage, x_col, y_col, y_converge_val=0.1, allow_var_n=False)
+        data = prepare_tsv_data(tsv_path, stage, x_col, y_col, y_converge_val=0.1, allow_var_n=True)
         plot_xy_vals(ax, data, title=name, plot_95ci=True, plot_range=False)
         tsv_vals = [name] + data["tsv_vals"]
         tsv_string = "\t".join(str(val) for val in tsv_vals)

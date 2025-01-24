@@ -2,14 +2,13 @@ import functools
 import logging
 import os
 from collections import defaultdict
-from typing import Union, Any, Optional, Dict, Iterable
+from typing import Union, Optional, Iterable, List
 
 import torch as tr
 import torch.nn as nn
-from sympy.integrals.intpoly import gradient_terms
 from torch import Tensor as T
+from tqdm import tqdm
 
-from experiments import util
 from experiments.util import ReadOnlyTensorDict
 from scrapl.torch import TimeFrequencyScrapl
 
@@ -35,6 +34,9 @@ class SCRAPLLoss(nn.Module):
         use_saga: bool = True,
         parameters: Optional[Iterable[T]] = None,
         sample_all_paths_first: bool = False,
+        # update_probs: bool = False,
+        n_theta: int = 1,
+        min_prob_frac: float = 0.0,
         probs_path: Optional[str] = None,
         eps: float = 1e-12,
         pwa_b1: float = 0.9,
@@ -48,6 +50,11 @@ class SCRAPLLoss(nn.Module):
         self.use_saga = use_saga
         self.parameters = parameters
         self.sample_all_paths_first = sample_all_paths_first
+        # self.update_probs = update_probs
+        assert n_theta >= 1
+        self.n_theta = n_theta
+        assert 0 <= min_prob_frac < 1.0
+        self.min_prob_frac = min_prob_frac
         self.eps = eps
         self.pwa_b1 = pwa_b1
         self.pwa_b2 = pwa_b2
@@ -91,16 +98,37 @@ class SCRAPLLoss(nn.Module):
         # Sampling probs setup
         if probs_path is not None:
             probs = tr.load(probs_path).double()
-            assert probs.shape == (self.n_paths,), \
-                f"probs.shape = {probs.shape}, expected {(self.n_paths,)}"
-            log.info(f"Loading probs from {probs_path}, min = {probs.min():.6f}, "
-                     f"max = {probs.max():.6f}, mean = {probs.mean():.6f}")
+            assert probs.shape == (
+                self.n_paths,
+            ), f"probs.shape = {probs.shape}, expected {(self.n_paths,)}"
+            log.info(
+                f"Loading probs from {probs_path}, min = {probs.min():.6f}, "
+                f"max = {probs.max():.6f}, mean = {probs.mean():.6f}"
+            )
             self.probs = probs
         else:
             self.probs = tr.full((self.n_paths,), self.unif_prob, dtype=tr.double)
-        assert tr.allclose(
-            self.probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=self.eps
-        ), f"self.probs.sum() = {self.probs.sum()}"
+
+        # Update probs setup
+        self.updated_path_indices = defaultdict(set)
+        self.all_log_vals = tr.full(
+            (self.n_theta, self.n_paths), self.eps, dtype=tr.double
+        ).log()
+        self.all_log_probs = tr.full(
+            (
+                self.n_theta,
+                self.n_paths,
+            ),
+            self.unif_prob,
+            dtype=tr.double,
+        ).log()
+        self.log_eps = tr.log(tr.tensor(self.eps, dtype=tr.double))
+        self.min_prob = self.unif_prob * self.min_prob_frac
+        self.log_1m_min_prob_frac = tr.tensor(
+            1.0 - self.min_prob_frac, dtype=tr.double
+        ).log()
+
+        self._check_probs()
 
     def clear(self) -> None:
         # Path related setup
@@ -114,7 +142,7 @@ class SCRAPLLoss(nn.Module):
         self.scrapl_t = 0
         for grad in self.prev_path_grads.values():
             grad.fill_(0.0)
-        # TODO(cm): clear probs?
+        # TODO(cm): clear probs? clear update vals?
 
     def attach_params(self, parameters: Iterable[T]) -> None:
         prev_path_grads = {}
@@ -188,16 +216,25 @@ class SCRAPLLoss(nn.Module):
         return grad
 
     def sample_path(self, seed: Optional[int] = None) -> int:
-        if seed is not None:
+        if seed is None:
+            rand_gen = None
+        else:
             self.rand_gen.manual_seed(seed)
-        if self.sample_all_paths_first and len(self.path_counts) < self.n_paths:
-            assert len(self.unsampled_paths) > 0
+            rand_gen = self.rand_gen
+        if (
+            self.sample_all_paths_first
+            and len(self.path_counts) < self.n_paths
+            and self.unsampled_paths
+        ):
             unsampled_idx = tr.randint(
-                0, len(self.unsampled_paths), (1,), generator=self.rand_gen).item()
+                0, len(self.unsampled_paths), (1,), generator=rand_gen
+            ).item()
             path_idx = self.unsampled_paths.pop(unsampled_idx)
         else:
+            self.check_probs(self.probs, self.n_paths, self.eps, self.min_prob)
             path_idx = tr.multinomial(
-                self.probs, 1, generator=self.rand_gen).item()
+                self.probs, num_samples=1, generator=rand_gen
+            ).item()
         return path_idx
 
     def calc_dist(self, x: T, x_target: T, path_idx: int) -> (T, T, T):
@@ -211,7 +248,13 @@ class SCRAPLLoss(nn.Module):
         dist = tr.mean(dist)
         return dist, Sx, Sx_target
 
-    def forward(self, x: T, x_target: T, seed: Optional[int] = None, path_idx: Optional[int] = None) -> T:
+    def forward(
+        self,
+        x: T,
+        x_target: T,
+        seed: Optional[int] = None,
+        path_idx: Optional[int] = None,
+    ) -> T:
         assert x.ndim == x_target.ndim == 3
         assert x.size(1) == x_target.size(1) == 1
         if path_idx is None:
@@ -226,6 +269,99 @@ class SCRAPLLoss(nn.Module):
             self.path_counts[path_idx] += 1
             self.scrapl_t += 1
         return dist
+
+    def update_prob(self, path_idx: int, val: T, theta_idx: int = 0) -> None:
+        assert 0 <= path_idx < self.n_paths
+        assert 0 <= theta_idx < self.n_theta
+        assert val >= 0.0
+        # Keep track of which and how many paths have been updated
+        self.updated_path_indices[theta_idx].add(path_idx)
+        updated_indices = list(self.updated_path_indices[theta_idx])
+        n_updated = len(updated_indices)
+        # Update log vals
+        log_vals = self.all_log_vals[theta_idx]
+        log_val = val.double().clamp(min=self.eps).log()
+        log_vals[path_idx] = log_val
+        # Update log probs
+        if n_updated < 2:
+            # Use init probs since there are not enough updated paths
+            return
+        elif n_updated == self.n_paths:
+            # Use all updated log vals to calculate log probs
+            log_probs = self.calc_log_probs(log_vals)
+        else:
+            # Use a balance between updated log vals and init probs
+            log_probs = self.all_log_probs[theta_idx]
+            log_probs[updated_indices] = self.log_eps
+            updated_frac = tr.tensor(n_updated / self.n_paths, dtype=tr.double)
+            stale_frac = 1.0 - updated_frac
+            updated_probs = self.calc_log_probs(log_vals) + updated_frac.log()
+            stale_probs = self.calc_log_probs(log_probs) + stale_frac.log()
+            self.all_log_probs[theta_idx] = stale_probs
+            self.all_log_probs[theta_idx][updated_indices] = updated_probs[
+                updated_indices
+            ]
+            log_probs = self.calc_log_probs(self.all_log_probs[theta_idx])
+
+        # Ensure min_prob_frac is enforced
+        log_probs += self.log_1m_min_prob_frac
+        # Update all log probs
+        self.all_log_probs[theta_idx] = log_probs
+        # Update probs
+        self._recompute_probs()
+
+    def _recompute_probs(self) -> None:
+        all_probs = self.all_log_probs.exp() + self.min_prob
+        probs = all_probs.mean(dim=0)
+        self.probs = probs
+        self._check_probs()
+
+    def _check_probs(self) -> None:
+        self.check_probs(self.probs, self.n_paths, self.eps, self.min_prob)
+        all_probs = self.all_log_probs.exp()
+        all_vals = self.all_log_vals.exp()
+        for theta_idx in range(self.n_theta):
+            probs = all_probs[theta_idx, :]
+            vals = all_vals[theta_idx, :]
+            updated_indices = list(self.updated_path_indices[theta_idx])
+            self.check_probs(
+                probs, self.n_paths, self.eps, self.min_prob, vals, updated_indices
+            )
+
+    @staticmethod
+    def check_probs(
+        probs: T,
+        n_paths: int,
+        eps: float,
+        min_prob: float = 0.0,
+        vals: Optional[T] = None,
+        updated_indices: Optional[List[int]] = None,
+    ) -> None:
+        assert probs.shape == (n_paths,)
+        assert tr.allclose(
+            probs.sum(), tr.tensor(1.0, dtype=tr.double), atol=eps
+        ), f"self.probs.sum() = {probs.sum()}"
+        assert probs.min() >= min_prob - eps, f"probs.min() = {probs.min()}"
+
+        if vals is None or len(updated_indices) < 2:
+            return
+
+        assert vals.shape == (n_paths,)
+        assert vals.min() >= eps
+        vals = vals[updated_indices]
+        val_ratios = vals / vals.min()
+        raw_probs = probs[updated_indices] - min_prob
+        assert raw_probs.min() > 0.0
+        prob_ratios = raw_probs / raw_probs.min()
+        assert tr.allclose(
+            val_ratios, prob_ratios, atol=1e-3, rtol=1e-3, equal_nan=True
+        ), f"val_ratios = {val_ratios}, prob_ratios = {prob_ratios}"
+
+    @staticmethod
+    def calc_log_probs(log_vals: T) -> T:
+        assert log_vals.ndim == 1
+        log_probs = log_vals - tr.logsumexp(log_vals, dim=0)
+        return log_probs
 
     @staticmethod
     def adam_grad_norm_cont(
@@ -248,3 +384,33 @@ class SCRAPLLoss(nn.Module):
         v_hat = v / (1 - b2**t)
         grad_hat = m_hat / (T.sqrt(v_hat) + eps)
         return grad_hat, m, v
+
+
+# warmup can be parallelized
+# eval should show that the distributions differ to show it's adaptive
+# can simulate this by bandlimiting o1 or o2 (already did o2 bands using chirplet synth)
+
+if __name__ == "__main__":
+    n_samples = 1024
+    n_theta = 30
+    n_iter = 100
+
+    scrapl = SCRAPLLoss(
+        shape=n_samples,
+        J=2,
+        Q1=2,
+        Q2=2,
+        J_fr=1,
+        Q_fr=2,
+        n_theta=n_theta,
+        sample_all_paths_first=False,
+    )
+
+    for _ in tqdm(range(n_iter)):
+        val = tr.rand((1,)) * 1000.0
+        path_idx = scrapl.sample_path()
+        theta_idx = tr.randint(0, n_theta, (1,)).item()
+        log.info(
+            f"val = {val.item():.6f}, path_idx = {path_idx}, theta_idx = {theta_idx}"
+        )
+        scrapl.update_prob(path_idx, val, theta_idx)
