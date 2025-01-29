@@ -34,7 +34,6 @@ class SCRAPLLoss(nn.Module):
         use_saga: bool = True,
         parameters: Optional[Iterable[T]] = None,
         sample_all_paths_first: bool = False,
-        # update_probs: bool = False,
         n_theta: int = 1,
         min_prob_frac: float = 0.0,
         probs_path: Optional[str] = None,
@@ -50,7 +49,6 @@ class SCRAPLLoss(nn.Module):
         self.use_saga = use_saga
         self.parameters = parameters
         self.sample_all_paths_first = sample_all_paths_first
-        # self.update_probs = update_probs
         assert n_theta >= 1
         self.n_theta = n_theta
         assert 0 <= min_prob_frac < 1.0
@@ -87,11 +85,12 @@ class SCRAPLLoss(nn.Module):
         self.unsampled_paths = list(range(self.n_paths))
 
         # Grad related setup
-        self.pwa_m = defaultdict(lambda: {})
-        self.pwa_v = defaultdict(lambda: {})
-        self.pwa_t = defaultdict(lambda: {})
+        self.pwa_m = {}
+        self.pwa_v = {}
+        self.pwa_t = defaultdict(lambda: defaultdict(int))
         self.scrapl_t = 0
         self.prev_path_grads = {}
+        self.hook_handles = []
         if parameters is not None:
             self.attach_params(parameters)
 
@@ -108,27 +107,39 @@ class SCRAPLLoss(nn.Module):
             self.probs = probs
         else:
             self.probs = tr.full((self.n_paths,), self.unif_prob, dtype=tr.double)
+        self.orig_probs = self.probs.clone()
 
         # Update probs setup
-        self.updated_path_indices = defaultdict(set)
-        self.all_log_vals = tr.full(
-            (self.n_theta, self.n_paths), self.eps, dtype=tr.double
+        self.log_eps = tr.tensor(self.eps, dtype=tr.double).log()
+        self.log_unif_prob = tr.tensor(self.unif_prob, dtype=tr.double).log()
+        self.min_prob = self.unif_prob * self.min_prob_frac
+        self.log_1m_min_prob_frac = tr.tensor(
+            1.0 - self.min_prob_frac, dtype=tr.double
         ).log()
+        self.updated_path_indices = defaultdict(set)
+        self.all_log_vals = tr.full((self.n_theta, self.n_paths), self.log_eps, dtype=tr.double)
         self.all_log_probs = tr.full(
             (
                 self.n_theta,
                 self.n_paths,
             ),
-            self.unif_prob,
+            self.log_unif_prob,
             dtype=tr.double,
-        ).log()
-        self.log_eps = tr.log(tr.tensor(self.eps, dtype=tr.double))
-        self.min_prob = self.unif_prob * self.min_prob_frac
-        self.log_1m_min_prob_frac = tr.tensor(
-            1.0 - self.min_prob_frac, dtype=tr.double
-        ).log()
+        )
 
+        # Check probs
         self._check_probs()
+
+    def _clear_grad_data(self) -> None:
+        self.pwa_m = {}
+        self.pwa_v = {}
+        self.pwa_t = defaultdict(lambda: defaultdict(int))
+        self.scrapl_t = 0
+        self.prev_path_grads = {}
+        for handle in self.hook_handles:
+            handle.remove()
+        self.hook_handles = []
+        self.parameters = None
 
     def clear(self) -> None:
         # Path related setup
@@ -136,22 +147,32 @@ class SCRAPLLoss(nn.Module):
         self.path_counts.clear()
         self.unsampled_paths = list(range(self.n_paths))
         # Grad related setup
-        self.pwa_m = defaultdict(lambda: {})
-        self.pwa_v = defaultdict(lambda: {})
-        self.pwa_t = defaultdict(lambda: {})
-        self.scrapl_t = 0
-        for grad in self.prev_path_grads.values():
-            grad.fill_(0.0)
-        # TODO(cm): clear probs? clear update vals?
+        self._clear_grad_data()
+        # Sampling probs setup
+        self.probs = self.orig_probs.clone()
+        # Update probs setup
+        self.updated_path_indices.clear()
+        self.all_log_vals.fill_(self.log_eps)
+        self.all_log_probs.fill_(self.log_unif_prob)
+        log.info(f"Cleared state")
+        self._check_probs()
 
     def attach_params(self, parameters: Iterable[T]) -> None:
+        self._clear_grad_data()
+        self.parameters = list(parameters)
+        pwa_m = {}
+        pwa_v = {}
         prev_path_grads = {}
-        for idx, p in enumerate(parameters):
+        for idx, p in enumerate(self.parameters):
+            pwa_m[idx] = tr.zeros((self.n_paths, *p.shape))
+            pwa_v[idx] = tr.zeros((self.n_paths, *p.shape))
             prev_path_grads[idx] = tr.zeros((self.n_paths, *p.shape))
-            p.register_hook(functools.partial(self.grad_hook, param_idx=idx))
-        self.prev_path_grads = ReadOnlyTensorDict(prev_path_grads)
+            handle = p.register_hook(functools.partial(self.grad_hook, param_idx=idx))
+            self.hook_handles.append(handle)
+        self.register_module("pwa_m", ReadOnlyTensorDict(pwa_m))
+        self.register_module("pwa_v", ReadOnlyTensorDict(pwa_v))
+        self.register_module("prev_path_grads", ReadOnlyTensorDict(prev_path_grads))
         log.info(f"Attached {len(self.prev_path_grads)} parameters")
-        self.clear()
 
     def grad_hook(self, grad: T, param_idx: int) -> T:
         # TODO(cm): check if this works
@@ -166,22 +187,12 @@ class SCRAPLLoss(nn.Module):
         curr_t = self.scrapl_t + 1
 
         if self.use_pwa:
-            # TODO(cm): preallocate memory
             prev_m_s = self.pwa_m[param_idx]
             prev_v_s = self.pwa_v[param_idx]
             prev_t_s = self.pwa_t[param_idx]
-            if path_idx in prev_m_s:
-                prev_m = prev_m_s[path_idx]
-            else:
-                prev_m = tr.zeros_like(grad)
-            if path_idx in prev_v_s:
-                prev_v = prev_v_s[path_idx]
-            else:
-                prev_v = tr.zeros_like(grad)
-            if path_idx in prev_t_s:
-                prev_t = prev_t_s[path_idx]
-            else:
-                prev_t = 0
+            prev_m = prev_m_s[path_idx]
+            prev_v = prev_v_s[path_idx]
+            prev_t = prev_t_s[path_idx]
             prev_t_norm = prev_t / self.n_paths
             t_norm = curr_t / self.n_paths
 
@@ -391,16 +402,16 @@ class SCRAPLLoss(nn.Module):
 # can simulate this by bandlimiting o1 or o2 (already did o2 bands using chirplet synth)
 
 if __name__ == "__main__":
-    n_samples = 1024
+    n_samples = 32768
     n_theta = 30
     n_iter = 100
 
     scrapl = SCRAPLLoss(
         shape=n_samples,
-        J=2,
-        Q1=2,
+        J=12,
+        Q1=8,
         Q2=2,
-        J_fr=1,
+        J_fr=3,
         Q_fr=2,
         n_theta=n_theta,
         sample_all_paths_first=False,
