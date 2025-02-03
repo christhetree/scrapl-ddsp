@@ -117,7 +117,9 @@ class SCRAPLLoss(nn.Module):
             1.0 - self.min_prob_frac, dtype=tr.double
         ).log()
         self.updated_path_indices = defaultdict(set)
-        self.all_log_vals = tr.full((self.n_theta, self.n_paths), self.log_eps, dtype=tr.double)
+        self.all_log_vals = tr.full(
+            (self.n_theta, self.n_paths), self.log_eps, dtype=tr.double
+        )
         self.all_log_probs = tr.full(
             (
                 self.n_theta,
@@ -402,6 +404,154 @@ class SCRAPLLoss(nn.Module):
 # can simulate this by bandlimiting o1 or o2 (already did o2 bands using chirplet synth)
 
 if __name__ == "__main__":
+    # Setup
+    tr.set_printoptions(precision=4, sci_mode=False)
+    tr.manual_seed(0)
+    bs = 3
+    n_samples = 7
+    n_theta = 5
+
+    model = nn.Sequential(
+        nn.Linear(n_samples, n_theta),
+        nn.PReLU(),
+        nn.Linear(n_theta, n_theta),
+        nn.Sigmoid(),
+    )
+    model = model
+    synth = nn.Sequential(
+        nn.Linear(n_theta, n_theta),
+        nn.PReLU(),
+        nn.Linear(n_theta, n_samples),
+        nn.Tanh(),
+    )
+    synth = synth
+    loss_fn = nn.MSELoss()
+    x = tr.rand((bs, n_samples))
+
+    params = [p for p in model.parameters()]
+    assert all(not p.grad for p in params)
+
+    theta_hat = model(x)
+    x_hat = synth(theta_hat)
+    loss = loss_fn(x_hat, x)
+
+    # Calc param grad
+    grad_dict = tr.autograd.grad(
+        loss, params, create_graph=True, materialize_grads=True
+    )
+    grad_vec = tr.cat([g.view(-1) for g in grad_dict])
+    log.info(f"grad_vec = {grad_vec[:5]}")
+    assert all(not p.grad for p in params)
+    vec = tr.rand_like(grad_vec)
+
+    # Calc theta param grad and theta param hvp
+    def theta_hook(grad: T, theta_idx: int) -> T:
+        log.info(f"theta_hook called with theta_idx = {theta_idx}")
+        zero_indices = list(range(n_theta))
+        zero_indices.remove(theta_idx)
+        grad[:, zero_indices] = 0.0
+        return grad
+        # new_grad = tr.zeros_like(grad)
+        # new_grad[:, theta_idx] = grad[:, theta_idx]
+        # return new_grad
+
+    all_grad_vecs = []
+    all_hvp_vecs = []
+    for theta_idx in range(n_theta):
+        curr_hook = functools.partial(theta_hook, theta_idx=theta_idx)
+        handle = theta_hat.register_hook(curr_hook)
+        grad_dict = tr.autograd.grad(
+            loss, params, create_graph=True, materialize_grads=True, retain_graph=True
+        )
+        curr_grad_vec = tr.cat([g.view(-1) for g in grad_dict])
+        all_grad_vecs.append(curr_grad_vec)
+        handle.remove()
+
+        hvp_dict = tr.autograd.grad(
+            curr_grad_vec,
+            params,
+            grad_outputs=vec,
+            materialize_grads=True,
+            retain_graph=True,
+        )
+        curr_hvp_vec = tr.cat([g.view(-1) for g in hvp_dict])
+        all_hvp_vecs.append(curr_hvp_vec)
+
+    # Check that the combined theta param grad is the same
+    combined_grad_vec = tr.stack(all_grad_vecs, dim=0).sum(dim=0)
+    assert tr.allclose(grad_vec, combined_grad_vec)
+
+    # Check that the combined theta param hvp is the same
+    hvp_dict = tr.autograd.grad(grad_vec, params, grad_outputs=vec, retain_graph=True)
+    hvp_vec = tr.cat([g.view(-1) for g in hvp_dict])
+    log.info(f"hvp_vec_1 = {hvp_vec[-8:]}")
+
+    combined_hvp_vec = tr.stack(all_hvp_vecs, dim=0).sum(dim=0)
+    assert tr.allclose(hvp_vec, combined_hvp_vec)
+
+    hvp_dict = tr.autograd.grad(
+        combined_grad_vec, params, grad_outputs=vec, retain_graph=True
+    )
+    combined_hvp_vec_2 = tr.cat([g.view(-1) for g in hvp_dict])
+    assert tr.allclose(hvp_vec, combined_hvp_vec_2)
+
+    # Vectorized and no hook version ===================================================
+
+    # Calc theta grad
+    grad_theta = tr.autograd.grad(
+        loss,
+        theta_hat,
+        create_graph=True,  # Create graphs is super important here
+        materialize_grads=True
+    )[0]
+
+    # Expand theta grad along batch dime for each theta
+    grad_theta_expanded = grad_theta.unsqueeze(0).expand(n_theta, -1, -1)
+    # grad_theta_expanded = grad_theta.unsqueeze(0).repeat(n_theta, 1, 1)
+    eye = tr.eye(n_theta, device=grad_theta_expanded.device).unsqueeze(1).expand(-1, bs, -1)
+    # eye = tr.eye(n_theta, device=grad_theta_expanded.device).unsqueeze(1).repeat(1, bs, 1)
+    grad_theta_expanded = grad_theta_expanded * eye
+
+    # Calc vectorized param grad
+    grad_params = tr.autograd.grad(
+        theta_hat,
+        params,
+        grad_outputs=grad_theta_expanded,
+        create_graph=True,
+        materialize_grads=True,
+        is_grads_batched=True,
+    )
+    grad_matrix = tr.cat([g.view(n_theta, -1) for g in grad_params], dim=1)
+    for idx, g in enumerate(all_grad_vecs):
+        assert tr.allclose(grad_matrix[idx], g)
+
+    # Check that the combined vectorized param grad is the same
+    grad_vec_2 = grad_matrix.sum(dim=0)
+    assert tr.allclose(grad_vec, grad_vec_2)
+
+    # Calc vectorized param hvp
+    all_hvp_vecs_2 = []
+    for idx in range(n_theta):
+        curr_grad = grad_matrix[idx]
+        hvp_dict = tr.autograd.grad(
+            curr_grad,
+            params,
+            grad_outputs=vec,
+            materialize_grads=True,
+            retain_graph=True,
+        )
+        curr_hvp_vec = tr.cat([g.view(-1) for g in hvp_dict])
+        all_hvp_vecs_2.append(curr_hvp_vec)
+        # Check that the individual vectorized param hvp is the same
+        other_hvp_vec = all_hvp_vecs[idx]
+        assert tr.allclose(curr_hvp_vec, other_hvp_vec)
+
+    # Check that the combined vectorized param hvp is the same
+    hvp_vec_2 = tr.stack(all_hvp_vecs_2, dim=0).sum(dim=0)
+    log.info(f"hvp_vec_2 = {hvp_vec_2[-8:]}")
+    assert tr.allclose(hvp_vec, hvp_vec_2)
+    exit()
+
     n_samples = 32768
     n_theta = 30
     n_iter = 100

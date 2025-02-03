@@ -6,6 +6,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Dict, Optional, List, Any, Union, Callable
 
+import hessian_eigenthings
 import pytorch_lightning as pl
 import torch as tr
 from nnAudio.features import CQT
@@ -15,6 +16,7 @@ from torch import Tensor as T
 from torch import nn
 from torch.optim import Optimizer
 
+from experiments.hessian import HVPAutograd
 from experiments.losses import JTFSTLoss, SCRAPLLoss, AdaptiveSCRAPLLoss, Scat1DLoss
 from experiments.paths import OUT_DIR
 from experiments.util import ReadOnlyTensorDict
