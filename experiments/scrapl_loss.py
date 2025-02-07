@@ -869,6 +869,7 @@ if __name__ == "__main__":
         n_theta=n_theta,
         sample_all_paths_first=False,
     )
+    # TODO: Check whether probs are loaded in ckpt or need to be in buffer
 
     theta_fn = lambda x: model(x.squeeze(1))
     synth_fn = lambda theta: synth(theta).unsqueeze(1)
