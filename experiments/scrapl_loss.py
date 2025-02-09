@@ -12,6 +12,7 @@ from torch import Tensor as T
 from torch.nn import Parameter
 from tqdm import tqdm
 
+from experiments.paths import OUT_DIR
 from experiments.util import ReadOnlyTensorDict
 from scrapl.torch import TimeFrequencyScrapl
 
@@ -21,6 +22,19 @@ log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class SCRAPLLoss(nn.Module):
+    STATE_DICT_ATTRS = [
+        # Path related setup
+        "path_counts",
+        "unsampled_paths",
+        # Sampling probs setup
+        "probs",
+        "orig_probs",
+        # Update probs setup
+        "updated_path_indices",
+        "all_log_vals",
+        "all_log_probs",
+    ]
+
     def __init__(
         self,
         shape: int,
@@ -35,7 +49,6 @@ class SCRAPLLoss(nn.Module):
         grad_mult: float = 1e8,
         use_pwa: bool = True,
         use_saga: bool = True,
-        parameters: Optional[Iterable[T]] = None,
         sample_all_paths_first: bool = False,
         n_theta: int = 1,
         min_prob_frac: float = 0.0,
@@ -48,9 +61,12 @@ class SCRAPLLoss(nn.Module):
         super().__init__()
         self.p = p
         self.grad_mult = grad_mult
+        if use_pwa:
+            assert (
+                grad_mult > 1.0
+            ), "Using PWA requires a grad multiplier to avoid float precision errors"
         self.use_pwa = use_pwa
         self.use_saga = use_saga
-        self.parameters = parameters
         self.sample_all_paths_first = sample_all_paths_first
         assert n_theta >= 1
         self.n_theta = n_theta
@@ -88,16 +104,16 @@ class SCRAPLLoss(nn.Module):
         self.unsampled_paths = list(range(self.n_paths))
 
         # Grad related setup
+        self.attached_params = None
         self.pwa_m = {}
         self.pwa_v = {}
         self.pwa_t = defaultdict(lambda: defaultdict(int))
         self.scrapl_t = 0
         self.prev_path_grads = {}
         self.hook_handles = []
-        if parameters is not None:
-            self.attach_params(parameters)
 
         # Sampling probs setup
+        # We keep probs on the CPU to avoid GPU and CPU seed discrepancies
         if probs_path is not None:
             probs = tr.load(probs_path).double()
             assert probs.shape == (
@@ -148,7 +164,7 @@ class SCRAPLLoss(nn.Module):
         for handle in self.hook_handles:
             handle.remove()
         self.hook_handles = []
-        self.parameters = None
+        self.attached_params = None
 
     def clear(self) -> None:
         # Path related setup
@@ -166,18 +182,51 @@ class SCRAPLLoss(nn.Module):
         log.info(f"Cleared state")
         self._check_probs()
 
-    def attach_params(self, parameters: Iterable[T]) -> None:
+    def state_dict(self, *args, **kwargs) -> Dict[str, T]:
+        # TODO(cm): support resuming training with grad hooks
+        state_dict = super().state_dict(*args, **kwargs)
+        excluded_keys = []
+        for k in state_dict:
+            # Exclude all wavelet tensors since they are recreated on load
+            if k.startswith("jtfs"):
+                excluded_keys.append(k)
+            if k.startswith("pwa_"):
+                excluded_keys.append(k)
+            if k.startswith("prev_path_grads"):
+                excluded_keys.append(k)
+            if k.startswith("theta_eye"):
+                excluded_keys.append(k)
+        state_dict = {k: v for k, v in state_dict.items() if k not in excluded_keys}
+        for attr in self.STATE_DICT_ATTRS:
+            assert attr not in state_dict
+            state_dict[attr] = getattr(self, attr)
+        return state_dict
+
+    def load_state_dict(self, state_dict: Dict[str, T], *args, **kwargs) -> None:
+        for attr in self.STATE_DICT_ATTRS:
+            assert attr in state_dict
+            setattr(self, attr, state_dict[attr])
+        state_dict = {
+            k: v for k, v in state_dict.items() if k not in self.STATE_DICT_ATTRS
+        }
+        kwargs["strict"] = False  # TODO(cm): is there a better way to do this?
+        super().load_state_dict(state_dict, *args, **kwargs)
+
+    def attach_params(self, params: Iterable[T]) -> None:
         self._clear_grad_data()
-        self.parameters = list(parameters)
+        self.attached_params = list(params)
         pwa_m = {}
         pwa_v = {}
         prev_path_grads = {}
-        for idx, p in enumerate(self.parameters):
+        for idx, p in enumerate(self.attached_params):
             pwa_m[idx] = tr.zeros((self.n_paths, *p.shape))
             pwa_v[idx] = tr.zeros((self.n_paths, *p.shape))
             prev_path_grads[idx] = tr.zeros((self.n_paths, *p.shape))
             handle = p.register_hook(functools.partial(self.grad_hook, param_idx=idx))
             self.hook_handles.append(handle)
+        del self.pwa_m
+        del self.pwa_v
+        del self.prev_path_grads
         self.register_module("pwa_m", ReadOnlyTensorDict(pwa_m))
         self.register_module("pwa_v", ReadOnlyTensorDict(pwa_v))
         self.register_module("prev_path_grads", ReadOnlyTensorDict(prev_path_grads))
@@ -291,10 +340,13 @@ class SCRAPLLoss(nn.Module):
         return dist
 
     # Update prob methods ==============================================================
-    def update_prob(self, path_idx: int, val: T, theta_idx: int = 0) -> None:
+    def update_prob(self, path_idx: int, val: float | T, theta_idx: int = 0) -> None:
         assert 0 <= path_idx < self.n_paths
         assert 0 <= theta_idx < self.n_theta
         assert val >= 0.0
+        if isinstance(val, float):
+            val = tr.tensor(val, dtype=tr.double)
+        val = val.cpu()
         # Keep track of which and how many paths have been updated
         self.updated_path_indices[theta_idx].add(path_idx)
         updated_indices = list(self.updated_path_indices[theta_idx])
@@ -496,6 +548,9 @@ class SCRAPLLoss(nn.Module):
         synth_fn_kwargs: Optional[Dict[str, Any]] = None,
         n_iter: int = 20,
     ) -> None:
+        assert (
+            self.attached_params is None
+        ), "Parameters cannot be attached during warmup!"
         for path_idx in range(self.n_paths):
             theta_eigs = self.calc_theta_eigs(
                 path_idx,
@@ -621,7 +676,12 @@ class SCRAPLLoss(nn.Module):
         synth_fn_kwargs: Optional[Iterable[Dict[str, Any]]] = None,
         n_iter: int = 20,
     ) -> None:
+        assert (
+            self.attached_params is None
+        ), "Parameters cannot be attached during warmup!"
         for path_idx in range(self.n_paths):
+            if path_idx > 1:
+                return
             theta_eigs = self.calc_theta_eigs_multibatch(
                 path_idx,
                 theta_fn,
@@ -683,7 +743,7 @@ class SCRAPLLoss(nn.Module):
         b2: float = 0.999,
         eps: float = 1e-8,
     ) -> (T, T, T):
-        assert t > prev_t >= 0.0
+        assert t > prev_t >= 0.0, f"t = {t}, prev_t = {prev_t}"
         delta_t = t - prev_t
         eff_b1 = b1**delta_t
         eff_b2 = b2**delta_t
@@ -700,13 +760,28 @@ class SCRAPLLoss(nn.Module):
 # can simulate this by bandlimiting o1 or o2 (already did o2 bands using chirplet synth)
 
 if __name__ == "__main__":
+    # n_samples = 32768
+    # n_theta = 2
+    # scrapl = SCRAPLLoss(
+    #     shape=n_samples,
+    #     J=12,
+    #     Q1=8,
+    #     Q2=2,
+    #     J_fr=3,
+    #     Q_fr=2,
+    #     n_theta=n_theta,
+    # )
+    # scrapl.update_prob(3, 100.0, 0)
+    # scrapl.update_prob(4, 1.0, 0)
+    # exit()
+
     # Setup
     tr.set_printoptions(precision=4, sci_mode=False)
     tr.manual_seed(0)
     bs = 3
     # n_samples = 7
     n_samples = 32768
-    n_theta = 5
+    n_theta = 1
 
     model = nn.Sequential(
         nn.Linear(n_samples, n_theta),
@@ -870,7 +945,7 @@ if __name__ == "__main__":
         sample_all_paths_first=False,
     )
     # TODO: Check whether probs are loaded in ckpt or need to be in buffer
-
+    # scrapl.attach_params(params)
     theta_fn = lambda x: model(x.squeeze(1))
     synth_fn = lambda theta: synth(theta).unsqueeze(1)
 
@@ -893,7 +968,7 @@ if __name__ == "__main__":
     theta_fn_kwargs = [
         {"x": x.unsqueeze(1)},
         {"x": x_2.unsqueeze(1)},
-        {"x": x_3.unsqueeze(1)},
+        # {"x": x_3.unsqueeze(1)},
     ]
     scrapl.warmup_lc_hess_multibatch(
         theta_fn=theta_fn,
@@ -902,6 +977,13 @@ if __name__ == "__main__":
         params=params,
         n_iter=2,
     )
+
+    save_path = os.path.join(OUT_DIR, "scrapl.pt")
+    tr.save(scrapl.state_dict(), save_path)
+
+    state_dict = tr.load(save_path)
+    scrapl.load_state_dict(state_dict)
+    exit()
 
     # for _ in tqdm(range(n_iter)):
     #     val = tr.rand((1,)) * 1000.0
