@@ -95,8 +95,15 @@ class SCRAPLLoss(nn.Module):
         self.n_paths = len(self.scrapl_keys)
         self.unif_prob = 1.0 / self.n_paths
         log.info(
-            f"number of SCRAPL keys = {self.n_paths}, "
-            f"unif_prob = {self.unif_prob:.8f}"
+            f"SCRAPLLoss:\n"
+            f"grad_mult              = {grad_mult:.0e}\n"
+            f"use_pwa                = {use_pwa}\n"
+            f"use_saga               = {use_saga}\n"
+            f"sample_all_paths_first = {sample_all_paths_first}\n"
+            f"n_theta                = {n_theta}\n"
+            f"min_prob_frac          = {min_prob_frac}\n"
+            f"number of SCRAPL keys  = {self.n_paths}\n"
+            f"unif_prob              = {self.unif_prob:.8f}\n"
         )
         self.curr_path_idx = None
         self.path_counts = defaultdict(int)

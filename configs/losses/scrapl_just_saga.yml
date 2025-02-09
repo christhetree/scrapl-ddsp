@@ -11,7 +11,8 @@ init_args:
   p: 2
   grad_mult: 1e8
   use_pwa: false
-  use_saga: false
+  use_saga: true
   sample_all_paths_first: false
   n_theta: 2
   min_prob_frac: 0.0
+  

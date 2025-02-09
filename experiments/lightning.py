@@ -137,6 +137,10 @@ class SCRAPLLightingModule(pl.LightningModule):
                 assert (
                     self.trainer.accumulate_grad_batches == 1
                 ), "Pathwise ADAM does not support gradient accumulation"
+            if self.loss_func.use_saga:
+                assert (
+                    self.trainer.accumulate_grad_batches == 1
+                ), "SAGA does not support gradient accumulation"
         except AttributeError:
             pass
 
