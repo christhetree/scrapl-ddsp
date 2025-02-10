@@ -13,11 +13,12 @@ log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class ReadOnlyTensorDict(nn.Module):
-    def __init__(self, data: Dict[str | int, T]):
+    def __init__(self, data: Dict[str | int, T], persistent: bool = True):
         super().__init__()
+        self.persistent = persistent
         self.keys = set(data.keys())
         for k, v in data.items():
-            self.register_buffer(f"tensor_{k}", v)
+            self.register_buffer(f"tensor_{k}", v, persistent=persistent)
 
     def __getitem__(self, key: str | int) -> T:
         return self.get_buffer(f"tensor_{key}")

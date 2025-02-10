@@ -19,11 +19,9 @@ if __name__ == "__main__":
     # config_name = "train/texture/train_scrapl_adam.yml"
     # config_name = "train/texture/train_scrapl_saga_adam.yml"
     # config_name = "train/texture/train_scrapl_pwa.yml"
-    config_name = "train/texture/train_scrapl_saga_pwa.yml"
+    # config_name = "train/texture/train_scrapl_saga_pwa.yml"
 
-    # config_name = "train/texture/train_scrapl_saga_bin.yml"
-    # config_name = "train/texture/train_scrapl_saga_w0.yml"
-    # config_name = "train/texture/train_scrapl_saga_ds_w0.yml"
+    config_name = "train/chirplet/train_scrapl_saga_pwa.yml"
 
     # config_name = "train/chirplet/train_scrapl_adam.yml"
     # config_name = "train/chirplet/train_scrapl_pwa.yml"

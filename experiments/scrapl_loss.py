@@ -22,7 +22,10 @@ log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class SCRAPLLoss(nn.Module):
-    STATE_DICT_ATTRS = [
+    STATE_DICT_EXCLUDED_PREFIXES = [
+        "jtfs.tensor",
+    ]
+    STATE_DICT_INCLUDED_ATTRS = [
         # Path related setup
         "path_counts",
         "unsampled_paths",
@@ -157,7 +160,7 @@ class SCRAPLLoss(nn.Module):
 
         # Warmup setup
         theta_eye = tr.eye(self.n_theta)
-        self.register_buffer("theta_eye", theta_eye)
+        self.register_buffer("theta_eye", theta_eye, persistent=False)
 
         # Check probs
         self._check_probs()
@@ -192,30 +195,24 @@ class SCRAPLLoss(nn.Module):
     def state_dict(self, *args, **kwargs) -> Dict[str, T]:
         # TODO(cm): support resuming training with grad hooks
         state_dict = super().state_dict(*args, **kwargs)
+        global_prefix = kwargs.get("prefix", "")
         excluded_keys = []
-        for k in state_dict:
-            # Exclude all wavelet tensors since they are recreated on load
-            if k.startswith("jtfs"):
-                excluded_keys.append(k)
-            if k.startswith("pwa_"):
-                excluded_keys.append(k)
-            if k.startswith("prev_path_grads"):
-                excluded_keys.append(k)
-            if k.startswith("theta_eye"):
-                excluded_keys.append(k)
-        state_dict = {k: v for k, v in state_dict.items() if k not in excluded_keys}
-        for attr in self.STATE_DICT_ATTRS:
+        for prefix in self.STATE_DICT_EXCLUDED_PREFIXES:
+            for k in state_dict:
+                if k.startswith(f"{global_prefix}{prefix}"):
+                    excluded_keys.append(k)
+        for k in excluded_keys:
+            del state_dict[k]
+        for attr in self.STATE_DICT_INCLUDED_ATTRS:
             assert attr not in state_dict
-            state_dict[attr] = getattr(self, attr)
+            state_dict[f"{global_prefix}{attr}"] = getattr(self, attr)
         return state_dict
 
     def load_state_dict(self, state_dict: Dict[str, T], *args, **kwargs) -> None:
-        for attr in self.STATE_DICT_ATTRS:
-            assert attr in state_dict
-            setattr(self, attr, state_dict[attr])
-        state_dict = {
-            k: v for k, v in state_dict.items() if k not in self.STATE_DICT_ATTRS
-        }
+        global_prefix = kwargs.get("prefix", "")
+        for attr in self.STATE_DICT_INCLUDED_ATTRS:
+            assert f"{global_prefix}{attr}" in state_dict
+            setattr(self, attr, state_dict[f"{global_prefix}{attr}"])
         kwargs["strict"] = False  # TODO(cm): is there a better way to do this?
         super().load_state_dict(state_dict, *args, **kwargs)
 
@@ -234,9 +231,11 @@ class SCRAPLLoss(nn.Module):
         del self.pwa_m
         del self.pwa_v
         del self.prev_path_grads
-        self.register_module("pwa_m", ReadOnlyTensorDict(pwa_m))
-        self.register_module("pwa_v", ReadOnlyTensorDict(pwa_v))
-        self.register_module("prev_path_grads", ReadOnlyTensorDict(prev_path_grads))
+        self.register_module("pwa_m", ReadOnlyTensorDict(pwa_m, persistent=False))
+        self.register_module("pwa_v", ReadOnlyTensorDict(pwa_v, persistent=False))
+        self.register_module(
+            "prev_path_grads", ReadOnlyTensorDict(prev_path_grads, persistent=False)
+        )
         log.info(f"Attached {len(self.prev_path_grads)} parameters")
 
     def grad_hook(self, grad: T, param_idx: int) -> T:

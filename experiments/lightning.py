@@ -163,18 +163,15 @@ class SCRAPLLightingModule(pl.LightningModule):
             l1_theta_tv = tr.stack(l1_tv_all, dim=0).mean(dim=0)
             self.log(f"val/l1_theta_tv", l1_theta_tv, prog_bar=False)
 
-    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
-        state_dict = checkpoint["state_dict"]
+    def state_dict(self, *args, **kwargs) -> Dict[str, T]:
+        # TODO(cm): support resuming training with grad hooks
+        state_dict = super().state_dict(*args, **kwargs)
         excluded_keys = [
-            k
-            for k in state_dict
-            if k.startswith("synth")
-            or k.startswith("loss_func.jtfs")
-            or k.startswith("loss_func.prev_path_grads")  # Tmp to reduce chkpt size
-            or k.startswith("cqt")
+            k for k in state_dict if k.startswith("synth") or k.startswith("cqt")
         ]
         for k in excluded_keys:
             del state_dict[k]
+        return state_dict
 
     def grad_multiplier_hook(self, grad: T) -> T:
         # log.info(f"grad.abs().max() = {grad.abs().max()}")
