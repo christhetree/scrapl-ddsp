@@ -1,3 +1,4 @@
+import functools
 import logging
 import os
 import time
@@ -38,6 +39,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         log_val_grads: bool = False,
         run_name: Optional[str] = None,
         grad_mult: float = 1.0,
+        use_ds_update: bool = False,
     ):
         super().__init__()
         self.model = model
@@ -73,6 +75,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             assert self.grad_mult != 1.0
         else:
             assert self.grad_mult == 1.0
+        self.use_ds_update = use_ds_update
 
         if hasattr(self.loss_func, "set_resampler"):
             self.loss_func.set_resampler(self.synth.sr)
@@ -173,6 +176,10 @@ class SCRAPLLightingModule(pl.LightningModule):
             del state_dict[k]
         return state_dict
 
+    def load_state_dict(self, state_dict: Dict[str, T], *args, **kwargs) -> None:
+        kwargs["strict"] = False
+        super().load_state_dict(state_dict, *args, **kwargs)
+
     def grad_multiplier_hook(self, grad: T) -> T:
         # log.info(f"grad.abs().max() = {grad.abs().max()}")
         if not self.training:
@@ -199,6 +206,20 @@ class SCRAPLLightingModule(pl.LightningModule):
             save_dir, f"{self.run_name}__{name}_{curr_t}_{path_idx}.pt"
         )
         tr.save(grad.detach().cpu(), save_path)
+        return grad
+
+    def ds_update_hook(
+        self, grad: T, loss_func: SCRAPLLoss, path_idx: int, theta_idx: int
+    ) -> T:
+        # log.info(f"ds_update_hook called for path {path_idx}, theta {theta_idx}")
+        if not self.training:
+            log.warning("ds_update_hook called during eval")
+            return grad
+        assert self.use_ds_update, "ds_update_hook called, but use_ds_update is false"
+        assert grad.ndim == 1
+        val = grad.abs().mean()
+        loss_func.update_prob(path_idx, val, theta_idx)
+        # log.info(f"probs.max() = {loss_func.probs.max()}, probs.min() = {loss_func.probs.min()}")
         return grad
 
     def calc_U(self, x: T) -> T:
@@ -238,6 +259,25 @@ class SCRAPLLightingModule(pl.LightningModule):
         if stage == "train":
             theta_d_0to1_hat.retain_grad()
             theta_s_0to1_hat.retain_grad()
+            if self.use_ds_update:
+                assert isinstance(self.loss_func, SCRAPLLoss)
+                path_idx = self.loss_func.curr_path_idx
+                theta_d_0to1_hat.register_hook(
+                    functools.partial(
+                        self.ds_update_hook,
+                        loss_func=self.loss_func,
+                        path_idx=path_idx,
+                        theta_idx=0,
+                    )
+                )
+                theta_s_0to1_hat.register_hook(
+                    functools.partial(
+                        self.ds_update_hook,
+                        loss_func=self.loss_func,
+                        path_idx=path_idx,
+                        theta_idx=1,
+                    )
+                )
             # theta_d_0to1_hat.register_hook(
             #     functools.partial(self.save_grad_hook, name="theta_d_0to1_hat")
             # )

@@ -21,7 +21,8 @@ if __name__ == "__main__":
     # config_name = "train/texture/train_scrapl_pwa.yml"
     # config_name = "train/texture/train_scrapl_saga_pwa.yml"
 
-    config_name = "train/chirplet/train_scrapl_saga_pwa.yml"
+    # config_name = "train/chirplet/train_scrapl_saga_pwa.yml"
+    config_name = "train/chirplet/train_scrapl_saga_pwa_ds_update.yml"
 
     # config_name = "train/chirplet/train_scrapl_adam.yml"
     # config_name = "train/chirplet/train_scrapl_pwa.yml"
@@ -33,7 +34,7 @@ if __name__ == "__main__":
     # config_name = "train/chirplet/train_scrapl_saga_s_w0.yml"
 
     # config_name = "train/chirplet/am/train_scrapl_adam.yml"
-    # config_name = "train/chirplet/am/train_scrapl_pwa.yml"
+    # config_name = "train/chirplet/am/train_scrapl_pwa.yml["
     # config_name = "train/chirplet/am/train_scrapl_saga.yml"
     # config_name = "train/chirplet/am/train_scrapl_saga_am.yml"
     # config_name = "train/chirplet/am/train_scrapl_saga_bin.yml"
