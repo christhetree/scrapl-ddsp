@@ -2,7 +2,7 @@ import functools
 import logging
 import os
 from collections import defaultdict
-from typing import Union, Optional, Iterable, List, Dict, Any, Callable
+from typing import Union, Optional, Iterable, List, Dict, Any, Callable, Literal
 
 import hessian_eigenthings
 import torch as tr
@@ -536,7 +536,7 @@ class SCRAPLLoss(nn.Module):
             synth_fn_kwargs=synth_fn_kwargs,
         )
         theta_eigs = []
-        for theta_idx in tqdm(range(self.n_theta)):
+        for theta_idx in range(self.n_theta):
             param_grad = theta_param_grad[theta_idx, :]
             eig1 = self._calc_largest_eig(param_grad, params, n_iter=n_iter)
             theta_eigs.append(eig1)
@@ -554,6 +554,7 @@ class SCRAPLLoss(nn.Module):
         synth_fn_kwargs: Optional[Dict[str, Any]] = None,
         n_iter: int = 20,
     ) -> None:
+        log.info(f"Starting warmup_lc_hess")
         assert (
             self.attached_params is None
         ), "Parameters cannot be attached during warmup!"
@@ -664,7 +665,7 @@ class SCRAPLLoss(nn.Module):
             f"multibatch ({len(theta_fn_kwargs)} batches)"
         )
         theta_eigs = []
-        for theta_idx in tqdm(range(self.n_theta)):
+        for theta_idx in range(self.n_theta):
             eig1 = self._calc_theta_largest_eig_multibatch(
                 path_idx,
                 theta_idx,
@@ -689,6 +690,7 @@ class SCRAPLLoss(nn.Module):
         synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
         n_iter: int = 20,
     ) -> None:
+        log.info(f"Starting warmup_lc_hess_multibatch")
         assert (
             self.attached_params is None
         ), "Parameters cannot be attached during warmup!"
@@ -706,6 +708,101 @@ class SCRAPLLoss(nn.Module):
             for theta_idx in range(self.n_theta):
                 val = vals[theta_idx]
                 self.update_prob(path_idx, val, theta_idx)
+
+    def _warmup_lc_hess_param_agg(
+            self,
+            calc_theta_eigs_fn: Callable[..., T],
+            theta_fn: Callable[..., T],
+            synth_fn: Callable[[T, ...], T],
+            theta_fn_kwargs: Dict[str, Any] | List[Dict[str, Any]],
+            params: List[Parameter],
+            seed: Optional[int] = None,
+            synth_fn_kwargs: Optional[Dict[str, Any] | List[Dict[str, Any]]] = None,
+            n_iter: int = 20,
+            agg: Literal["mean", "max", "med"] = "mean",
+    ) -> None:
+        assert (
+                self.attached_params is None
+        ), "Parameters cannot be attached during warmup!"
+        calc_theta_eigs_fn_kwargs = {
+            "theta_fn": theta_fn,
+            "synth_fn": synth_fn,
+            "theta_fn_kwargs": theta_fn_kwargs,
+            "synth_fn_kwargs": synth_fn_kwargs,
+            "n_iter": n_iter,
+        }
+        if seed is not None:
+            calc_theta_eigs_fn_kwargs["seed"] = seed
+        for path_idx in range(self.n_paths):
+            vals = []
+            for param in tqdm(params):
+                theta_eigs = calc_theta_eigs_fn(
+                    path_idx=path_idx,
+                    params=[param],
+                    **calc_theta_eigs_fn_kwargs,
+                )
+                curr_vals = theta_eigs.abs().clamp(min=self.eps)
+                vals.append(curr_vals)
+            vals = tr.stack(vals, dim=0)
+            if agg == "mean":
+                vals = vals.mean(dim=0)
+            elif agg == "max":
+                vals = vals.max(dim=0).values
+            elif agg == "med":
+                vals = vals.median(dim=0).values
+            else:
+                raise ValueError(f"Invalid agg = {agg}")
+            for theta_idx in range(self.n_theta):
+                val = vals[theta_idx]
+                self.update_prob(path_idx, val, theta_idx)
+
+    def warmup_lc_hess_param_agg(
+            self,
+            theta_fn: Callable[..., T],
+            synth_fn: Callable[[T, ...], T],
+            theta_fn_kwargs: Dict[str, Any],
+            params: List[Parameter],
+            seed: Optional[int] = None,
+            synth_fn_kwargs: Optional[Dict[str, Any]] = None,
+            n_iter: int = 20,
+            agg: Literal["mean", "max", "med"] = "mean",
+    ) -> None:
+        log.info(f"Starting warmup_lc_hess_param_agg with agg = {agg} "
+                 f"for {len(params)} parameters")
+        self._warmup_lc_hess_param_agg(
+            self.calc_theta_eigs,
+            theta_fn,
+            synth_fn,
+            theta_fn_kwargs,
+            params,
+            seed=seed,
+            synth_fn_kwargs=synth_fn_kwargs,
+            n_iter=n_iter,
+            agg=agg,
+        )
+
+    def warmup_lc_hess_param_agg_multibatch(
+            self,
+            theta_fn: Callable[..., T],
+            synth_fn: Callable[[T, ...], T],
+            theta_fn_kwargs: List[Dict[str, Any]],
+            params: List[Parameter],
+            synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
+            n_iter: int = 20,
+            agg: Literal["mean", "max", "med"] = "mean",
+    ) -> None:
+        log.info(f"Starting warmup_lc_hess_param_agg_multibatch with agg = {agg} "
+                 f"for {len(params)} parameters")
+        self._warmup_lc_hess_param_agg(
+            self.calc_theta_eigs_multibatch,
+            theta_fn,
+            synth_fn,
+            theta_fn_kwargs,
+            params,
+            synth_fn_kwargs=synth_fn_kwargs,
+            n_iter=n_iter,
+            agg=agg,
+        )
 
     # Static methods ===================================================================
     @staticmethod

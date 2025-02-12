@@ -159,8 +159,8 @@ if __name__ == "__main__":
     # tr.save(prob_am_fm, os.path.join(OUT_DIR, "out/scrapl_saga_w0_sgd_1e-5_b32__texture_32_32_5_meso__ds.pt"))
     # exit()
 
-    # scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/chirplet/scrapl_am.yml")
-    scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/chirplet/scrapl_fm.yml")
+    scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/chirplet/scrapl_am.yml")
+    # scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/chirplet/scrapl_fm.yml")
     # scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/chirplet/scrapl_am_or_fm.yml")
 
     with open(scrapl_config_path, "r") as f:
@@ -193,10 +193,11 @@ if __name__ == "__main__":
     # prob = tr.load(os.path.join(DATA_DIR, "scrapl_saga_w0_sgd_1e-4_b32__chirplet_32_32_5_meso__ds.pt"))
     # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0.pt"))
 
-    prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0.pt"))
+    prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0__multibatch.pt"))
     prob = prob.exp()
-    # prob = prob[0, :]
-    prob = prob[1, :]
+    prob = prob[0, :]
+    # prob = prob[1, :]
 
     grad_id = "0to1_hat"
     # grad_id = "__g_raw_"

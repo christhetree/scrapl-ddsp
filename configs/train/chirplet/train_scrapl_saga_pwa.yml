@@ -50,5 +50,7 @@ model:
 #    use_warmup: true
 #    warmup_n_batches: 1
 #    warmup_n_iter: 20
+#    warmup_param_agg: null
+##    warmup_param_agg: mean
 
 optimizer: ../../../configs/opt/sgd_1e-4.yml
