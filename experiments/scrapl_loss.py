@@ -335,7 +335,7 @@ class SCRAPLLoss(nn.Module):
         if path_idx is None:
             path_idx = self.sample_path(seed)
         else:
-            log.info(f"Using specified path_idx = {path_idx}")
+            log.debug(f"Using specified path_idx = {path_idx}")
             assert 0 <= path_idx < self.n_paths
         dist, _, _ = self.calc_dist(x, x_target, path_idx)
 
@@ -483,7 +483,7 @@ class SCRAPLLoss(nn.Module):
             materialize_grads=True,
             retain_graph=retain_graph,
         )
-        param_hvp = tr.cat([g.view(-1) for g in param_hvps])
+        param_hvp = tr.cat([g.contiguous().view(-1) for g in param_hvps])
         return param_hvp
 
     def _calc_largest_eig(
@@ -580,16 +580,22 @@ class SCRAPLLoss(nn.Module):
         theta_idx: int,
         theta_fn: Callable[..., T],
         synth_fn: Callable[[T, ...], T],
-        theta_fn_kwargs: Iterable[Dict[str, Any]],
+        theta_fn_kwargs: List[Dict[str, Any]],
         params: List[Parameter],
-        synth_fn_kwargs: Optional[Iterable[Dict[str, Any]]] = None,
+        synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
     ) -> T:
+        if synth_fn_kwargs is None:
+            assert theta_fn_kwargs, "theta_fn_kwargs must not be empty"
+            synth_fn_kwargs = [None] * len(theta_fn_kwargs)
+        else:
+            assert len(synth_fn_kwargs) == len(theta_fn_kwargs), (
+                f"len(theta_fn_kwargs) ({len(theta_fn_kwargs)}) != "
+                f"len(synth_fn_kwargs) ({len(synth_fn_kwargs)})"
+            )
         param_hvp = None
-        for curr_theta_fn_kwargs in theta_fn_kwargs:
-            if synth_fn_kwargs is not None:
-                curr_synth_fn_kwargs = next(synth_fn_kwargs)
-            else:
-                curr_synth_fn_kwargs = None
+        for curr_theta_fn_kwargs, curr_synth_fn_kwargs in zip(
+            theta_fn_kwargs, synth_fn_kwargs
+        ):
             curr_param_grad = self._calc_batch_theta_param_grad(
                 path_idx,
                 theta_fn,
@@ -614,9 +620,9 @@ class SCRAPLLoss(nn.Module):
         theta_idx: int,
         theta_fn: Callable[..., T],
         synth_fn: Callable[[T, ...], T],
-        theta_fn_kwargs: Iterable[Dict[str, Any]],
+        theta_fn_kwargs: List[Dict[str, Any]],
         params: List[Parameter],
-        synth_fn_kwargs: Optional[Iterable[Dict[str, Any]]] = None,
+        synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
         n_iter: int = 20,
     ) -> float:
         apply_fn = functools.partial(
@@ -647,14 +653,15 @@ class SCRAPLLoss(nn.Module):
         path_idx: int,
         theta_fn: Callable[..., T],
         synth_fn: Callable[[T, ...], T],
-        theta_fn_kwargs: Iterable[Dict[str, Any]],
+        theta_fn_kwargs: List[Dict[str, Any]],
         params: List[Parameter],
-        synth_fn_kwargs: Optional[Iterable[Dict[str, Any]]] = None,
+        synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
         n_iter: int = 20,
     ) -> T:
         log.info(
             f"Calculating {self.n_theta} theta eigenvalues for path_idx = {path_idx} "
-            f" / {self.n_paths} using {n_iter} iterations, multibatch"
+            f" / {self.n_paths} using {n_iter} iterations, "
+            f"multibatch ({len(theta_fn_kwargs)} batches)"
         )
         theta_eigs = []
         for theta_idx in tqdm(range(self.n_theta)):
@@ -677,17 +684,15 @@ class SCRAPLLoss(nn.Module):
         self,
         theta_fn: Callable[..., T],
         synth_fn: Callable[[T, ...], T],
-        theta_fn_kwargs: Iterable[Dict[str, Any]],
+        theta_fn_kwargs: List[Dict[str, Any]],
         params: List[Parameter],
-        synth_fn_kwargs: Optional[Iterable[Dict[str, Any]]] = None,
+        synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
         n_iter: int = 20,
     ) -> None:
         assert (
             self.attached_params is None
         ), "Parameters cannot be attached during warmup!"
         for path_idx in range(self.n_paths):
-            if path_idx > 1:
-                return
             theta_eigs = self.calc_theta_eigs_multibatch(
                 path_idx,
                 theta_fn,

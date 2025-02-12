@@ -286,15 +286,16 @@ if __name__ == "__main__":
         # ("rand_mss", os.path.join(OUT_DIR, f"texture/rand_mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("mss_rev", os.path.join(OUT_DIR, f"texture/mss_revisited_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
 
-        # ("saga", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        ("saga", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         ("saga_pwa", os.path.join(OUT_DIR, f"out/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        ("saga_pwa_up", os.path.join(OUT_DIR, f"out/scrapl_saga_pwa_ds_update_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_pwa_up", os.path.join(OUT_DIR, f"out/scrapl_saga_pwa_ds_update_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_am_or_fm", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_am_or_fm_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_bin", os.path.join(OUT_DIR, f"chirplet/scrapl_saga_bin_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         ("saga_ds_w0", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_ds_w0_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        ("saga_d_w0", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_d_w0_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        ("saga_ds_w2", os.path.join(OUT_DIR, f"out/scrapl_saga_pwa_w_bs32x1_i20_m0_1e-4_b32__chirplet_32_32_5_meso.tsv")),
+        # ("saga_d_w0", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_d_w0_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_s_w0", os.path.join(OUT_DIR, f"out/scrapl_saga_s_w0_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
 
         # ("saga", os.path.join(OUT_DIR, f"chirplet/am/scrapl_saga_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
@@ -316,8 +317,8 @@ if __name__ == "__main__":
     # stage = "test"
     x_col = "step"
     # x_col = "global_n"
-    y_col = "l1_theta"
-    # y_col = "l1_d"
+    # y_col = "l1_theta"
+    y_col = "l1_d"
     # y_col = "l1_s"
 
     # Plot

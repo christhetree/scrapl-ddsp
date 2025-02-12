@@ -40,6 +40,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         run_name: Optional[str] = None,
         grad_mult: float = 1.0,
         use_ds_update: bool = False,
+        use_warmup: bool = False,
+        warmup_n_batches: int = 1,
+        warmup_n_iter: int = 20,
     ):
         super().__init__()
         self.model = model
@@ -76,6 +79,9 @@ class SCRAPLLightingModule(pl.LightningModule):
         else:
             assert self.grad_mult == 1.0
         self.use_ds_update = use_ds_update
+        self.use_warmup = use_warmup
+        self.warmup_n_batches = warmup_n_batches
+        self.warmup_n_iter = warmup_n_iter
 
         if hasattr(self.loss_func, "set_resampler"):
             self.loss_func.set_resampler(self.synth.sr)
@@ -107,7 +113,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         for p in self.synth.parameters():
             p.requires_grad = False
 
-        if isinstance(self.loss_func, SCRAPLLoss):
+        if not use_warmup and isinstance(self.loss_func, SCRAPLLoss):
             params = list(self.model.parameters())
             self.loss_func.attach_params(params)
 
@@ -123,7 +129,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             "l1_d",
             "l1_s",
         ]
-        if run_name:
+        if run_name and not use_warmup:
             self.tsv_path = os.path.join(OUT_DIR, f"{self.run_name}.tsv")
             if not os.path.exists(self.tsv_path):
                 with open(self.tsv_path, "w") as f:
@@ -132,9 +138,6 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.tsv_path = None
 
     def on_train_start(self) -> None:
-        self.global_n = 0
-
-    def on_train_epoch_start(self) -> None:
         try:
             if self.loss_func.use_pwa:
                 assert (
@@ -147,13 +150,10 @@ class SCRAPLLightingModule(pl.LightningModule):
         except AttributeError:
             pass
 
-    def on_train_batch_end(
-        self, outputs: STEP_OUTPUT, batch: Any, batch_idx: int
-    ) -> None:
-        # if self.update_paths:
-        #     assert isinstance(self.loss_func, AdaptiveSCRAPLLoss)
-        #     assert self.loss_func.curr_path_idx is not None
-        pass
+        self.global_n = 0
+
+        if self.use_warmup:
+            self.warmup()
 
     def on_validation_epoch_end(self) -> None:
         l1_tv_all = []
@@ -227,6 +227,72 @@ class SCRAPLLightingModule(pl.LightningModule):
             return SCRAPLLightingModule.calc_cqt(x, self.cqt, self.cqt_eps)
         else:
             raise NotImplementedError
+
+    def warmup(self) -> None:
+        def theta_fn(x: T) -> T:
+            with tr.no_grad():
+                U = self.calc_U(x)
+            theta_d_0to1_hat, theta_s_0to1_hat = self.model(U)
+            theta_hat = tr.stack([theta_d_0to1_hat, theta_s_0to1_hat], dim=1)
+            return theta_hat
+
+        def synth_fn(theta_hat: T, seed: T) -> T:
+            # TODO(cm): deduplicate code here
+            seed_range = 9999999
+            seed_hat = seed
+            if self.use_rand_seed_hat:
+                seed_hat = tr.randint_like(seed, low=seed_range, high=2 * seed_range)
+            theta_d_0to1_hat, theta_s_0to1_hat = theta_hat.unbind(dim=1)
+            x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat)
+            return x_hat
+
+        assert isinstance(self.loss_func, SCRAPLLoss)
+        train_dl_iter = iter(self.trainer.datamodule.train_dataloader())
+        theta_fn_kwargs = []
+        synth_fn_kwargs = []
+        for batch_idx in range(self.warmup_n_batches):
+            batch = next(train_dl_iter)
+            theta_d_0to1, theta_s_0to1, seed, batch_indices = batch
+            with tr.no_grad():
+                x = self.synth(theta_d_0to1, theta_s_0to1, seed)
+            t_kwargs = {"x": x}
+            theta_fn_kwargs.append(t_kwargs)
+            s_kwargs = {"seed": seed}
+            synth_fn_kwargs.append(s_kwargs)
+
+        if self.warmup_n_batches == 1:
+            theta_fn_kwargs = theta_fn_kwargs[0]
+            synth_fn_kwargs = synth_fn_kwargs[0]
+            warmup_fn = self.loss_func.warmup_lc_hess
+        else:
+            warmup_fn = self.loss_func.warmup_lc_hess_multibatch
+
+        params = list(self.model.parameters())
+        warmup_fn(
+            theta_fn=theta_fn,
+            synth_fn=synth_fn,
+            theta_fn_kwargs=theta_fn_kwargs,
+            params=params,
+            synth_fn_kwargs=synth_fn_kwargs,
+            n_iter=self.warmup_n_iter,
+        )
+
+        suffix = (f"n_batches_{self.warmup_n_batches}"
+                  f"__n_iter_{self.warmup_n_iter}"
+                  f"__min_prob_frac_{self.loss_func.min_prob_frac}.pt")
+                  # f"__min_prob_frac_{self.loss_func.min_prob_frac}__multibatch.pt")
+        log_vals_save_path = os.path.join(
+            OUT_DIR, f"{self.run_name}__log_vals__{suffix}"
+        )
+        tr.save(self.loss_func.all_log_vals, log_vals_save_path)
+        log_probs_save_path = os.path.join(
+            OUT_DIR, f"{self.run_name}__log_probs__{suffix}"
+        )
+        tr.save(self.loss_func.all_log_probs, log_probs_save_path)
+        probs_save_path = os.path.join(OUT_DIR, f"{self.run_name}__probs__{suffix}")
+        tr.save(self.loss_func.probs, probs_save_path)
+        log.info(f"Completed warmup, saved probs to {probs_save_path}")
+        exit()
 
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         theta_d_0to1, theta_s_0to1, seed, batch_indices = batch
