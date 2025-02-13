@@ -21,8 +21,8 @@ if __name__ == "__main__":
     # config_name = "train/texture/train_scrapl_pwa.yml"
     # config_name = "train/texture/train_scrapl_saga_pwa.yml"
 
-    config_name = "train/chirplet/train_scrapl_saga_pwa.yml"
-    # config_name = "train/chirplet/train_scrapl_saga_pwa_ds_w_bs32x1_i20_m0.yml"
+    # config_name = "train/chirplet/train_scrapl_saga_pwa.yml"
+    config_name = "train/chirplet/train_scrapl_saga_pwa__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa_ds_update.yml"
 
     # config_name = "train/chirplet/train_scrapl_adam.yml"

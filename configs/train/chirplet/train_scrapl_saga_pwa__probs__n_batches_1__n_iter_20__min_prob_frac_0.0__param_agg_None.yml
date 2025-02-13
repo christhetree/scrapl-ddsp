@@ -1,7 +1,7 @@
 custom:
   project_name: scrapl
-  model_name: scrapl_saga_pwa_w_bs32x1_i20_m0_1e-4_b32
-  dataset_name: chirplet_32_32_5_meso
+  model_name: scrapl_saga_pwa_1e-4_b32
+  dataset_name: chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: false
@@ -9,7 +9,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [5]
+  devices: [7]
   max_epochs: 50
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
@@ -31,7 +31,8 @@ model:
   init_args:
     model: ../../../configs/models/spectral_2dcnn.yml
     synth: ../../../configs/synths/chirplet_8khz.yml
-    loss_func: ../../../configs/losses/scrapl_saga_pwa_ds_warmup_n_batches_1__n_iter_20__min_prob_frac_0.0.yml
+    loss_func: ../../../configs/losses/scrapl_saga_pwa.yml
+    scrapl_probs_path: ../data/probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None.pt
 
     use_p_loss: false
     use_train_rand_seed: false
@@ -45,6 +46,6 @@ model:
     log_x_hat: false
     log_val_grads: false
 
-    run_name: scrapl_saga_pwa_w_bs32x1_i20_m0_1e-4_b32__chirplet_32_32_5_meso
+    run_name: scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None
 
 optimizer: ../../../configs/opt/sgd_1e-4.yml

@@ -4,12 +4,11 @@ import os
 import time
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List
 
 import pytorch_lightning as pl
 import torch as tr
 from nnAudio.features import CQT
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import Tensor as T
 from torch import nn
 
@@ -40,6 +39,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         run_name: Optional[str] = None,
         grad_mult: float = 1.0,
         use_ds_update: bool = False,
+        scrapl_probs_path: Optional[str] = None,
         use_warmup: bool = False,
         warmup_n_batches: int = 1,
         warmup_n_iter: int = 20,
@@ -80,6 +80,10 @@ class SCRAPLLightingModule(pl.LightningModule):
         else:
             assert self.grad_mult == 1.0
         self.use_ds_update = use_ds_update
+        if scrapl_probs_path is not None:
+            assert not use_ds_update, "Cannot use ds_update with precomputed probs"
+            assert not use_warmup, "Cannot use warmup with precomputed probs"
+        self.scrapl_probs_path = scrapl_probs_path
         self.use_warmup = use_warmup
         self.warmup_n_batches = warmup_n_batches
         self.warmup_n_iter = warmup_n_iter
@@ -118,6 +122,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         if not use_warmup and isinstance(self.loss_func, SCRAPLLoss):
             params = list(self.model.parameters())
             self.loss_func.attach_params(params)
+            self.loss_func.load_probs(scrapl_probs_path)
 
         # TSV logging
         tsv_cols = [
@@ -231,6 +236,10 @@ class SCRAPLLightingModule(pl.LightningModule):
             raise NotImplementedError
 
     def warmup(self) -> None:
+        # Make model and synth as deterministic as possible
+        self.model.eval()
+        self.synth.eval()
+
         def theta_fn(x: T) -> T:
             with tr.no_grad():
                 U = self.calc_U(x)
@@ -238,12 +247,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             theta_hat = tr.stack([theta_d_0to1_hat, theta_s_0to1_hat], dim=1)
             return theta_hat
 
-        def synth_fn(theta_hat: T, seed: T) -> T:
-            # TODO(cm): deduplicate code here
-            seed_range = 9999999
-            seed_hat = seed
-            if self.use_rand_seed_hat:
-                seed_hat = tr.randint_like(seed, low=seed_range, high=2 * seed_range)
+        def synth_fn(theta_hat: T, seed_hat: T) -> T:
             theta_d_0to1_hat, theta_s_0to1_hat = theta_hat.unbind(dim=1)
             x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat)
             return x_hat
@@ -255,11 +259,16 @@ class SCRAPLLightingModule(pl.LightningModule):
         for batch_idx in range(self.warmup_n_batches):
             batch = next(train_dl_iter)
             theta_d_0to1, theta_s_0to1, seed, batch_indices = batch
+            # TODO(cm): deduplicate code here
+            seed_range = 9999999
+            seed_hat = seed
+            if self.use_rand_seed_hat:
+                seed_hat = tr.randint_like(seed, low=seed_range, high=2 * seed_range)
             with tr.no_grad():
                 x = self.synth(theta_d_0to1, theta_s_0to1, seed)
             t_kwargs = {"x": x}
             theta_fn_kwargs.append(t_kwargs)
-            s_kwargs = {"seed": seed}
+            s_kwargs = {"seed_hat": seed_hat}
             synth_fn_kwargs.append(s_kwargs)
 
         params = list(self.model.parameters())
@@ -288,11 +297,12 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         warmup_fn(**warmup_fn_kwargs)
 
-        suffix = (f"n_batches_{self.warmup_n_batches}"
-                  f"__n_iter_{self.warmup_n_iter}"
-                  f"__min_prob_frac_{self.loss_func.min_prob_frac}"
-                  f"__param_agg_{self.warmup_param_agg}.pt")
-                  # f"__param_agg_{self.warmup_param_agg}__multibatch.pt")
+        suffix = (
+            f"n_batches_{self.warmup_n_batches}"
+            f"__n_iter_{self.warmup_n_iter}"
+            f"__min_prob_frac_{self.loss_func.min_prob_frac}"
+            f"__param_agg_{self.warmup_param_agg}.pt"
+        )
         log_vals_save_path = os.path.join(
             OUT_DIR, f"{self.run_name}__log_vals__{suffix}"
         )

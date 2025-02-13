@@ -31,7 +31,7 @@ class SCRAPLLoss(nn.Module):
         "unsampled_paths",
         # Sampling probs setup
         "probs",
-        "orig_probs",
+        "loaded_probs_path",
         # Update probs setup
         "updated_path_indices",
         "all_log_vals",
@@ -124,19 +124,11 @@ class SCRAPLLoss(nn.Module):
 
         # Sampling probs setup
         # We keep probs on the CPU to avoid GPU and CPU seed discrepancies
-        if probs_path is not None:
-            probs = tr.load(probs_path).double()
-            assert probs.shape == (
-                self.n_paths,
-            ), f"probs.shape = {probs.shape}, expected {(self.n_paths,)}"
-            log.info(
-                f"Loading probs from {probs_path}, min = {probs.min():.6f}, "
-                f"max = {probs.max():.6f}, mean = {probs.mean():.6f}"
-            )
-            self.probs = probs
-        else:
+        self.loaded_probs_path = None
+        if probs_path is None:
             self.probs = tr.full((self.n_paths,), self.unif_prob, dtype=tr.double)
-        self.orig_probs = self.probs.clone()
+        else:
+            self.load_probs(probs_path)
 
         # Update probs setup
         self.log_eps = tr.tensor(self.eps, dtype=tr.double).log()
@@ -165,6 +157,20 @@ class SCRAPLLoss(nn.Module):
         # Check probs
         self._check_probs()
 
+    def load_probs(self, probs_path: str) -> None:
+        assert os.path.isfile(probs_path)
+        probs = tr.load(probs_path).double()
+        assert probs.shape == (
+            self.n_paths,
+        ), f"probs.shape = {probs.shape}, expected {(self.n_paths,)}"
+        log.info(
+            f"Loading probs from:\n\t{probs_path}\n\tmin = {probs.min():.6f}, "
+            f"max = {probs.max():.6f}, mean = {probs.mean():.6f}"
+        )
+        self.probs = probs
+        self.loaded_probs_path = probs_path
+        self._check_probs()
+
     def _clear_grad_data(self) -> None:
         self.pwa_m = {}
         self.pwa_v = {}
@@ -183,8 +189,6 @@ class SCRAPLLoss(nn.Module):
         self.unsampled_paths = list(range(self.n_paths))
         # Grad related setup
         self._clear_grad_data()
-        # Sampling probs setup
-        self.probs = self.orig_probs.clone()
         # Update probs setup
         self.updated_path_indices.clear()
         self.all_log_vals.fill_(self.log_eps)
@@ -347,6 +351,10 @@ class SCRAPLLoss(nn.Module):
 
     # Update prob methods ==============================================================
     def update_prob(self, path_idx: int, val: float | T, theta_idx: int = 0) -> None:
+        assert self.loaded_probs_path is None, (
+            f"Cannot update probs if external probs have been loaded "
+            f"({self.loaded_probs_path})"
+        )
         assert 0 <= path_idx < self.n_paths
         assert 0 <= theta_idx < self.n_theta
         assert val >= 0.0
@@ -462,8 +470,11 @@ class SCRAPLLoss(nn.Module):
             theta_param_grad = tr.cat(
                 [g.view(self.n_theta, -1) for g in theta_param_grads], dim=1
             )
+            # for idx in range(self.n_theta):
+            #     log.info(f"theta_param_grad[{idx}] = {theta_param_grad[idx, :5]}")
         else:
             theta_param_grad = tr.cat([g.view(-1) for g in theta_param_grads])
+            # log.info(f"theta_param_grad[{theta_idx}] = {theta_param_grad[:5]}")
         return theta_param_grad
 
     def _calc_param_hvp(
@@ -484,6 +495,11 @@ class SCRAPLLoss(nn.Module):
             retain_graph=retain_graph,
         )
         param_hvp = tr.cat([g.contiguous().view(-1) for g in param_hvps])
+
+        # log.info(f"tangent    = {tangent[:5]}")
+        # log.info(f"param_grad = {param_grad[:5]}")
+        # log.info(f"param_hvp  = {param_hvp[:5]}")
+        # exit()
         return param_hvp
 
     def _calc_largest_eig(
@@ -613,6 +629,10 @@ class SCRAPLLoss(nn.Module):
                 param_hvp = curr_param_hvp
             else:
                 param_hvp += curr_param_hvp
+
+        # log.info(f"tangent   = {tangent}")
+        # log.info(f"param_hvp = {param_hvp}")
+        # exit()
         return param_hvp
 
     def _calc_theta_largest_eig_multibatch(
@@ -710,19 +730,19 @@ class SCRAPLLoss(nn.Module):
                 self.update_prob(path_idx, val, theta_idx)
 
     def _warmup_lc_hess_param_agg(
-            self,
-            calc_theta_eigs_fn: Callable[..., T],
-            theta_fn: Callable[..., T],
-            synth_fn: Callable[[T, ...], T],
-            theta_fn_kwargs: Dict[str, Any] | List[Dict[str, Any]],
-            params: List[Parameter],
-            seed: Optional[int] = None,
-            synth_fn_kwargs: Optional[Dict[str, Any] | List[Dict[str, Any]]] = None,
-            n_iter: int = 20,
-            agg: Literal["mean", "max", "med"] = "mean",
+        self,
+        calc_theta_eigs_fn: Callable[..., T],
+        theta_fn: Callable[..., T],
+        synth_fn: Callable[[T, ...], T],
+        theta_fn_kwargs: Dict[str, Any] | List[Dict[str, Any]],
+        params: List[Parameter],
+        seed: Optional[int] = None,
+        synth_fn_kwargs: Optional[Dict[str, Any] | List[Dict[str, Any]]] = None,
+        n_iter: int = 20,
+        agg: Literal["mean", "max", "med"] = "mean",
     ) -> None:
         assert (
-                self.attached_params is None
+            self.attached_params is None
         ), "Parameters cannot be attached during warmup!"
         calc_theta_eigs_fn_kwargs = {
             "theta_fn": theta_fn,
@@ -757,18 +777,20 @@ class SCRAPLLoss(nn.Module):
                 self.update_prob(path_idx, val, theta_idx)
 
     def warmup_lc_hess_param_agg(
-            self,
-            theta_fn: Callable[..., T],
-            synth_fn: Callable[[T, ...], T],
-            theta_fn_kwargs: Dict[str, Any],
-            params: List[Parameter],
-            seed: Optional[int] = None,
-            synth_fn_kwargs: Optional[Dict[str, Any]] = None,
-            n_iter: int = 20,
-            agg: Literal["mean", "max", "med"] = "mean",
+        self,
+        theta_fn: Callable[..., T],
+        synth_fn: Callable[[T, ...], T],
+        theta_fn_kwargs: Dict[str, Any],
+        params: List[Parameter],
+        seed: Optional[int] = None,
+        synth_fn_kwargs: Optional[Dict[str, Any]] = None,
+        n_iter: int = 20,
+        agg: Literal["mean", "max", "med"] = "mean",
     ) -> None:
-        log.info(f"Starting warmup_lc_hess_param_agg with agg = {agg} "
-                 f"for {len(params)} parameters")
+        log.info(
+            f"Starting warmup_lc_hess_param_agg with agg = {agg} "
+            f"for {len(params)} parameters"
+        )
         self._warmup_lc_hess_param_agg(
             self.calc_theta_eigs,
             theta_fn,
@@ -782,17 +804,19 @@ class SCRAPLLoss(nn.Module):
         )
 
     def warmup_lc_hess_param_agg_multibatch(
-            self,
-            theta_fn: Callable[..., T],
-            synth_fn: Callable[[T, ...], T],
-            theta_fn_kwargs: List[Dict[str, Any]],
-            params: List[Parameter],
-            synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
-            n_iter: int = 20,
-            agg: Literal["mean", "max", "med"] = "mean",
+        self,
+        theta_fn: Callable[..., T],
+        synth_fn: Callable[[T, ...], T],
+        theta_fn_kwargs: List[Dict[str, Any]],
+        params: List[Parameter],
+        synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
+        n_iter: int = 20,
+        agg: Literal["mean", "max", "med"] = "mean",
     ) -> None:
-        log.info(f"Starting warmup_lc_hess_param_agg_multibatch with agg = {agg} "
-                 f"for {len(params)} parameters")
+        log.info(
+            f"Starting warmup_lc_hess_param_agg_multibatch with agg = {agg} "
+            f"for {len(params)} parameters"
+        )
         self._warmup_lc_hess_param_agg(
             self.calc_theta_eigs_multibatch,
             theta_fn,

@@ -192,11 +192,20 @@ if __name__ == "__main__":
     # prob = tr.load(os.path.join(DATA_DIR, "scrapl_saga_w0_sgd_1e-4_b32__chirplet_32_32_5_meso__s.pt"))
     # prob = tr.load(os.path.join(DATA_DIR, "scrapl_saga_w0_sgd_1e-4_b32__chirplet_32_32_5_meso__ds.pt"))
     # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None__multibatch.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_mean.pt"))
+    prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_20__n_iter_20__min_prob_frac_0.0__param_agg_None.pt"))
 
-    # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0.pt"))
-    prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0__multibatch.pt"))
-    prob = prob.exp()
-    prob = prob[0, :]
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/before_seed_and_eval_fix/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/before_seed_and_eval_fix/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0__multibatch.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None__fixed_seed_hat.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None__multibatch.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_mean.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_20__n_iter_20__min_prob_frac_0.0__param_agg_None.pt"))
+    # prob = prob.exp()
+    # prob = prob[0, :]
     # prob = prob[1, :]
 
     grad_id = "0to1_hat"
