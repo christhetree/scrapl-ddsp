@@ -10,9 +10,7 @@ import torch.nn as nn
 from hessian_eigenthings.operator import LambdaOperator
 from torch import Tensor as T
 from torch.nn import Parameter
-from tqdm import tqdm
 
-from experiments.paths import OUT_DIR
 from experiments.util import ReadOnlyTensorDict
 from scrapl.torch import TimeFrequencyScrapl
 
@@ -298,8 +296,8 @@ class SCRAPLLoss(nn.Module):
         if seed is None:
             rand_gen = None
         else:
-            self.rand_gen.manual_seed(seed)
             rand_gen = self.rand_gen
+            rand_gen.manual_seed(seed)
         if (
             self.sample_all_paths_first
             and len(self.path_counts) < self.n_paths
@@ -308,6 +306,7 @@ class SCRAPLLoss(nn.Module):
             unsampled_idx = tr.randint(
                 0, len(self.unsampled_paths), (1,), generator=rand_gen
             ).item()
+            # TODO(cm): will this pop during validation and test?
             path_idx = self.unsampled_paths.pop(unsampled_idx)
         else:
             self.check_probs(self.probs, self.n_paths, self.eps, self.min_prob)
@@ -324,6 +323,7 @@ class SCRAPLLoss(nn.Module):
         Sx_target = Sx_target["coef"].squeeze(-1)
         diff = Sx_target - Sx
         dist = tr.linalg.vector_norm(diff, ord=self.p, dim=(-2, -1))
+        # TODO(cm): add reduction option
         dist = tr.mean(dist)
         return dist, Sx, Sx_target
 
@@ -470,11 +470,8 @@ class SCRAPLLoss(nn.Module):
             theta_param_grad = tr.cat(
                 [g.view(self.n_theta, -1) for g in theta_param_grads], dim=1
             )
-            # for idx in range(self.n_theta):
-            #     log.info(f"theta_param_grad[{idx}] = {theta_param_grad[idx, :5]}")
         else:
             theta_param_grad = tr.cat([g.view(-1) for g in theta_param_grads])
-            # log.info(f"theta_param_grad[{theta_idx}] = {theta_param_grad[:5]}")
         return theta_param_grad
 
     def _calc_param_hvp(
@@ -495,11 +492,6 @@ class SCRAPLLoss(nn.Module):
             retain_graph=retain_graph,
         )
         param_hvp = tr.cat([g.contiguous().view(-1) for g in param_hvps])
-
-        # log.info(f"tangent    = {tangent[:5]}")
-        # log.info(f"param_grad = {param_grad[:5]}")
-        # log.info(f"param_hvp  = {param_hvp[:5]}")
-        # exit()
         return param_hvp
 
     def _calc_largest_eig(
@@ -538,10 +530,6 @@ class SCRAPLLoss(nn.Module):
         synth_fn_kwargs: Optional[Dict[str, Any]] = None,
         n_iter: int = 20,
     ) -> T:
-        log.info(
-            f"Calculating {self.n_theta} theta eigenvalues for path_idx = {path_idx} "
-            f" / {self.n_paths} using {n_iter} iterations"
-        )
         theta_param_grad = self._calc_batch_theta_param_grad(
             path_idx,
             theta_fn,
@@ -557,38 +545,7 @@ class SCRAPLLoss(nn.Module):
             eig1 = self._calc_largest_eig(param_grad, params, n_iter=n_iter)
             theta_eigs.append(eig1)
         theta_eigs = tr.tensor(theta_eigs)
-        log.info(f"theta_eigs = {theta_eigs}")
         return theta_eigs
-
-    def warmup_lc_hess(
-        self,
-        theta_fn: Callable[..., T],
-        synth_fn: Callable[[T, ...], T],
-        theta_fn_kwargs: Dict[str, Any],
-        params: List[Parameter],
-        seed: Optional[int] = None,
-        synth_fn_kwargs: Optional[Dict[str, Any]] = None,
-        n_iter: int = 20,
-    ) -> None:
-        log.info(f"Starting warmup_lc_hess")
-        assert (
-            self.attached_params is None
-        ), "Parameters cannot be attached during warmup!"
-        for path_idx in range(self.n_paths):
-            theta_eigs = self.calc_theta_eigs(
-                path_idx,
-                theta_fn,
-                synth_fn,
-                theta_fn_kwargs,
-                params,
-                seed=seed,
-                synth_fn_kwargs=synth_fn_kwargs,
-                n_iter=n_iter,
-            )
-            vals = theta_eigs.abs().clamp(min=self.eps)
-            for theta_idx in range(self.n_theta):
-                val = vals[theta_idx]
-                self.update_prob(path_idx, val, theta_idx)
 
     def _calc_param_hvp_multibatch(
         self,
@@ -629,10 +586,7 @@ class SCRAPLLoss(nn.Module):
                 param_hvp = curr_param_hvp
             else:
                 param_hvp += curr_param_hvp
-
-        # log.info(f"tangent   = {tangent}")
-        # log.info(f"param_hvp = {param_hvp}")
-        # exit()
+        # TODO(cm): should we average here?
         return param_hvp
 
     def _calc_theta_largest_eig_multibatch(
@@ -679,11 +633,6 @@ class SCRAPLLoss(nn.Module):
         synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
         n_iter: int = 20,
     ) -> T:
-        log.info(
-            f"Calculating {self.n_theta} theta eigenvalues for path_idx = {path_idx} "
-            f" / {self.n_paths} using {n_iter} iterations, "
-            f"multibatch ({len(theta_fn_kwargs)} batches)"
-        )
         theta_eigs = []
         for theta_idx in range(self.n_theta):
             eig1 = self._calc_theta_largest_eig_multibatch(
@@ -698,10 +647,9 @@ class SCRAPLLoss(nn.Module):
             )
             theta_eigs.append(eig1)
         theta_eigs = tr.tensor(theta_eigs)
-        log.info(f"theta_eigs = {theta_eigs}")
         return theta_eigs
 
-    def warmup_lc_hess_multibatch(
+    def warmup_lc_hvp(
         self,
         theta_fn: Callable[..., T],
         synth_fn: Callable[[T, ...], T],
@@ -709,62 +657,57 @@ class SCRAPLLoss(nn.Module):
         params: List[Parameter],
         synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
         n_iter: int = 20,
+        agg: Literal["all", "mean", "max", "med"] = "all",
+        force_multibatch: bool = False,
     ) -> None:
-        log.info(f"Starting warmup_lc_hess_multibatch")
+        assert params, "params must not be empty"
         assert (
             self.attached_params is None
         ), "Parameters cannot be attached during warmup!"
-        for path_idx in range(self.n_paths):
-            theta_eigs = self.calc_theta_eigs_multibatch(
-                path_idx,
-                theta_fn,
-                synth_fn,
-                theta_fn_kwargs,
-                params,
-                synth_fn_kwargs=synth_fn_kwargs,
-                n_iter=n_iter,
+        assert theta_fn_kwargs, "theta_fn_kwargs must not be empty"
+        if synth_fn_kwargs is not None:
+            assert len(synth_fn_kwargs) == len(theta_fn_kwargs), (
+                f"len(theta_fn_kwargs) ({len(theta_fn_kwargs)}) != "
+                f"len(synth_fn_kwargs) ({len(synth_fn_kwargs)})"
             )
-            vals = theta_eigs.abs().clamp(min=self.eps)
-            for theta_idx in range(self.n_theta):
-                val = vals[theta_idx]
-                self.update_prob(path_idx, val, theta_idx)
-
-    def _warmup_lc_hess_param_agg(
-        self,
-        calc_theta_eigs_fn: Callable[..., T],
-        theta_fn: Callable[..., T],
-        synth_fn: Callable[[T, ...], T],
-        theta_fn_kwargs: Dict[str, Any] | List[Dict[str, Any]],
-        params: List[Parameter],
-        seed: Optional[int] = None,
-        synth_fn_kwargs: Optional[Dict[str, Any] | List[Dict[str, Any]]] = None,
-        n_iter: int = 20,
-        agg: Literal["mean", "max", "med"] = "mean",
-    ) -> None:
-        assert (
-            self.attached_params is None
-        ), "Parameters cannot be attached during warmup!"
-        calc_theta_eigs_fn_kwargs = {
-            "theta_fn": theta_fn,
-            "synth_fn": synth_fn,
-            "theta_fn_kwargs": theta_fn_kwargs,
-            "synth_fn_kwargs": synth_fn_kwargs,
-            "n_iter": n_iter,
-        }
-        if seed is not None:
-            calc_theta_eigs_fn_kwargs["seed"] = seed
+        is_multibatch = force_multibatch or len(theta_fn_kwargs) > 1
+        log.info(
+            f"Starting warmup_lc_hvp with agg = {agg} for {len(params)} "
+            f"parameter(s) and {len(theta_fn_kwargs)} batch(es) "
+            f"(multibatch = {is_multibatch})"
+        )
+        # Determine whether to use multibatch or not
+        if is_multibatch:
+            calc_theta_eigs_fn = self.calc_theta_eigs_multibatch
+        else:
+            calc_theta_eigs_fn = self.calc_theta_eigs
+            theta_fn_kwargs = theta_fn_kwargs[0]
+            if synth_fn_kwargs is not None:
+                synth_fn_kwargs = synth_fn_kwargs[0]
+        # Separate the params for separate computations if aggregating LCs across them
+        if agg == "all":
+            param_groups = [params]
+        else:
+            param_groups = [[p] for p in params]
+        # Compute the theta LCs for each path
         for path_idx in range(self.n_paths):
             vals = []
-            for param in tqdm(params):
-                theta_eigs = calc_theta_eigs_fn(
+            for param_group in param_groups:
+                curr_vals = calc_theta_eigs_fn(
                     path_idx=path_idx,
-                    params=[param],
-                    **calc_theta_eigs_fn_kwargs,
+                    theta_fn=theta_fn,
+                    synth_fn=synth_fn,
+                    theta_fn_kwargs=theta_fn_kwargs,
+                    params=param_group,
+                    synth_fn_kwargs=synth_fn_kwargs,
+                    n_iter=n_iter,
                 )
-                curr_vals = theta_eigs.abs().clamp(min=self.eps)
                 vals.append(curr_vals)
+            # Aggregate the theta LCs across all params
             vals = tr.stack(vals, dim=0)
-            if agg == "mean":
+            if agg == "all":
+                vals = vals[0]
+            elif agg == "mean":
                 vals = vals.mean(dim=0)
             elif agg == "max":
                 vals = vals.max(dim=0).values
@@ -772,61 +715,10 @@ class SCRAPLLoss(nn.Module):
                 vals = vals.median(dim=0).values
             else:
                 raise ValueError(f"Invalid agg = {agg}")
+            # Update the probs for each theta
             for theta_idx in range(self.n_theta):
                 val = vals[theta_idx]
                 self.update_prob(path_idx, val, theta_idx)
-
-    def warmup_lc_hess_param_agg(
-        self,
-        theta_fn: Callable[..., T],
-        synth_fn: Callable[[T, ...], T],
-        theta_fn_kwargs: Dict[str, Any],
-        params: List[Parameter],
-        seed: Optional[int] = None,
-        synth_fn_kwargs: Optional[Dict[str, Any]] = None,
-        n_iter: int = 20,
-        agg: Literal["mean", "max", "med"] = "mean",
-    ) -> None:
-        log.info(
-            f"Starting warmup_lc_hess_param_agg with agg = {agg} "
-            f"for {len(params)} parameters"
-        )
-        self._warmup_lc_hess_param_agg(
-            self.calc_theta_eigs,
-            theta_fn,
-            synth_fn,
-            theta_fn_kwargs,
-            params,
-            seed=seed,
-            synth_fn_kwargs=synth_fn_kwargs,
-            n_iter=n_iter,
-            agg=agg,
-        )
-
-    def warmup_lc_hess_param_agg_multibatch(
-        self,
-        theta_fn: Callable[..., T],
-        synth_fn: Callable[[T, ...], T],
-        theta_fn_kwargs: List[Dict[str, Any]],
-        params: List[Parameter],
-        synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
-        n_iter: int = 20,
-        agg: Literal["mean", "max", "med"] = "mean",
-    ) -> None:
-        log.info(
-            f"Starting warmup_lc_hess_param_agg_multibatch with agg = {agg} "
-            f"for {len(params)} parameters"
-        )
-        self._warmup_lc_hess_param_agg(
-            self.calc_theta_eigs_multibatch,
-            theta_fn,
-            synth_fn,
-            theta_fn_kwargs,
-            params,
-            synth_fn_kwargs=synth_fn_kwargs,
-            n_iter=n_iter,
-            agg=agg,
-        )
 
     # Static methods ===================================================================
     @staticmethod
@@ -875,7 +767,6 @@ class SCRAPLLoss(nn.Module):
         b2: float = 0.999,
         eps: float = 1e-8,
     ) -> (T, T, T):
-        assert t > prev_t >= 0.0, f"t = {t}, prev_t = {prev_t}"
         delta_t = t - prev_t
         eff_b1 = b1**delta_t
         eff_b2 = b2**delta_t
@@ -887,33 +778,13 @@ class SCRAPLLoss(nn.Module):
         return grad_hat, m, v
 
 
-# warmup can be parallelized
-# eval should show that the distributions differ to show it's adaptive
-# can simulate this by bandlimiting o1 or o2 (already did o2 bands using chirplet synth)
-
 if __name__ == "__main__":
-    # n_samples = 32768
-    # n_theta = 2
-    # scrapl = SCRAPLLoss(
-    #     shape=n_samples,
-    #     J=12,
-    #     Q1=8,
-    #     Q2=2,
-    #     J_fr=3,
-    #     Q_fr=2,
-    #     n_theta=n_theta,
-    # )
-    # scrapl.update_prob(3, 100.0, 0)
-    # scrapl.update_prob(4, 1.0, 0)
-    # exit()
-
     # Setup
     tr.set_printoptions(precision=4, sci_mode=False)
     tr.manual_seed(0)
-    bs = 3
-    # n_samples = 7
+    bs = 2
     n_samples = 32768
-    n_theta = 1
+    n_theta = 3
 
     model = nn.Sequential(
         nn.Linear(n_samples, n_theta),
@@ -930,141 +801,12 @@ if __name__ == "__main__":
     )
     synth = synth
     loss_fn = nn.MSELoss()
-    x = tr.rand((bs, n_samples))
+    x_1 = tr.rand((bs, n_samples))
     x_2 = tr.rand((bs, n_samples))
     x_3 = tr.rand((bs, n_samples))
 
     params = [p for p in model.parameters()]
     assert all(not p.grad for p in params)
-
-    # theta_hat = model(x)
-    # x_hat = synth(theta_hat)
-    # loss = loss_fn(x_hat, x)
-    #
-    # # Calc param grad
-    # grad_dict = tr.autograd.grad(
-    #     loss, params, create_graph=True, materialize_grads=True
-    # )
-    # grad_vec = tr.cat([g.view(-1) for g in grad_dict])
-    # log.info(f"grad_vec = {grad_vec[:5]}")
-    # assert all(not p.grad for p in params)
-    # vec = tr.rand_like(grad_vec)
-    #
-    # # Calc theta param grad and theta param hvp
-    # def theta_hook(grad: T, theta_idx: int) -> T:
-    #     log.info(f"theta_hook called with theta_idx = {theta_idx}")
-    #     zero_indices = list(range(n_theta))
-    #     zero_indices.remove(theta_idx)
-    #     grad[:, zero_indices] = 0.0
-    #     return grad
-    #     # new_grad = tr.zeros_like(grad)
-    #     # new_grad[:, theta_idx] = grad[:, theta_idx]
-    #     # return new_grad
-    #
-    # all_grad_vecs = []
-    # all_hvp_vecs = []
-    # for theta_idx in range(n_theta):
-    #     curr_hook = functools.partial(theta_hook, theta_idx=theta_idx)
-    #     handle = theta_hat.register_hook(curr_hook)
-    #     grad_dict = tr.autograd.grad(
-    #         loss, params, create_graph=True, materialize_grads=True, retain_graph=True
-    #     )
-    #     curr_grad_vec = tr.cat([g.view(-1) for g in grad_dict])
-    #     all_grad_vecs.append(curr_grad_vec)
-    #     handle.remove()
-    #
-    #     hvp_dict = tr.autograd.grad(
-    #         curr_grad_vec,
-    #         params,
-    #         grad_outputs=vec,
-    #         materialize_grads=True,
-    #         retain_graph=True,
-    #     )
-    #     curr_hvp_vec = tr.cat([g.view(-1) for g in hvp_dict])
-    #     all_hvp_vecs.append(curr_hvp_vec)
-    #
-    # # Check that the combined theta param grad is the same
-    # combined_grad_vec = tr.stack(all_grad_vecs, dim=0).sum(dim=0)
-    # assert tr.allclose(grad_vec, combined_grad_vec)
-    #
-    # # Check that the combined theta param hvp is the same
-    # hvp_dict = tr.autograd.grad(grad_vec, params, grad_outputs=vec, retain_graph=True)
-    # hvp_vec = tr.cat([g.view(-1) for g in hvp_dict])
-    # log.info(f"hvp_vec_1 = {hvp_vec[-8:]}")
-    #
-    # combined_hvp_vec = tr.stack(all_hvp_vecs, dim=0).sum(dim=0)
-    # assert tr.allclose(hvp_vec, combined_hvp_vec)
-    #
-    # hvp_dict = tr.autograd.grad(
-    #     combined_grad_vec, params, grad_outputs=vec, retain_graph=True
-    # )
-    # combined_hvp_vec_2 = tr.cat([g.view(-1) for g in hvp_dict])
-    # assert tr.allclose(hvp_vec, combined_hvp_vec_2)
-    #
-    # # Vectorized and no hook version ===================================================
-    #
-    # # Calc theta grad
-    # grad_theta = tr.autograd.grad(
-    #     loss,
-    #     theta_hat,
-    #     create_graph=True,  # Create graphs is super important here
-    #     materialize_grads=True,
-    # )[0]
-    #
-    # # Expand theta grad along batch dime for each theta
-    # grad_theta_expanded = grad_theta.unsqueeze(0).expand(n_theta, -1, -1)
-    # # grad_theta_expanded = grad_theta.unsqueeze(0).repeat(n_theta, 1, 1)
-    # eye = (
-    #     tr.eye(n_theta, device=grad_theta_expanded.device)
-    #     .unsqueeze(1)
-    #     .expand(-1, bs, -1)
-    # )
-    # # eye = tr.eye(n_theta, device=grad_theta_expanded.device).unsqueeze(1).repeat(1, bs, 1)
-    # grad_theta_expanded = grad_theta_expanded * eye
-    #
-    # # Calc vectorized param grad
-    # grad_params = tr.autograd.grad(
-    #     theta_hat,
-    #     params,
-    #     grad_outputs=grad_theta_expanded,
-    #     create_graph=True,
-    #     materialize_grads=True,
-    #     is_grads_batched=True,
-    # )
-    # grad_matrix = tr.cat([g.view(n_theta, -1) for g in grad_params], dim=1)
-    # for idx, g in enumerate(all_grad_vecs):
-    #     assert tr.allclose(grad_matrix[idx], g)
-    #
-    # # Check that the combined vectorized param grad is the same
-    # grad_vec_2 = grad_matrix.sum(dim=0)
-    # assert tr.allclose(grad_vec, grad_vec_2)
-    #
-    # # Calc vectorized param hvp
-    # all_hvp_vecs_2 = []
-    # for idx in range(n_theta):
-    #     curr_grad = grad_matrix[idx]
-    #     hvp_dict = tr.autograd.grad(
-    #         curr_grad,
-    #         params,
-    #         grad_outputs=vec,
-    #         materialize_grads=True,
-    #         retain_graph=True,
-    #     )
-    #     curr_hvp_vec = tr.cat([g.view(-1) for g in hvp_dict])
-    #     all_hvp_vecs_2.append(curr_hvp_vec)
-    #     # Check that the individual vectorized param hvp is the same
-    #     other_hvp_vec = all_hvp_vecs[idx]
-    #     assert tr.allclose(curr_hvp_vec, other_hvp_vec)
-    #
-    # # Check that the combined vectorized param hvp is the same
-    # hvp_vec_2 = tr.stack(all_hvp_vecs_2, dim=0).sum(dim=0)
-    # log.info(f"hvp_vec_2 = {hvp_vec_2[-8:]}")
-    # assert tr.allclose(hvp_vec, hvp_vec_2)
-    # exit()
-
-    # n_samples = 32768
-    # n_theta = 30
-    # n_iter = 100
 
     scrapl = SCRAPLLoss(
         shape=n_samples,
@@ -1081,47 +823,43 @@ if __name__ == "__main__":
     theta_fn = lambda x: model(x.squeeze(1))
     synth_fn = lambda theta: synth(theta).unsqueeze(1)
 
-    # theta_eigs = scrapl.calc_theta_eigs(
-    #     path_idx=0,
+    theta_fn_kwargs = [
+        {"x": x_1.unsqueeze(1)},
+        # {"x": x_1.unsqueeze(1)},
+        # {"x": x_2.unsqueeze(1)},
+        # {"x": x_3.unsqueeze(1)},
+    ]
+    # scrapl.warmup_lc_hess_multibatch(
     #     theta_fn=theta_fn,
     #     synth_fn=synth_fn,
-    #     theta_fn_kwargs={"x": x.unsqueeze(1)},
-    #     params=params,
-    # )
-    # log.info(f"theta_eigs = {theta_eigs}")
-    # scrapl.warmup_lc_hess(
-    #     theta_fn=theta_fn,
-    #     synth_fn=synth_fn,
-    #     theta_fn_kwargs={"x": x.unsqueeze(1)},
+    #     theta_fn_kwargs=theta_fn_kwargs,
     #     params=params,
     #     n_iter=2,
     # )
-
-    theta_fn_kwargs = [
-        {"x": x.unsqueeze(1)},
-        {"x": x_2.unsqueeze(1)},
-        # {"x": x_3.unsqueeze(1)},
-    ]
-    scrapl.warmup_lc_hess_multibatch(
+    # theta_fn_kwargs = theta_fn_kwargs[0]
+    # scrapl.warmup_lc_hess(
+    #     theta_fn=theta_fn,
+    #     synth_fn=synth_fn,
+    #     theta_fn_kwargs=theta_fn_kwargs,
+    #     params=params,
+    #     n_iter=2,
+    # )
+    scrapl.warmup_lc_hvp(
         theta_fn=theta_fn,
         synth_fn=synth_fn,
         theta_fn_kwargs=theta_fn_kwargs,
         params=params,
         n_iter=2,
+        agg="all",
+        # agg="mean",
+        force_multibatch=False,
+        # force_multibatch=True,
     )
 
-    save_path = os.path.join(OUT_DIR, "scrapl.pt")
-    tr.save(scrapl.state_dict(), save_path)
+    # INFO:__main__:theta_eigs = tensor([0.0039, 0.0011, 0.0081])
+    # INFO:__main__:theta_eigs = tensor([0.0079, 0.0023, 0.0161])
 
-    state_dict = tr.load(save_path)
-    scrapl.load_state_dict(state_dict)
-    exit()
-
-    # for _ in tqdm(range(n_iter)):
-    #     val = tr.rand((1,)) * 1000.0
-    #     path_idx = scrapl.sample_path()
-    #     theta_idx = tr.randint(0, n_theta, (1,)).item()
-    #     log.info(
-    #         f"val = {val.item():.6f}, path_idx = {path_idx}, theta_idx = {theta_idx}"
-    #     )
-    #     scrapl.update_prob(path_idx, val, theta_idx)
+    # save_path = os.path.join(OUT_DIR, "scrapl.pt")
+    # tr.save(scrapl.state_dict(), save_path)
+    # state_dict = tr.load(save_path)
+    # scrapl.load_state_dict(state_dict)

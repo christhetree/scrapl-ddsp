@@ -411,7 +411,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         # TSV logging
         if self.tsv_path:
             # TODO(cm): check if there is a better way to do this
-            seed_everything = tr.initial_seed() % (2**32)
+            # seed_everything = tr.initial_seed() % (2**32)
+            seed_everything = tr.random.initial_seed()
             time_epoch = time.time()
             with open(self.tsv_path, "a") as f:
                 f.write(
