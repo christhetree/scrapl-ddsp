@@ -499,7 +499,7 @@ class SCRAPLLoss(nn.Module):
         param_grad: T,
         params: List[Parameter],
         n_iter: int = 20,
-    ) -> float:
+    ) -> T:
         apply_fn = functools.partial(
             self._calc_param_hvp,
             param_grad=param_grad,
@@ -544,7 +544,7 @@ class SCRAPLLoss(nn.Module):
             param_grad = theta_param_grad[theta_idx, :]
             eig1 = self._calc_largest_eig(param_grad, params, n_iter=n_iter)
             theta_eigs.append(eig1)
-        theta_eigs = tr.tensor(theta_eigs)
+        theta_eigs = tr.cat(theta_eigs, dim=0)
         return theta_eigs
 
     def _calc_param_hvp_multibatch(
@@ -582,11 +582,11 @@ class SCRAPLLoss(nn.Module):
             curr_param_hvp = self._calc_param_hvp(
                 tangent, curr_param_grad, params, retain_graph=False
             )
+            # TODO(cm): should we average here?
             if param_hvp is None:
                 param_hvp = curr_param_hvp
             else:
                 param_hvp += curr_param_hvp
-        # TODO(cm): should we average here?
         return param_hvp
 
     def _calc_theta_largest_eig_multibatch(
@@ -599,7 +599,7 @@ class SCRAPLLoss(nn.Module):
         params: List[Parameter],
         synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
         n_iter: int = 20,
-    ) -> float:
+    ) -> T:
         apply_fn = functools.partial(
             self._calc_param_hvp_multibatch,
             path_idx=path_idx,
@@ -646,7 +646,7 @@ class SCRAPLLoss(nn.Module):
                 n_iter=n_iter,
             )
             theta_eigs.append(eig1)
-        theta_eigs = tr.tensor(theta_eigs)
+        theta_eigs = tr.cat(theta_eigs, dim=0)
         return theta_eigs
 
     def warmup_lc_hvp(
@@ -670,13 +670,23 @@ class SCRAPLLoss(nn.Module):
                 f"len(theta_fn_kwargs) ({len(theta_fn_kwargs)}) != "
                 f"len(synth_fn_kwargs) ({len(synth_fn_kwargs)})"
             )
+        # Check determinism
+        theta_fn_kwargs_batch = theta_fn_kwargs[0]
+        synth_fn_kwargs_batch = {}
+        if synth_fn_kwargs is not None:
+            synth_fn_kwargs_batch = synth_fn_kwargs[0]
+        if not self.check_is_deterministic(theta_fn, theta_fn_kwargs_batch):
+            log.warning("theta_fn is not deterministic")
+        if not self.check_is_deterministic(synth_fn, synth_fn_kwargs_batch):
+            log.warning("synth_fn is not deterministic")
+
+        # Determine whether to use multibatch or not
         is_multibatch = force_multibatch or len(theta_fn_kwargs) > 1
         log.info(
             f"Starting warmup_lc_hvp with agg = {agg} for {len(params)} "
             f"parameter(s) and {len(theta_fn_kwargs)} batch(es) "
             f"(multibatch = {is_multibatch})"
         )
-        # Determine whether to use multibatch or not
         if is_multibatch:
             calc_theta_eigs_fn = self.calc_theta_eigs_multibatch
         else:
@@ -703,6 +713,7 @@ class SCRAPLLoss(nn.Module):
                     n_iter=n_iter,
                 )
                 vals.append(curr_vals)
+                log.info(f"path_idx = {path_idx}, curr_vals = {curr_vals}")
             # Aggregate the theta LCs across all params
             vals = tr.stack(vals, dim=0)
             if agg == "all":
@@ -776,6 +787,17 @@ class SCRAPLLoss(nn.Module):
         v_hat = v / (1 - b2**t)
         grad_hat = m_hat / (T.sqrt(v_hat) + eps)
         return grad_hat, m, v
+
+    @staticmethod
+    def check_is_deterministic(
+        fn: Callable[..., T],
+        fn_kwargs: Dict[str, Any],
+    ) -> bool:
+        x_1 = fn(**fn_kwargs)
+        x_2 = fn(**fn_kwargs)
+        if not tr.allclose(x_1, x_2):
+            return False
+        return True
 
 
 if __name__ == "__main__":
