@@ -566,3 +566,4 @@ lightning_logs/
 wandb_logs/
 scratch.py
 /models
+/bird_ode/lostanlen2024vihar.pdf
