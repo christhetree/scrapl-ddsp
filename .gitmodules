@@ -6,3 +6,6 @@
 	path = kymatio
 	url = git@github.com:christhetree/kymatio.git
 	branch = cm--scrapl
+[submodule "automix-toolkit"]
+	path = automix-toolkit
+	url = git@github.com:christhetree/automix-toolkit.git

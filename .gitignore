@@ -566,3 +566,7 @@ lightning_logs/
 wandb_logs/
 scratch.py
 /models
+
+DSD100subset/
+DSD100subset.zip
+checkpoints/
