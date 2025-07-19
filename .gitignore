@@ -567,6 +567,8 @@ wandb_logs/
 scratch.py
 /models
 
-DSD100subset/
-DSD100subset.zip
 checkpoints/
+DSD100subset.zip
+DSD100subset/
+drums-test-rock.zip
+drums-test-rock/
