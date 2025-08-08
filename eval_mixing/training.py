@@ -177,6 +177,8 @@ if __name__ == "__main__":
         "max_epochs": 10,
         "schedule": "none",
         "recon_losses": ["sd"],
+        # "recon_losses": ["mss"],
+        # "recon_losses": ["scrapl"],
         "recon_loss_weights": [1.0],
         "sample_rate": 44100,
         "num_workers": 0,
@@ -186,5 +188,5 @@ if __name__ == "__main__":
     # create the System
     system = System(**vars(args))
 
-    # train(args, system)
-    test(system)
+    train(args, system)
+    # test(system)

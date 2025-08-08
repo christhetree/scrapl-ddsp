@@ -560,7 +560,6 @@ cython_debug/
 
 # Custom
 .idea/
-/data
 /out
 lightning_logs/
 wandb_logs/
@@ -568,6 +567,7 @@ scratch.py
 /models
 
 checkpoints/
+data/
 DSD100subset.zip
 DSD100subset/
 drums-test-rock.zip
