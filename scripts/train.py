@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # config_name = "train/chirplet/train_scrapl_saga_pwa.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_mean.yml"
-    config_name = "train/chirplet/train_scrapl_saga_pwa__probs__n_batches_20__n_iter_20__min_prob_frac_0.0__param_agg_None.yml"
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__probs__n_batches_20__n_iter_20__min_prob_frac_0.0__param_agg_None.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa_ds_update.yml"
 
     # config_name = "train/chirplet/train_scrapl_adam.yml"
@@ -50,10 +50,13 @@ if __name__ == "__main__":
     # config_name = "train/chirplet/fm/train_scrapl_saga_bin.yml"
     # config_name = "train/chirplet/fm/train_scrapl_saga_w0.yml"
 
+    # ==================================================================================
+    config_name = "eval_mixing/train.yml"
+
     log.info(f"Running with config: {config_name}")
-    # seeds = None
+    seeds = None
     # seeds = [0, 1, 2]
-    seeds = list(range(20))
+    # seeds = list(range(20))
 
     config_path = os.path.join(CONFIGS_DIR, config_name)
 

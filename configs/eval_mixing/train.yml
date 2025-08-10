@@ -1,0 +1,58 @@
+seed_everything: 42
+
+custom:
+  project_name: scrapl
+  model_name: testing
+  dataset_name: testing
+  cpu_batch_size: 4
+#  use_wandb_cpu: true
+  use_wandb_cpu: false
+#  use_wandb_gpu: false
+  use_wandb_gpu: true
+
+trainer:
+  accelerator: gpu
+  benchmark: false
+  devices: [0]
+  max_epochs: 20
+  num_sanity_val_steps: 1
+  accumulate_grad_batches: 1
+
+data:
+#  class_path: eval_mixing.data_modules.DSD100DataModule
+#  init_args:
+#    batch_size: 4
+#    dataset_dir: ../eval_mixing/data/DSD100subset
+#    sr: 44100
+#    train_n_samples: 65536
+#    val_n_samples: 65536
+#    train_indices: [0,4]
+#    val_indices: [0, 4]
+#    test_indices: [0, 4]
+#    num_examples_per_epoch: 100
+#    num_workers: 4
+  class_path: eval_mixing.data_modules.MedleyDBDataModule
+  init_args:
+    batch_size: 4
+    dataset_dirs:
+      - ../eval_mixing/data/MedleyDB_V2/V2
+    sr: 44100
+    train_n_samples: 65536
+    val_n_samples: 65536
+    train_indices: [ 0, 4 ]
+    val_indices: [ 0, 4 ]
+    test_indices: [ 0, 4 ]
+    max_n_tracks: 16
+    num_examples_per_epoch: 100
+    buffer_size_gb: 0.2
+    buffer_reload_rate: 4000
+    normalization: peak
+    num_workers: 4
+
+model:
+  class_path: eval_mixing.lightning.MixingLightingModule
+  init_args:
+    model: dmc_simple.yml
+    loss_func: ../losses/mss.yml
+
+optimizer: ../opt/adam_w_1e-5.yml

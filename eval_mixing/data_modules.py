@@ -1,16 +1,11 @@
-import itertools
 import logging
 import os
 from typing import List
 
-import numpy as np
-import pandas as pd
 import pytorch_lightning as pl
-import torch as tr
 from torch.utils.data import DataLoader
 
 from automix.data import DSD100Dataset, MedleyDBDataset
-from experiments.datasets import ChirpTextureDataset
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -25,9 +20,9 @@ class DSD100DataModule(pl.LightningDataModule):
         sr: int,
         train_n_samples: int,
         val_n_samples: int,
-        train_indices: (int, int),
-        val_indices: (int, int),
-        test_indices: (int, int),
+        train_indices: List[int],
+        val_indices: List[int],
+        test_indices: List[int],
         num_examples_per_epoch: int,
         num_workers: int = 0,
     ):
@@ -101,14 +96,13 @@ class MedleyDBDataModule(pl.LightningDataModule):
         sr: int,
         train_n_samples: int,
         val_n_samples: int,
-        train_indices: (int, int),
-        val_indices: (int, int),
-        test_indices: (int, int),
+        train_indices: List[int],
+        val_indices: List[int],
+        test_indices: List[int],
         max_n_tracks: int,
         num_examples_per_epoch: int,
         buffer_size_gb: float = 2.0,
         buffer_reload_rate: int = 4000,
-        buffer_audio_length: int = 262144,
         normalization: str = "peak",
         num_workers: int = 0,
     ):
@@ -125,7 +119,6 @@ class MedleyDBDataModule(pl.LightningDataModule):
         self.num_examples_per_epoch = num_examples_per_epoch
         self.buffer_size_gb = buffer_size_gb
         self.buffer_reload_rate = buffer_reload_rate
-        self.buffer_audio_length = buffer_audio_length
         self.normalization = normalization
         self.num_workers = num_workers
 
@@ -138,7 +131,7 @@ class MedleyDBDataModule(pl.LightningDataModule):
             num_examples_per_epoch=num_examples_per_epoch,
             buffer_size_gb=buffer_size_gb,
             buffer_reload_rate=buffer_reload_rate,
-            buffer_audio_length=buffer_audio_length,
+            buffer_audio_length=train_n_samples,
             normalization=normalization,
         )
         self.val_ds = MedleyDBDataset(
@@ -150,7 +143,7 @@ class MedleyDBDataModule(pl.LightningDataModule):
             num_examples_per_epoch=num_examples_per_epoch,
             buffer_size_gb=buffer_size_gb,
             buffer_reload_rate=buffer_reload_rate,
-            buffer_audio_length=buffer_audio_length,
+            buffer_audio_length=val_n_samples,
             normalization=normalization,
         )
         self.test_ds = MedleyDBDataset(
@@ -162,7 +155,7 @@ class MedleyDBDataModule(pl.LightningDataModule):
             num_examples_per_epoch=num_examples_per_epoch,
             buffer_size_gb=buffer_size_gb,
             buffer_reload_rate=buffer_reload_rate,
-            buffer_audio_length=buffer_audio_length,
+            buffer_audio_length=val_n_samples,
             normalization=normalization,
         )
 

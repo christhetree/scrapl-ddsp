@@ -1,0 +1,6 @@
+class_path: automix.models.dmc.DifferentiableMixingConsole
+init_args:
+  sample_rate: 44100
+  encoder_arch: short_res
+#  encoder_arch: vggish
+  load_weights: ../eval_mixing/checkpoints/encoder.ckpt

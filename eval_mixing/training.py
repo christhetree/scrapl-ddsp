@@ -164,7 +164,7 @@ if __name__ == "__main__":
     # !unzip -o DSD100subset.zip
 
     args = {
-        "dataset_dir": "./DSD100subset",
+        "dataset_dir": "./data/DSD100subset",
         "dataset_name": "DSD100",
         "automix_model": "dmc",
         "pretrained_encoder": True,
