@@ -44,7 +44,7 @@ data:
     test_indices: [ 0, 4 ]
     max_n_tracks: 16
     num_examples_per_epoch: 100
-    buffer_size_gb: 0.2
+    buffer_size_gb: 0.05
     buffer_reload_rate: 4000
     normalization: peak
     num_workers: 4
@@ -52,7 +52,9 @@ data:
 model:
   class_path: eval_mixing.lightning.MixingLightingModule
   init_args:
-    model: dmc_simple.yml
+    encoder: encoder_simple.yml
+    emb_dim: 512
+    mixer: mixer_simple.yml
     loss_func: ../losses/mss.yml
 
 optimizer: ../opt/adam_w_1e-5.yml

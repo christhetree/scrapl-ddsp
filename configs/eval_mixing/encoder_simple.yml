@@ -1,0 +1,4 @@
+class_path: automix.models.dmc.ShortChunkCNN_Res
+init_args:
+  sample_rate: 44100
+  ckpt_path: ../eval_mixing/checkpoints/encoder.ckpt

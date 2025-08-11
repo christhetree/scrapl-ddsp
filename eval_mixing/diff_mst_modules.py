@@ -255,9 +255,6 @@ class AdvancedMixConsole(torch.nn.Module):
         # restore tracks to original shape
         tracks = tracks.view(bs, num_tracks, seq_len)
 
-        # restore tracks to original shape
-        tracks = tracks.view(bs, num_tracks, seq_len)
-
         if use_track_panner:
             tracks = stereo_panner(
                 tracks,
