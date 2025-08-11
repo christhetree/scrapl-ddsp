@@ -54,7 +54,15 @@ model:
   init_args:
     encoder: encoder_simple.yml
     emb_dim: 512
-    mixer: mixer_simple.yml
+#    mixer: mixer_simple.yml
+#    n_track_params: 4
+#    n_fx_bus_params: 0
+#    n_master_bus_params: 0
+    mixer: mixer_advanced.yml
+    n_track_params: 27
+    n_fx_bus_params: 25
+    n_master_bus_params: 26
     loss_func: ../losses/mss.yml
 
 optimizer: ../opt/adam_w_1e-5.yml
+#optimizer: ../opt/sgd_w_1e-5.yml
