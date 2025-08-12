@@ -32,4 +32,4 @@ dependencies:
     - git+https://github.com/kymatio/kymatio.git
     - git+https://github.com/noahgolmant/pytorch-hessian-eigenthings.git
 
-# uv pip install torch lightning torchaudio torchvision auraloss black 'jsonargparse[signatures]>=4.27.7' librosa matplotlib msclap 'numpy<2.0.0' nvitop pandas scipy tensorboard wandb pip-chill nnaudio git+https://github.com/kymatio/kymatio.git git+https://github.com/noahgolmant/pytorch-hessian-eigenthings.git
+# uv pip install torch lightning torchaudio torchvision auraloss black 'jsonargparse[signatures]>=4.27.7' librosa matplotlib msclap 'numpy<2.0.0' nvitop pandas scipy tensorboard wandb pip-chill nnaudio dasp-pytorch pyloudnorm git+https://github.com/noahgolmant/pytorch-hessian-eigenthings.git

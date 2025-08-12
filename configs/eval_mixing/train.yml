@@ -2,9 +2,12 @@ seed_everything: 42
 
 custom:
   project_name: scrapl
-  model_name: testing
-  dataset_name: testing
-  cpu_batch_size: 4
+  model_name: scrapl_saga_pwa__1e-4
+#  model_name: jtfst__1e-5
+#  model_name: mss__1e-5
+  dataset_name: mixing__b8
+#  dataset_name: mixing__b32
+  cpu_batch_size: 5
 #  use_wandb_cpu: true
   use_wandb_cpu: false
 #  use_wandb_gpu: false
@@ -13,41 +16,34 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [0]
-  max_epochs: 20
+  devices: [7]
+  max_epochs: 50
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
+#  accumulate_grad_batches: 32
 
 data:
-#  class_path: eval_mixing.data_modules.DSD100DataModule
-#  init_args:
-#    batch_size: 4
-#    dataset_dir: ../eval_mixing/data/DSD100subset
-#    sr: 44100
-#    train_n_samples: 65536
-#    val_n_samples: 65536
-#    train_indices: [0,4]
-#    val_indices: [0, 4]
-#    test_indices: [0, 4]
-#    num_examples_per_epoch: 100
-#    num_workers: 4
   class_path: eval_mixing.data_modules.MedleyDBDataModule
   init_args:
-    batch_size: 4
+    batch_size: 8
+#    batch_size: 1
     dataset_dirs:
-      - ../eval_mixing/data/MedleyDB_V2/V2
+#      - ../eval_mixing/data/MedleyDB_V2/V2
+      - /import/c4dm-datasets/MedleyDB_V1/V1
+      - /import/c4dm-datasets/MedleyDB_V2/V2
     sr: 44100
     train_n_samples: 65536
     val_n_samples: 65536
-    train_indices: [ 0, 4 ]
-    val_indices: [ 0, 4 ]
-    test_indices: [ 0, 4 ]
+    train_indices: [ 0, 72 ]
+    val_indices: [ 72, 96 ]
+    test_indices: [ 96, 120 ]
     max_n_tracks: 16
-    num_examples_per_epoch: 100
-    buffer_size_gb: 0.05
+    num_examples_per_epoch: 400
+#    buffer_size_gb: 0.05
+    buffer_size_gb: 2.0
     buffer_reload_rate: 4000
     normalization: peak
-    num_workers: 4
+    num_workers: 8
 
 model:
   class_path: eval_mixing.lightning.MixingLightingModule
@@ -62,7 +58,10 @@ model:
     n_track_params: 27
     n_fx_bus_params: 25
     n_master_bus_params: 26
-    loss_func: ../losses/mss.yml
+#    loss_func: ../losses/mss.yml
+    loss_func: ../losses/scrapl_saga_pwa.yml
+#    loss_func: ../losses/jtfst.yml
 
-optimizer: ../opt/adam_w_1e-5.yml
-#optimizer: ../opt/sgd_w_1e-5.yml
+#optimizer: ../opt/adam_w_1e-5.yml
+#optimizer: ../opt/sgd_1e-5.yml
+optimizer: ../opt/sgd_1e-4.yml

@@ -17,7 +17,7 @@ from experiments.callbacks import (
     LogGradientCallback,
     ConsoleLRMonitor,
 )
-from experiments.paths import CONFIGS_DIR
+from experiments.paths import CONFIGS_DIR, WANDB_LOGS_DIR, LIGHTNING_LOGS_DIR
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -38,7 +38,8 @@ class CustomLightningCLI(LightningCLI):
             name = add_arg["name"]
             default = add_arg.get("default")
             if default is not None:
-                parser.add_argument(name, default=default)
+                # parser.add_argument(name, default=default)
+                parser.add_argument(f"--{name}", default=default)
             else:
                 parser.add_argument(name)
 
@@ -146,7 +147,7 @@ class CustomLightningCLI(LightningCLI):
         ):
             # Used directly by the callbacks
             wandb.init(
-                dir="wandb_logs",
+                dir=WANDB_LOGS_DIR,
                 project=self.config.fit.custom.project_name,
                 name=f"{self.config.fit.custom.model_name}__"
                      f"{self.config.fit.custom.dataset_name}",
@@ -155,7 +156,7 @@ class CustomLightningCLI(LightningCLI):
 
             # Used by lightning to log to wandb
             wandb_logger = WandbLogger(
-                save_dir="wandb_logs",
+                save_dir=WANDB_LOGS_DIR,
                 project=self.config.fit.custom.project_name,
                 name=f"{self.config.fit.custom.model_name}__"
                      f"{self.config.fit.custom.dataset_name}",
@@ -210,7 +211,7 @@ class CustomLightningCLI(LightningCLI):
             "logger": {
                 "class_path": "pytorch_lightning.loggers.TensorBoardLogger",
                 "init_args": {
-                    "save_dir": "lightning_logs",
+                    "save_dir": LIGHTNING_LOGS_DIR,
                     "name": None,
                 },
             },

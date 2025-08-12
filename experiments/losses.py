@@ -53,6 +53,9 @@ class JTFSTLoss(nn.Module):
 
     def forward(self, x: T, x_target: T) -> T:
         assert x.ndim == x_target.ndim == 3
+        bs, n_ch, n_samples = x.size()
+        x = x.view(-1, 1, n_samples)
+        x_target = x_target.view(-1, 1, n_samples)
         assert x.size(1) == x_target.size(1) == 1
         Sx = self.jtfs(x)
         Sx_target = self.jtfs(x_target)
