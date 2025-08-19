@@ -100,7 +100,9 @@ class MedleyDBDataModule(pl.LightningDataModule):
         val_indices: List[int],
         test_indices: List[int],
         max_n_tracks: int,
-        num_examples_per_epoch: int,
+        train_num_examples_per_epoch: int,
+        val_num_examples_per_epoch: int,
+        test_num_examples_per_epoch: int,
         buffer_size_gb: float = 2.0,
         buffer_reload_rate: int = 4000,
         normalization: str = "peak",
@@ -116,7 +118,9 @@ class MedleyDBDataModule(pl.LightningDataModule):
         self.val_indices = val_indices
         self.test_indices = test_indices
         self.max_n_tracks = max_n_tracks
-        self.num_examples_per_epoch = num_examples_per_epoch
+        self.train_num_examples_per_epoch = train_num_examples_per_epoch
+        self.val_num_examples_per_epoch = val_num_examples_per_epoch
+        self.test_num_examples_per_epoch = test_num_examples_per_epoch
         self.buffer_size_gb = buffer_size_gb
         self.buffer_reload_rate = buffer_reload_rate
         self.normalization = normalization
@@ -128,7 +132,7 @@ class MedleyDBDataModule(pl.LightningDataModule):
             sample_rate=sr,
             indices=train_indices,
             max_num_tracks=max_n_tracks,
-            num_examples_per_epoch=num_examples_per_epoch,
+            num_examples_per_epoch=train_num_examples_per_epoch,
             buffer_size_gb=buffer_size_gb,
             buffer_reload_rate=buffer_reload_rate,
             buffer_audio_length=train_n_samples,
@@ -140,7 +144,7 @@ class MedleyDBDataModule(pl.LightningDataModule):
             sample_rate=sr,
             indices=val_indices,
             max_num_tracks=max_n_tracks,
-            num_examples_per_epoch=num_examples_per_epoch,
+            num_examples_per_epoch=val_num_examples_per_epoch,
             buffer_size_gb=buffer_size_gb,
             buffer_reload_rate=buffer_reload_rate,
             buffer_audio_length=val_n_samples,
@@ -152,7 +156,7 @@ class MedleyDBDataModule(pl.LightningDataModule):
             sample_rate=sr,
             indices=test_indices,
             max_num_tracks=max_n_tracks,
-            num_examples_per_epoch=num_examples_per_epoch,
+            num_examples_per_epoch=test_num_examples_per_epoch,
             buffer_size_gb=buffer_size_gb,
             buffer_reload_rate=buffer_reload_rate,
             buffer_audio_length=val_n_samples,

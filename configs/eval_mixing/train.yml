@@ -2,12 +2,17 @@ seed_everything: 42
 
 custom:
   project_name: scrapl
-  model_name: scrapl_saga_pwa__1e-4
-#  model_name: jtfst__1e-5
-#  model_name: mss__1e-5
-  dataset_name: mixing__b8
-#  dataset_name: mixing__b32
-  cpu_batch_size: 5
+#  model_name: mss__1e-5__gc0.5
+  model_name: mss_mixing__1e-5__gc0.5
+#  model_name: scrapl_saga_pwa_t256_q12__1e-5
+#  model_name: scrapl_saga_pwa_global__1e-5
+#  model_name: jtfst_t64_q12_jfr5__1e-5
+#  model_name: scat1d_o2_t8192_q12__1e-5
+#  dataset_name: mixing__no_master__b8
+  dataset_name: mixing__no_master__b32
+#  dataset_name: mixing__no_master__shift_4096__b8
+#  dataset_name: mixing__no_master__shift_8192__b32
+  cpu_batch_size: 2
 #  use_wandb_cpu: true
   use_wandb_cpu: false
 #  use_wandb_gpu: false
@@ -16,34 +21,51 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [7]
+  devices: [5]
   max_epochs: 50
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
+#  accumulate_grad_batches: 8
 #  accumulate_grad_batches: 32
+#  accumulate_grad_batches: 2
+  gradient_clip_val: 0.5
 
 data:
   class_path: eval_mixing.data_modules.MedleyDBDataModule
   init_args:
-    batch_size: 8
+#    batch_size: 8
 #    batch_size: 1
-    dataset_dirs:
-#      - ../eval_mixing/data/MedleyDB_V2/V2
-      - /import/c4dm-datasets/MedleyDB_V1/V1
-      - /import/c4dm-datasets/MedleyDB_V2/V2
+    batch_size: 32
+#    batch_size: 16
+
     sr: 44100
     train_n_samples: 65536
     val_n_samples: 65536
+    max_n_tracks: 16
+    train_num_examples_per_epoch: 3000
+    val_num_examples_per_epoch: 1000
+    test_num_examples_per_epoch: 1000
+#    train_num_examples_per_epoch: 600
+#    val_num_examples_per_epoch: 200
+#    test_num_examples_per_epoch: 200
+    buffer_reload_rate: 5000
+    normalization: peak
+    num_workers: 8
+
+#    dataset_dirs:
+#      - ../eval_mixing/data/MedleyDB_V2/V2
+#    train_indices: [ 0, 4 ]
+#    val_indices: [ 0, 4 ]
+#    test_indices: [ 0, 4 ]
+#    buffer_size_gb: 0.01
+
+    dataset_dirs:
+      - /import/c4dm-datasets/MedleyDB_V1/V1
+      - /import/c4dm-datasets/MedleyDB_V2/V2
     train_indices: [ 0, 72 ]
     val_indices: [ 72, 96 ]
     test_indices: [ 96, 120 ]
-    max_n_tracks: 16
-    num_examples_per_epoch: 400
-#    buffer_size_gb: 0.05
     buffer_size_gb: 2.0
-    buffer_reload_rate: 4000
-    normalization: peak
-    num_workers: 8
 
 model:
   class_path: eval_mixing.lightning.MixingLightingModule
@@ -59,9 +81,12 @@ model:
     n_fx_bus_params: 25
     n_master_bus_params: 26
 #    loss_func: ../losses/mss.yml
-    loss_func: ../losses/scrapl_saga_pwa.yml
+    loss_func: ../losses/mss_mixing.yml
+#    loss_func: ../losses/scrapl_saga_pwa.yml
 #    loss_func: ../losses/jtfst.yml
+#    loss_func: ../losses/scat_1d.yml
+#    grad_mult: 1e8
 
-#optimizer: ../opt/adam_w_1e-5.yml
+optimizer: ../opt/adam_w_1e-5.yml
 #optimizer: ../opt/sgd_1e-5.yml
-optimizer: ../opt/sgd_1e-4.yml
+#optimizer: ../opt/sgd_1e-4.yml

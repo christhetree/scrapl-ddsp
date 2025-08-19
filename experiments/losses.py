@@ -93,6 +93,9 @@ class Scat1DLoss(nn.Module):
 
     def forward(self, x: T, x_target: T) -> T:
         assert x.ndim == x_target.ndim == 3
+        bs, n_ch, n_samples = x.size()
+        x = x.view(-1, 1, n_samples)
+        x_target = x_target.view(-1, 1, n_samples)
         assert x.size(1) == x_target.size(1) == 1
         Sx = self.scat_1d(x)
         Sx_target = self.scat_1d(x_target)
@@ -320,6 +323,49 @@ class LogMSSLoss(nn.Module):
             return window
         else:
             raise ValueError(f"Unknown window type: {window}")
+
+
+class MFCCDistance(nn.Module):
+    def __init__(
+        self,
+        sr: int,
+        log_mels: bool = True,
+        n_fft: int = 2048,
+        hop_len: int = 512,
+        n_mels: int = 128,
+        n_mfcc: int = 40,
+        p: int = 1,
+    ):
+        super().__init__()
+        self.sr = sr
+        self.n_fft = n_fft
+        self.hop_len = hop_len
+        self.n_mels = n_mels
+        self.n_mfcc = n_mfcc
+        self.p = p
+
+        self.mfcc = MFCC(
+            sample_rate=sr,
+            n_mfcc=n_mfcc,
+            log_mels=log_mels,
+            melkwargs={
+                "n_fft": n_fft,
+                "hop_length": hop_len,
+                "n_mels": n_mels,
+            },
+        )
+        self.l1 = nn.L1Loss()
+        self.mse = nn.MSELoss()
+
+    def forward(self, x: T, x_target: T) -> T:
+        assert x.ndim == 3
+        assert x.shape == x_target.shape
+        if self.p == 1:
+            return self.l1(self.mfcc(x), self.mfcc(x_target))
+        elif self.p == 2:
+            return self.mse(self.mfcc(x), self.mfcc(x_target))
+        else:
+            raise ValueError(f"Unknown p value: {self.p}")
 
 
 if __name__ == "__main__":

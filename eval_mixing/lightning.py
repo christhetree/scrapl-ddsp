@@ -1,5 +1,6 @@
 import logging
 import os
+from collections import defaultdict
 from typing import Dict
 
 import auraloss
@@ -7,6 +8,10 @@ import pytorch_lightning as pl
 import torch as tr
 from torch import Tensor as T
 from torch import nn
+
+from automix.evaluation.utils_evaluation import get_features
+from experiments.losses import MFCCDistance, Scat1DLoss
+from experiments.scrapl_loss import SCRAPLLoss
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -25,6 +30,7 @@ class MixingLightingModule(pl.LightningModule):
         loss_func: nn.Module,
         pp_hidden_dim: int = 256,
         pp_dropout: float = 0.2,
+        grad_mult: float = 1.0,
     ):
         super().__init__()
         assert n_track_params > 0, "n_track_params must be greater than 0"
@@ -37,6 +43,13 @@ class MixingLightingModule(pl.LightningModule):
         self.loss_func = loss_func
         self.pp_hidden_dim = pp_hidden_dim
         self.pp_dropout = pp_dropout
+        self.grad_mult = grad_mult
+
+        if grad_mult != 1.0:
+            assert not isinstance(self.loss_func, SCRAPLLoss)
+            log.info(f"Adding grad multiplier hook of {self.grad_mult}")
+            for p in self.encoder.parameters():
+                p.register_hook(self.grad_multiplier_hook)
 
         self.n_global_params = n_fx_bus_params + n_master_bus_params
         self.track_post_processor = nn.Sequential(
@@ -61,6 +74,13 @@ class MixingLightingModule(pl.LightningModule):
                 tr.nn.Linear(pp_hidden_dim, self.n_global_params),
                 tr.nn.Sigmoid(),
             )
+
+        if tr.cuda.is_available():
+            self.encoder = tr.compile(self.encoder)
+            self.track_post_processor = tr.compile(self.track_post_processor)
+            if self.global_post_processor is not None:
+                self.global_post_processor = tr.compile(self.global_post_processor)
+
         self.metrics = nn.ModuleDict(
             {
                 "mss": auraloss.freq.MultiResolutionSTFTLoss(),
@@ -74,8 +94,20 @@ class MixingLightingModule(pl.LightningModule):
                     w_lin_mag=1.0,
                     w_log_mag=1.0,
                 ),
+                "mfcc_l1": MFCCDistance(sr=mixer.sample_rate),
+                "scat1d_l1": Scat1DLoss(
+                    shape=65536, J=12, Q1=8, Q2=2, max_order=1, p=1
+                ),
             }
         )
+
+    def grad_multiplier_hook(self, grad: T) -> T:
+        # log.info(f"grad.abs().max() = {grad.abs().max()}")
+        if not self.training:
+            log.warning("grad_multiplier_hook called during eval")
+            return grad
+        grad *= self.grad_mult
+        return grad
 
     def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
         x, y, track_mask = batch  # tracks, mix, mask
@@ -87,6 +119,12 @@ class MixingLightingModule(pl.LightningModule):
 
         # Move tracks to the batch dimension to fully parallelize embedding computation
         x = x.view(-1, n_samples)
+
+        # for idx in range(x.size(0)):
+        #     track = x[idx, :]
+        #     shift_samples = tr.randint(low=-8192, high=8192, size=(1,)).item()
+        #     track = tr.roll(track, shifts=shift_samples, dims=0)
+        #     x[idx, :] = track
 
         # Generate a single embedding for each track
         track_emb = self.encoder(x)
@@ -137,6 +175,7 @@ class MixingLightingModule(pl.LightningModule):
                 track_params=p_track_hat_0to1,
                 fx_bus_params=p_fx_bus_hat_0to1,
                 master_bus_params=p_master_bus_hat_0to1,
+                use_master_bus=False,
             )
         else:
             y_hat, p_hat = self.mixer(
@@ -159,6 +198,35 @@ class MixingLightingModule(pl.LightningModule):
                     name not in out
                 ), f"Metric {name} already exists in output dictionary."
                 out[name] = metric_value
+
+        if stage != "train":
+            eval_features = defaultdict(list)
+            bs = y.size(0)
+            y_numpy = y.detach().cpu().numpy()
+            y_hat_numpy = y_hat.detach().cpu().numpy()
+            for idx in range(bs):
+                try:
+                    curr_eval_features = get_features(
+                        y_numpy[idx, :, :],
+                        y_hat_numpy[idx, :, :],
+                        sr=self.mixer.sample_rate,
+                    )
+                    for k, v in curr_eval_features.items():
+                        eval_features[k].append(v)
+                except Exception as e:
+                    log.warning(f"Exception during get_features: {e}")
+            for name, vals in eval_features.items():
+                if len(vals) == 0:
+                    log.warning(f"No values for {name} in {stage} stage.")
+                    continue
+                mean_val = tr.tensor(vals, dtype=tr.float).mean()
+                self.log(
+                    f"{stage}/mape__{name}",
+                    mean_val,
+                    prog_bar=False,
+                    sync_dist=True,
+                )
+
         return out
 
     def training_step(self, batch: (T, T, T), batch_idx: int) -> Dict[str, T]:
