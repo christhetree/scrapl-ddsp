@@ -12,12 +12,12 @@ trainer:
   devices: [7]
   max_epochs: 200
   num_sanity_val_steps: 1
-  accumulate_grad_batches: 8
+  accumulate_grad_batches: 5
 
 data:
   class_path: experiments.data_modules.ThetaDSDataModule
   init_args:
-    batch_size: 4
+    batch_size: 6
     num_workers: 4
     n_d: 32
     n_s: 32

@@ -2,8 +2,8 @@ seed_everything: 42
 
 custom:
   project_name: scrapl
-  model_name: mss_mixing__1e-5
-#  model_name: scat1d_t256__1e-5
+#  model_name: mss_mixing__1e-5
+  model_name: scat1d_o1_global__1e-5
   dataset_name: mixing__no_master__b8
 #  dataset_name: mixing_style__no_master__b8
 #  dataset_name: mixing__no_master__shift_4096__b8
@@ -75,12 +75,8 @@ model:
     n_track_params: 27
     n_fx_bus_params: 25
     n_master_bus_params: 26
-#    loss_func: ../losses/mss.yml
-    loss_func: ../losses/mss_mixing.yml
-#    loss_func: ../losses/scrapl_saga_pwa.yml
-#    loss_func: ../losses/jtfst.yml
-#    loss_func: ../losses/scat_1d.yml
-#    grad_mult: 1e8
+    loss_func: ../eval_mixing/losses/scat_1d.yml
+    grad_mult: 1e8
 
 optimizer: ../opt/adam_w_1e-5.yml
 #optimizer: ../opt/sgd_1e-5.yml

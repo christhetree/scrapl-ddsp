@@ -1,7 +1,7 @@
 custom:
   project_name: scrapl
-  model_name: scrapl_pwa_1e-5_b32
-  dataset_name: texture_32_32_5_meso
+  model_name: scrapl_pwa_1e-5
+  dataset_name: texture_32_32_5_meso_b32
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: false
@@ -9,7 +9,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [0]
+  devices: [6]
   max_epochs: 200
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
@@ -29,9 +29,9 @@ data:
 model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
-    model: ../../../configs/models/spectral_2dcnn.yml
-    synth: ../../../configs/synths/chirp_texture_8khz.yml
-    loss_func: ../../../configs/losses/scrapl_pwa.yml
+    model: ../../models/spectral_2dcnn.yml
+    synth: ../../synths/chirp_texture_8khz.yml
+    loss_func: ../../losses/scrapl_pwa.yml
 
     use_p_loss: false
     use_train_rand_seed: false
@@ -45,6 +45,6 @@ model:
     log_x_hat: false
     log_val_grads: false
 
-    run_name: scrapl_pwa_1e-5_b32__texture_32_32_5_meso
+    run_name: scrapl_pwa_1e-5__texture_32_32_5_meso_b32
 
-optimizer: ../../../configs/opt/sgd_1e-5.yml
+optimizer: ../../opt/sgd_1e-5.yml

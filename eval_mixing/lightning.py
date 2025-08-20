@@ -111,6 +111,7 @@ class MixingLightingModule(pl.LightningModule):
 
     def step(self, batch: List[T], stage: str) -> Dict[str, T]:
         x, y, track_mask = batch  # tracks, mix, mask
+        y = y.contiguous()
 
         bs, num_tracks, n_samples = x.shape
         # If no track_mask supplied assume all tracks active

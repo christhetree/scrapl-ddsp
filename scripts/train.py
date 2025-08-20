@@ -16,7 +16,11 @@ if __name__ == "__main__":
     # config_name = "train.yml"
     # config_name = "train/am_fm/train.yml"
 
-    config_name = "train/texture/train_jtfst.yml"
+    #
+    # config_name = "train/texture/train_mss.yml"
+    # config_name = "train/texture/train_rand_mss.yml"
+    config_name = "train/texture/train_mss_revisited.yml"
+    # config_name = "train/texture/train_jtfst.yml"
     # config_name = "train/texture/train_scrapl_adam.yml"
     # config_name = "train/texture/train_scrapl_saga_adam.yml"
     # config_name = "train/texture/train_scrapl_pwa.yml"
