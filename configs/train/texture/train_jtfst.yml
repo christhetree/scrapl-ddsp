@@ -1,7 +1,7 @@
 custom:
   project_name: scrapl
-  model_name: scrapl_saga_bin_sgd_1e-5_b32
-  dataset_name: texture_32_32_5_meso
+  model_name: jtfst_adam_1e-5
+  dataset_name: texture_32_32_5_meso_b32
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: false
@@ -12,13 +12,12 @@ trainer:
   devices: [7]
   max_epochs: 200
   num_sanity_val_steps: 1
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 8
 
 data:
   class_path: experiments.data_modules.ThetaDSDataModule
   init_args:
-    batch_size: 32
-
+    batch_size: 4
     num_workers: 4
     n_d: 32
     n_s: 32
@@ -30,14 +29,10 @@ data:
 model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
-    model: ../../../configs/models/spectral_2dcnn.yml
-    synth: ../../../configs/synths/chirp_texture_8khz.yml
-    loss_func: ../../../configs/losses/scrapl_texture_bin.yml
-
-    grad_multiplier: 1e8
-    use_pathwise_adam: true
-    vr_algo: saga
-    update_paths: false
+    model: ../../models/spectral_2dcnn.yml
+    synth: ../../synths/chirp_texture_8khz.yml
+    loss_func: ../../losses/jtfst.yml
+    grad_mult: 1e8
 
     use_p_loss: false
     use_train_rand_seed: false
@@ -51,6 +46,6 @@ model:
     log_x_hat: false
     log_val_grads: false
 
-    run_name: scrapl_saga_bin_sgd_1e-5_b32__texture_32_32_5_meso
+    run_name: jtfst_adam_1e-5__texture_32_32_5_meso_b32
 
-optimizer: ../../../configs/opt/sgd_1e-5.yml
+optimizer: ../../opt/adam_w_1e-5.yml

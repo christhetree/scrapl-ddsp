@@ -238,7 +238,7 @@ class SCRAPLLoss(nn.Module):
         self.register_module(
             "prev_path_grads", ReadOnlyTensorDict(prev_path_grads, persistent=False)
         )
-        log.info(f"Attached {len(self.prev_path_grads)} parameters")
+        log.info(f"Attached {len(self.prev_path_grads)} parameter tensors")
 
     def grad_hook(self, grad: T, param_idx: int) -> T:
         # TODO(cm): check if this works

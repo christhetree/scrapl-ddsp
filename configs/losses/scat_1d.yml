@@ -1,7 +1,6 @@
 class_path: experiments.losses.Scat1DLoss
 init_args:
-#  shape: 32768
-  shape: 65536
+  shape: 32768
   J: 12
   Q1: 8
   Q2: 2

@@ -3,6 +3,7 @@ import os
 from typing import List
 
 import pytorch_lightning as pl
+from torch import Tensor as T
 from torch.utils.data import DataLoader
 
 from automix.data import DSD100Dataset, MedleyDBDataset
@@ -103,8 +104,10 @@ class MedleyDBDataModule(pl.LightningDataModule):
         train_num_examples_per_epoch: int,
         val_num_examples_per_epoch: int,
         test_num_examples_per_epoch: int,
+        train_buffer_reload_rate: int,
+        val_buffer_reload_rate: int,
+        test_buffer_reload_rate: int,
         buffer_size_gb: float = 2.0,
-        buffer_reload_rate: int = 4000,
         normalization: str = "peak",
         num_workers: int = 0,
     ):
@@ -121,45 +124,56 @@ class MedleyDBDataModule(pl.LightningDataModule):
         self.train_num_examples_per_epoch = train_num_examples_per_epoch
         self.val_num_examples_per_epoch = val_num_examples_per_epoch
         self.test_num_examples_per_epoch = test_num_examples_per_epoch
+        self.train_buffer_reload_rate = train_buffer_reload_rate
+        self.val_buffer_reload_rate = val_buffer_reload_rate
+        self.test_buffer_reload_rate = test_buffer_reload_rate
         self.buffer_size_gb = buffer_size_gb
-        self.buffer_reload_rate = buffer_reload_rate
         self.normalization = normalization
         self.num_workers = num_workers
 
+        factor = 1
+        # factor = 5
+
         self.train_ds = MedleyDBDataset(
             root_dirs=dataset_dirs,
-            length=train_n_samples,
+            # length=train_n_samples,
+            length=factor * train_n_samples,
             sample_rate=sr,
             indices=train_indices,
             max_num_tracks=max_n_tracks,
             num_examples_per_epoch=train_num_examples_per_epoch,
             buffer_size_gb=buffer_size_gb,
-            buffer_reload_rate=buffer_reload_rate,
-            buffer_audio_length=train_n_samples,
+            buffer_reload_rate=train_buffer_reload_rate,
+            # buffer_audio_length=train_n_samples,
+            buffer_audio_length=factor * train_n_samples,
             normalization=normalization,
         )
         self.val_ds = MedleyDBDataset(
             root_dirs=dataset_dirs,
-            length=val_n_samples,
+            # length=val_n_samples,
+            length=factor * val_n_samples,
             sample_rate=sr,
             indices=val_indices,
             max_num_tracks=max_n_tracks,
             num_examples_per_epoch=val_num_examples_per_epoch,
             buffer_size_gb=buffer_size_gb,
-            buffer_reload_rate=buffer_reload_rate,
-            buffer_audio_length=val_n_samples,
+            buffer_reload_rate=val_buffer_reload_rate,
+            # buffer_audio_length=val_n_samples,
+            buffer_audio_length=factor * val_n_samples,
             normalization=normalization,
         )
         self.test_ds = MedleyDBDataset(
             root_dirs=dataset_dirs,
-            length=val_n_samples,
+            # length=val_n_samples,
+            length=factor * val_n_samples,
             sample_rate=sr,
             indices=test_indices,
             max_num_tracks=max_n_tracks,
             num_examples_per_epoch=test_num_examples_per_epoch,
             buffer_size_gb=buffer_size_gb,
-            buffer_reload_rate=buffer_reload_rate,
-            buffer_audio_length=val_n_samples,
+            buffer_reload_rate=test_buffer_reload_rate,
+            # buffer_audio_length=val_n_samples,
+            buffer_audio_length=factor * val_n_samples,
             normalization=normalization,
         )
 
@@ -189,3 +203,9 @@ class MedleyDBDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             drop_last=True,
         )
+
+    # def on_before_batch_transfer(self, batch: List[T], dataloader_idx: int) -> (T, T, T):
+    #     x, y, track_mask = batch
+    #     x = x[..., : self.train_n_samples]
+    #     y = y[..., -self.train_n_samples:]
+    #     return x, y, track_mask

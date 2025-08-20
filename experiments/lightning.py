@@ -122,7 +122,8 @@ class SCRAPLLightingModule(pl.LightningModule):
         if not use_warmup and isinstance(self.loss_func, SCRAPLLoss):
             params = list(self.model.parameters())
             self.loss_func.attach_params(params)
-            self.loss_func.load_probs(scrapl_probs_path)
+            if scrapl_probs_path is not None:
+                self.loss_func.load_probs(scrapl_probs_path)
 
         # TSV logging
         tsv_cols = [
@@ -143,6 +144,10 @@ class SCRAPLLightingModule(pl.LightningModule):
                     f.write("\t".join(tsv_cols) + "\n")
         else:
             self.tsv_path = None
+
+        # Compile
+        if tr.cuda.is_available():
+            self.model = tr.compile(self.model)
 
     def on_train_start(self) -> None:
         try:
@@ -410,8 +415,6 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         # TSV logging
         if self.tsv_path:
-            # TODO(cm): check if there is a better way to do this
-            # seed_everything = tr.initial_seed() % (2**32)
             seed_everything = tr.random.initial_seed()
             time_epoch = time.time()
             with open(self.tsv_path, "a") as f:

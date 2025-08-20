@@ -1,7 +1,7 @@
 import logging
 import os
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, List
 
 import auraloss
 import pytorch_lightning as pl
@@ -109,7 +109,7 @@ class MixingLightingModule(pl.LightningModule):
         grad *= self.grad_mult
         return grad
 
-    def step(self, batch: (T, T, T), stage: str) -> Dict[str, T]:
+    def step(self, batch: List[T], stage: str) -> Dict[str, T]:
         x, y, track_mask = batch  # tracks, mix, mask
 
         bs, num_tracks, n_samples = x.shape
@@ -188,16 +188,17 @@ class MixingLightingModule(pl.LightningModule):
         out = {
             "loss": loss,
         }
-        with tr.no_grad():
-            for name, metric in self.metrics.items():
-                metric_value = metric(y_hat, y)
-                self.log(
-                    f"{stage}/{name}", metric_value, prog_bar=False, sync_dist=True
-                )
-                assert (
-                    name not in out
-                ), f"Metric {name} already exists in output dictionary."
-                out[name] = metric_value
+        if stage != "train":
+            with tr.no_grad():
+                for name, metric in self.metrics.items():
+                    metric_value = metric(y_hat, y)
+                    self.log(
+                        f"{stage}/{name}", metric_value, prog_bar=False, sync_dist=True
+                    )
+                    assert (
+                        name not in out
+                    ), f"Metric {name} already exists in output dictionary."
+                    out[name] = metric_value
 
         if stage != "train":
             eval_features = defaultdict(list)

@@ -1,7 +1,6 @@
 class_path: experiments.scrapl_loss.SCRAPLLoss
 init_args:
-#  shape: 32768
-  shape: 65536
+  shape: 32768
   J: 12
   Q1: 8
   Q2: 2
@@ -14,7 +13,6 @@ init_args:
   use_pwa: true
   use_saga: true
   sample_all_paths_first: false
-#  n_theta: 2
-  n_theta: 1
+  n_theta: 2
   min_prob_frac: 0.0
   

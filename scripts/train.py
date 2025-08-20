@@ -16,6 +16,7 @@ if __name__ == "__main__":
     # config_name = "train.yml"
     # config_name = "train/am_fm/train.yml"
 
+    config_name = "train/texture/train_jtfst.yml"
     # config_name = "train/texture/train_scrapl_adam.yml"
     # config_name = "train/texture/train_scrapl_saga_adam.yml"
     # config_name = "train/texture/train_scrapl_pwa.yml"
@@ -51,12 +52,12 @@ if __name__ == "__main__":
     # config_name = "train/chirplet/fm/train_scrapl_saga_w0.yml"
 
     # ==================================================================================
-    config_name = "eval_mixing/train.yml"
+    # config_name = "eval_mixing/train.yml"
 
     log.info(f"Running with config: {config_name}")
-    seeds = None
+    # seeds = None
     # seeds = [0, 1, 2]
-    # seeds = list(range(20))
+    seeds = list(range(20))
 
     config_path = os.path.join(CONFIGS_DIR, config_name)
 

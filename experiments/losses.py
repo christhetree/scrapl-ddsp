@@ -8,7 +8,7 @@ import torch as tr
 import torch.nn as nn
 from msclap import CLAP
 from torch import Tensor as T
-from torchaudio.transforms import Resample
+from torchaudio.transforms import Resample, MFCC
 from transformers import Wav2Vec2Model
 
 from experiments.util import ReadOnlyTensorDict

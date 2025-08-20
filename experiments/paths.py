@@ -21,3 +21,4 @@ assert os.path.isdir(OUT_DIR)
 
 WANDB_LOGS_DIR = os.path.join(OUT_DIR, "wandb_logs")
 LIGHTNING_LOGS_DIR = os.path.join(OUT_DIR, "lightning_logs")
+# LIGHTNING_LOGS_DIR = os.path.join(OUT_DIR, "lightning_logs_paper")
