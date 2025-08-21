@@ -4,7 +4,7 @@ import os
 import time
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Literal
 
 import pytorch_lightning as pl
 import torch as tr
@@ -43,7 +43,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         use_warmup: bool = False,
         warmup_n_batches: int = 1,
         warmup_n_iter: int = 20,
-        warmup_param_agg: Optional[str] = None,
+        warmup_param_agg: Literal["none", "mean", "max", "med"] = "none",
     ):
         super().__init__()
         self.model = model
@@ -146,7 +146,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.tsv_path = None
 
         # Compile
-        if tr.cuda.is_available():
+        if tr.cuda.is_available() and not use_warmup:
             self.model = tr.compile(self.model)
 
     def on_train_start(self) -> None:
@@ -277,37 +277,28 @@ class SCRAPLLightingModule(pl.LightningModule):
             synth_fn_kwargs.append(s_kwargs)
 
         params = list(self.model.parameters())
-        warmup_fn_kwargs = {
-            "theta_fn": theta_fn,
-            "synth_fn": synth_fn,
-            "theta_fn_kwargs": theta_fn_kwargs,
-            "params": params,
-            "synth_fn_kwargs": synth_fn_kwargs,
-            "n_iter": self.warmup_n_iter,
-        }
-        if self.warmup_n_batches == 1:
-            warmup_fn_kwargs["theta_fn_kwargs"] = theta_fn_kwargs[0]
-            warmup_fn_kwargs["synth_fn_kwargs"] = synth_fn_kwargs[0]
-            if self.warmup_param_agg is None:
-                warmup_fn = self.loss_func.warmup_lc_hess
-            else:
-                warmup_fn_kwargs["agg"] = self.warmup_param_agg
-                warmup_fn = self.loss_func.warmup_lc_hess_param_agg
-        else:
-            if self.warmup_param_agg is None:
-                warmup_fn = self.loss_func.warmup_lc_hess_multibatch
-            else:
-                warmup_fn_kwargs["agg"] = self.warmup_param_agg
-                warmup_fn = self.loss_func.warmup_lc_hess_param_agg_multibatch
-
-        warmup_fn(**warmup_fn_kwargs)
 
         suffix = (
-            f"n_batches_{self.warmup_n_batches}"
+            f"n_theta_{self.loss_func.n_theta}"
+            f"__n_params_{len(params)}"
+            f"__n_batches_{self.warmup_n_batches}"
             f"__n_iter_{self.warmup_n_iter}"
             f"__min_prob_frac_{self.loss_func.min_prob_frac}"
-            f"__param_agg_{self.warmup_param_agg}.pt"
+            f"__param_agg_{self.warmup_param_agg}"
+            f"__seed_{tr.random.initial_seed()}.pt"
         )
+        log.info(f"Running warmup with suffix: {suffix}")
+
+        self.loss_func.warmup_lc_hvp(
+            theta_fn=theta_fn,
+            synth_fn=synth_fn,
+            theta_fn_kwargs=theta_fn_kwargs,
+            params=params,
+            synth_fn_kwargs=synth_fn_kwargs,
+            n_iter=self.warmup_n_iter,
+            agg=self.warmup_param_agg,
+        )
+
         log_vals_save_path = os.path.join(
             OUT_DIR, f"{self.run_name}__log_vals__{suffix}"
         )

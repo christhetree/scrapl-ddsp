@@ -660,7 +660,7 @@ class SCRAPLLoss(nn.Module):
         params: List[Parameter],
         synth_fn_kwargs: Optional[List[Dict[str, Any]]] = None,
         n_iter: int = 20,
-        agg: Literal["all", "mean", "max", "med"] = "all",
+        agg: Literal["none", "mean", "max", "med"] = "none",
         force_multibatch: bool = False,
     ) -> None:
         assert params, "params must not be empty"
@@ -678,16 +678,15 @@ class SCRAPLLoss(nn.Module):
         synth_fn_kwargs_batch = {}
         if synth_fn_kwargs is not None:
             synth_fn_kwargs_batch = synth_fn_kwargs[0]
-        if not self.check_is_deterministic(theta_fn, theta_fn_kwargs_batch):
-            log.warning("theta_fn is not deterministic")
-        if not self.check_is_deterministic(synth_fn, synth_fn_kwargs_batch):
-            log.warning("synth_fn is not deterministic")
+        self.check_is_deterministic(
+            theta_fn, theta_fn_kwargs_batch, synth_fn, synth_fn_kwargs_batch
+        )
 
         # Determine whether to use multibatch or not
         is_multibatch = force_multibatch or len(theta_fn_kwargs) > 1
         log.info(
             f"Starting warmup_lc_hvp with agg = {agg} for {len(params)} "
-            f"parameter(s) and {len(theta_fn_kwargs)} batch(es) "
+            f"parameter(s) and {len(theta_fn_kwargs)} batch(es), {n_iter} iter "
             f"(multibatch = {is_multibatch})"
         )
         if is_multibatch:
@@ -698,7 +697,7 @@ class SCRAPLLoss(nn.Module):
             if synth_fn_kwargs is not None:
                 synth_fn_kwargs = synth_fn_kwargs[0]
         # Separate the params for separate computations if aggregating LCs across them
-        if agg == "all":
+        if agg == "none":
             param_groups = [params]
         else:
             param_groups = [[p] for p in params]
@@ -715,11 +714,14 @@ class SCRAPLLoss(nn.Module):
                     synth_fn_kwargs=synth_fn_kwargs,
                     n_iter=n_iter,
                 )
+                # TODO(cm): double check this
+                curr_vals = curr_vals.abs()
                 vals.append(curr_vals)
                 log.info(f"path_idx = {path_idx}, curr_vals = {curr_vals}")
             # Aggregate the theta LCs across all params
             vals = tr.stack(vals, dim=0)
-            if agg == "all":
+            if agg == "none":
+                assert vals.size(0) == 1
                 vals = vals[0]
             elif agg == "mean":
                 vals = vals.mean(dim=0)
@@ -793,12 +795,25 @@ class SCRAPLLoss(nn.Module):
 
     @staticmethod
     def check_is_deterministic(
-        fn: Callable[..., T],
-        fn_kwargs: Dict[str, Any],
+        theta_fn: Callable[..., T],
+        theta_fn_kwargs: Dict[str, Any],
+        synth: Callable[[T, ...], T],
+        synth_fn_kwargs: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        x_1 = fn(**fn_kwargs)
-        x_2 = fn(**fn_kwargs)
-        if not tr.allclose(x_1, x_2):
+        theta_hat_1 = theta_fn(**theta_fn_kwargs)
+        theta_hat_2 = theta_fn(**theta_fn_kwargs)
+        if not tr.allclose(theta_hat_1, theta_hat_2):
+            log.warning(
+                f"theta_fn is not deterministic: "
+                f"theta_hat_1 = {theta_hat_1}, theta_hat_2 = {theta_hat_2}"
+            )
+            return False
+        if synth_fn_kwargs is None:
+            synth_fn_kwargs = {}
+        x_hat_1 = synth(theta_hat_1, **synth_fn_kwargs)
+        x_hat_2 = synth(theta_hat_2, **synth_fn_kwargs)
+        if not tr.allclose(x_hat_1, x_hat_2):
+            log.warning(f"synth_fn is not deterministic")
             return False
         return True
 
@@ -875,7 +890,7 @@ if __name__ == "__main__":
         theta_fn_kwargs=theta_fn_kwargs,
         params=params,
         n_iter=2,
-        agg="all",
+        agg="none",
         # agg="mean",
         force_multibatch=False,
         # force_multibatch=True,
