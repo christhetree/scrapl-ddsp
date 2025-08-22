@@ -114,6 +114,7 @@ class Scat1DLoss(nn.Module):
 class EmbeddingLoss(ABC, nn.Module):
     def __init__(self, use_time_varying: bool = True, in_sr: int = 44100, p: int = 2):
         super().__init__()
+        assert not use_time_varying  # TODO(cm): tmp
         self.use_time_varying = use_time_varying
         self.in_sr = in_sr
         self.p = p
@@ -169,6 +170,7 @@ class EmbeddingLoss(ABC, nn.Module):
         diff = x_target_emb - x_emb
         if self.use_time_varying:
             assert diff.ndim == 3
+            # TODO(cm): does this make sense?
             dist = tr.linalg.vector_norm(diff, ord=self.p, dim=(-2, -1))
         else:
             assert diff.ndim == 2

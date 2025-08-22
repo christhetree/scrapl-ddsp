@@ -107,6 +107,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         self.cqt = CQT(**cqt_params)
         self.loss_name = self.loss_func.__class__.__name__
         self.l1 = nn.L1Loss()
+        self.mse = nn.MSELoss()
         self.global_n = 0
         self.val_l1_s = defaultdict(list)
 
@@ -136,6 +137,12 @@ class SCRAPLLightingModule(pl.LightningModule):
             "l1_theta",
             "l1_d",
             "l1_s",
+            "l2_theta",
+            "l2_d",
+            "l2_s",
+            "rmse_theta",
+            "rmse_d",
+            "rmse_s",
         ]
         if run_name and not use_warmup:
             self.tsv_path = os.path.join(OUT_DIR, f"{self.run_name}.tsv")
@@ -371,9 +378,16 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         l1_d = self.l1(theta_d_0to1_hat, theta_d_0to1)
         l1_s = self.l1(theta_s_0to1_hat, theta_s_0to1)
+        l1_theta = (l1_d + l1_s) / 2.0
         if stage == "val":
             self.val_l1_s["l1_d"].append(l1_d.detach().cpu())
             self.val_l1_s["l1_s"].append(l1_s.detach().cpu())
+        l2_d = self.mse(theta_d_0to1_hat, theta_d_0to1)
+        l2_s = self.mse(theta_s_0to1_hat, theta_s_0to1)
+        l2_theta = (l2_d + l2_s) / 2.0
+        rmse_d = l2_d.sqrt()
+        rmse_s = l2_s.sqrt()
+        rmse_theta = (rmse_d + rmse_s) / 2.0
 
         if self.use_p_loss:
             loss_d = self.loss_func(theta_d_0to1_hat, theta_d_0to1)
@@ -392,8 +406,13 @@ class SCRAPLLightingModule(pl.LightningModule):
 
         self.log(f"{stage}/l1_d", l1_d, prog_bar=True, sync_dist=True)
         self.log(f"{stage}/l1_s", l1_s, prog_bar=True, sync_dist=True)
-        theta_mae = (l1_d + l1_s) / 2
-        self.log(f"{stage}/l1_theta", theta_mae, prog_bar=True, sync_dist=True)
+        self.log(f"{stage}/l1_theta", l1_theta, prog_bar=True, sync_dist=True)
+        self.log(f"{stage}/l2_d", l2_d, prog_bar=False, sync_dist=True)
+        self.log(f"{stage}/l2_s", l2_s, prog_bar=False, sync_dist=True)
+        self.log(f"{stage}/l2_theta", l2_theta, prog_bar=False, sync_dist=True)
+        self.log(f"{stage}/rmse_d", rmse_d, prog_bar=False, sync_dist=True)
+        self.log(f"{stage}/rmse_s", rmse_s, prog_bar=False, sync_dist=True)
+        self.log(f"{stage}/rmse_theta", rmse_theta, prog_bar=False, sync_dist=True)
         self.log(f"{stage}/loss", loss, prog_bar=False, sync_dist=True)
 
         with tr.no_grad():
@@ -412,7 +431,9 @@ class SCRAPLLightingModule(pl.LightningModule):
                 f.write(
                     f"{seed_everything}\t{stage}\t{self.global_step}\t"
                     f"{self.global_n}\t{time_epoch}\t{loss.item()}\t"
-                    f"{theta_mae.item()}\t{l1_d.item()}\t{l1_s.item()}\n"
+                    f"{l1_theta.item()}\t{l1_d.item()}\t{l1_s.item()}\n"
+                    f"{l2_theta.item()}\t{l2_d.item()}\t{l2_s.item()}\n"
+                    f"{rmse_theta.item()}\t{rmse_d.item()}\t{rmse_s.item()}\n"
                 )
 
         out_dict = {

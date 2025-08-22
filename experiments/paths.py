@@ -14,11 +14,12 @@ MODELS_DIR = os.path.join(ROOT_DIR, "models")
 OUT_DIR = os.path.join(ROOT_DIR, "out")
 
 if torch.cuda.is_available():
-    OUT_DIR = "/import/c4dm-datasets-ext/cm007/out"
+    # OUT_DIR = "/import/c4dm-datasets-ext/cm007/out"
+    OUT_DIR = "/import/c4dm-datasets-ext/cm007/iclr_2026"
 
 assert os.path.isdir(DATA_DIR)
 assert os.path.isdir(OUT_DIR)
 
 WANDB_LOGS_DIR = os.path.join(OUT_DIR, "wandb_logs")
-# LIGHTNING_LOGS_DIR = os.path.join(OUT_DIR, "lightning_logs")
-LIGHTNING_LOGS_DIR = os.path.join(OUT_DIR, "lightning_logs_paper")
+LIGHTNING_LOGS_DIR = os.path.join(OUT_DIR, "lightning_logs")
+# LIGHTNING_LOGS_DIR = os.path.join(OUT_DIR, "lightning_logs_paper")

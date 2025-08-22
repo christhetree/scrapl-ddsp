@@ -1,6 +1,6 @@
 custom:
   project_name: scrapl
-  model_name: rand_mss_1e-5
+  model_name: clap_adam_1e-5
   dataset_name: texture_32_32_5_meso_b32
   cpu_batch_size: 3
   use_wandb_cpu: false
@@ -9,7 +9,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [5]
+  devices: [2]
   max_epochs: 200
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
@@ -31,7 +31,7 @@ model:
   init_args:
     model: ../../models/spectral_2dcnn.yml
     synth: ../../synths/chirp_texture_8khz.yml
-    loss_func: ../../losses/rand_mss.yml
+    loss_func: ../../losses/clap.yml
 
     use_p_loss: false
     use_train_rand_seed: false
@@ -45,6 +45,6 @@ model:
     log_x_hat: false
     log_val_grads: false
 
-    run_name: rand_mss_1e-5__texture_32_32_5_meso_b32__2
+    run_name: clap_adam_1e-5__texture_32_32_5_meso_b32
 
 optimizer: ../../opt/adam_w_1e-5.yml
