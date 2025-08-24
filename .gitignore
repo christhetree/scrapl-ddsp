@@ -566,6 +566,7 @@ scratch.py
 /models
 
 checkpoints/
+ckpt/
 data/
 DSD100subset.zip
 DSD100subset/

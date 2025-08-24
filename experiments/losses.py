@@ -1,7 +1,7 @@
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Literal
 
 import scipy
 import torch as tr
@@ -11,6 +11,7 @@ from torch import Tensor as T
 from torchaudio.transforms import Resample, MFCC
 from transformers import Wav2Vec2Model
 
+from experiments.panns.model_loader import PANNsModel
 from experiments.util import ReadOnlyTensorDict
 from kymatio.torch import Scattering1D, TimeFrequencyScattering
 
@@ -112,7 +113,7 @@ class Scat1DLoss(nn.Module):
 
 
 class EmbeddingLoss(ABC, nn.Module):
-    def __init__(self, use_time_varying: bool = True, in_sr: int = 44100, p: int = 2):
+    def __init__(self, use_time_varying: bool = False, in_sr: int = 44100, p: int = 2):
         super().__init__()
         assert not use_time_varying  # TODO(cm): tmp
         self.use_time_varying = use_time_varying
@@ -181,9 +182,9 @@ class EmbeddingLoss(ABC, nn.Module):
 
 class ClapEmbeddingLoss(EmbeddingLoss):
     def __init__(self, use_cuda: bool, in_sr: int = 44100, p: int = 2):
-        self.model = CLAP(version="2023", use_cuda=use_cuda)
-        use_time_varying = False  # CLAP is not a time-varying embedding
-        super().__init__(use_time_varying, in_sr, p)
+        self.model = CLAP(version="2023", use_cuda=use_cuda)  # Not an nn.Module
+        super().__init__(use_time_varying=False, in_sr=in_sr, p=p)
+        assert len(list(self.parameters())) == 0
 
     def get_model_sr(self) -> int:
         return self.model.args.sampling_rate
@@ -195,6 +196,35 @@ class ClapEmbeddingLoss(EmbeddingLoss):
 
     def get_embedding(self, x: T) -> T:
         x_emb, _ = self.model.clap.audio_encoder(x)
+        return x_emb
+
+
+class PANNsEmbeddingLoss(EmbeddingLoss):
+    def __init__(
+        self,
+        variant: Literal["cnn14-32k", "cnn14-16k", "wavegram-logmel"],
+        in_sr: int = 44100,
+        p: int = 2,
+    ):
+        self.variant = variant
+        self.model_sr = 16000 if variant == "cnn14-16k" else 32000
+        super().__init__(use_time_varying=False, in_sr=in_sr, p=p)
+        # PANNsModel is a nn.Module, hence needs to be added after super()
+        self.model = PANNsModel(variant=variant)
+        self.model.load_model()
+        for param in self.parameters():
+            param.requires_grad = False
+        log.info(f"Froze {len(list(self.parameters()))} parameter tensors")
+        self.eval()
+
+    def get_model_sr(self) -> int:
+        return self.model_sr
+
+    def get_model_n_samples(self) -> int:
+        return -1
+
+    def get_embedding(self, x: T) -> T:
+        x_emb = self.model.get_embedding(x)
         return x_emb
 
 
@@ -371,10 +401,19 @@ class MFCCDistance(nn.Module):
 
 
 if __name__ == "__main__":
-    audio = tr.randn(3, 1, 4000)
-    audio_target = tr.randn(3, 1, 4000)
-    mss = LogMSSLoss()
-    mss(audio, audio_target)
+    audio = tr.randn(3, 1, 32768)
+    audio_target = tr.randn(3, 1, 32768)
+    # panns = PANNsEmbeddingLoss(variant="cnn14-16k", in_sr=8192)
+    # panns = PANNsEmbeddingLoss(variant="cnn14-32k", in_sr=8192)
+    panns = PANNsEmbeddingLoss(variant="wavegram-logmel", in_sr=8192)
+    # emb = panns.get_embedding(audio)
+    # log.info(f"emb.shape = {emb.shape}")
+    loss = panns.forward(audio, audio_target)
+    log.info(f"loss = {loss}")
+
+
+    # mss = LogMSSLoss()
+    # mss(audio, audio_target)
     exit()
 
     # w2v2_loss = Wav2Vec2Loss()

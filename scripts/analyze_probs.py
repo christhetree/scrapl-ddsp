@@ -1,15 +1,10 @@
 import logging
 import os
-from collections import defaultdict
-from typing import Dict, Optional
-import torch as tr
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-from matplotlib.axes import Subplot
-from pandas import DataFrame
 
-from experiments.paths import OUT_DIR
+import matplotlib.pyplot as plt
+import torch as tr
+
+from experiments.paths import DATA_DIR
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -18,9 +13,10 @@ log.setLevel(level=os.environ.get("LOGLEVEL", "WARNING"))
 
 if __name__ == "__main__":
     prob_names_and_paths = [
-        ("none_1_bs", os.path.join(OUT_DIR, "results_iclr_2026/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__log_probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none.pt")),
-        # ("mean_1_bs", os.path.join(OUT_DIR, "results_iclr_2026/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__log_probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_mean.pt")),
-        ("max_1_bs", os.path.join(OUT_DIR, "results_iclr_2026/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__log_probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_max__seed_0.pt")),
+        ("none_1_bs", os.path.join(DATA_DIR, "adaptive_scrapl/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__log_probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt")),
+        ("none_10_bs", os.path.join(DATA_DIR, "adaptive_scrapl/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__log_probs__n_theta_2__n_params_28__n_batches_10__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt")),
+        # ("mean_1_bs", os.path.join(DATA_DIR, "adaptive_scrapl/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__log_probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_mean__seed_0.pt")),
+        # ("max_1_bs", os.path.join(DATA_DIR, "adaptive_scrapl/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__log_probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_max__seed_0.pt")),
     ]
     n_theta, n_classes = tr.load(prob_names_and_paths[0][1]).shape
     unif_prob = 1 / n_classes
@@ -39,18 +35,17 @@ if __name__ == "__main__":
                 sorted_indices = tr.argsort(probs, descending=True)
             probs = probs[sorted_indices]
 
-            # ax.plot(
-            #     probs.numpy(),
-            #     label=name,
-            #     # marker="s",
-            #     # markersize=5,
-            #     linewidth=2,
-            #     # linewidth=0,
-            # )
-            n = 30
-            indices = list(range(n_classes))[:n]
-            ax.bar(x=indices, height=probs.numpy()[:n], label=name, alpha=0.5)
-
+            ax.plot(
+                probs.numpy(),
+                label=name,
+                # marker="s",
+                # markersize=5,
+                linewidth=2,
+                # linewidth=0,
+            )
+            # n = 30
+            # indices = list(range(n_classes))[:n]
+            # ax.bar(x=indices, height=probs.numpy()[:n], label=name, alpha=0.5)
 
             ax.set_xlabel("Path (sorted by probability)")
             ax.set_ylabel("Probability")

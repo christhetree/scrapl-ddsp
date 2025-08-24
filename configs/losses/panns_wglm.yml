@@ -1,0 +1,4 @@
+class_path: experiments.losses.PANNsEmbeddingLoss
+init_args:
+  variant: wavegram-logmel
+  p: 2
