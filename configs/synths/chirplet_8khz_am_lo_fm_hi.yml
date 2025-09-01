@@ -1,0 +1,17 @@
+class_path: experiments.synths.ChirpletSynth
+init_args:
+  sr: 8192
+  n_samples: 32768
+  bw_oct: 2.0
+  f0_min_hz: 512
+  f0_max_hz: 512
+  J_cqt: 5
+  Q: 12
+  hop_len: 256
+  am_hz_min: 0.9333
+  am_hz_max: 2.8
+  fm_oct_hz_min: 4.0
+  fm_oct_hz_max: 12.0
+  delta_min: -2048
+  delta_max: 2048
+  sigma0: 0.1

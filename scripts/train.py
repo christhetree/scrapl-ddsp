@@ -1,6 +1,9 @@
 import logging
 import os
 
+# Prevents a bug with PyTorch and CUDA_VISIBLE_DEVICES
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 import torch
 
 from experiments.cli import CustomLightningCLI
@@ -21,17 +24,22 @@ if __name__ == "__main__":
     # config_name = "train/texture/train_rand_mss.yml"
     # config_name = "train/texture/train_mss_revisited.yml"
     # config_name = "train/texture/train_clap.yml"
-    config_name = "train/texture/train_panns_wglm.yml"
+    # config_name = "train/texture/train_clap_testing.yml"
+    # config_name = "train/texture/train_panns_wglm.yml"
     # config_name = "train/texture/train_jtfst.yml"
     # config_name = "train/texture/train_scrapl_adam.yml"
     # config_name = "train/texture/train_scrapl_saga_adam.yml"
     # config_name = "train/texture/train_scrapl_pwa.yml"
     # config_name = "train/texture/train_scrapl_saga_pwa.yml"
     # config_name = "train/texture/train_scrapl_saga_pwa_warmup.yml"
-    # config_name = "train/texture/train_scrapl_saga_pwa__adaptive_n_batches_1_n_iter_20_param_agg_none.yml"  # min = 0.000101, max = 0.020284
-    # config_name = "train/texture/train_scrapl_saga_pwa__adaptive_n_batches_1_n_iter_20_param_agg_mean.yml"  # min = 0.000087, max = 0.019774
-    # config_name = "train/texture/train_scrapl_saga_pwa__adaptive_n_batches_1_n_iter_20_param_agg_max.yml"   # min = 0.000081, max = 0.020218
-    # config_name = "train/texture/train_scrapl_saga_pwa__adaptive_n_batches_10_n_iter_20_param_agg_none.yml"
+    # config_name = "train/texture/train_scrapl_saga_pwa__adaptive_n_batches_1_n_iter_20_param_agg_none.yml"   # min = 0.000101, max = 0.020284
+    # config_name = "train/texture/train_scrapl_saga_pwa__adaptive_n_batches_1_n_iter_20_param_agg_mean.yml"   # min = 0.000087, max = 0.019774
+    # config_name = "train/texture/train_scrapl_saga_pwa__adaptive_n_batches_1_n_iter_20_param_agg_max.yml"    # min = 0.000081, max = 0.020218
+    # config_name = "train/texture/train_scrapl_saga_pwa__adaptive_n_batches_10_n_iter_20_param_agg_none.yml"  # min = 0.000249, max = 0.025870
+
+    config_name = "train/chirplet/train_scrapl_saga_pwa_warmup.yml"
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__am_lo_fm_lo.yml"
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__adaptive_n_batches_1_n_iter_20_param_agg_none__am_lo_fm_lo.yml"  # min = 0.000003, max = 0.012895
 
     # config_name = "train/chirplet/train_scrapl_saga_pwa.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None.yml"
@@ -69,6 +77,7 @@ if __name__ == "__main__":
     # seeds = None
     # seeds = [0, 1, 2]
     seeds = list(range(20))
+    # seeds = list(range(10, 20))
 
     config_path = os.path.join(CONFIGS_DIR, config_name)
 

@@ -1,7 +1,7 @@
 custom:
   project_name: scrapl
-  model_name: scrapl_saga_pwa_1e-5__adaptive_n_batches_10_n_iter_20_param_agg_none
-  dataset_name: texture_32_32_5_meso_b32
+  model_name: clap_adam_1e-5
+  dataset_name: texture_32_32_5_meso_b32__testing
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: false
@@ -9,7 +9,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [6]
+  devices: [5]
   max_epochs: 200
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
@@ -31,8 +31,7 @@ model:
   init_args:
     model: ../../models/spectral_2dcnn.yml
     synth: ../../synths/chirp_texture_8khz.yml
-    loss_func: ../../losses/scrapl_saga_pwa.yml
-    scrapl_probs_path: ../data/adaptive_scrapl/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__probs__n_theta_2__n_params_28__n_batches_10__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt
+    loss_func: ../../losses/clap.yml
 
     use_p_loss: false
     use_train_rand_seed: false
@@ -46,6 +45,6 @@ model:
     log_x_hat: false
     log_val_grads: false
 
-    run_name: scrapl_saga_pwa_1e-5__adaptive_n_batches_10_n_iter_20_param_agg_none__texture_32_32_5_meso_b32
+    run_name: clap_adam_1e-5__texture_32_32_5_meso_b32__testing
 
-optimizer: ../../opt/sgd_1e-5.yml
+optimizer: ../../opt/adam_w_1e-5.yml

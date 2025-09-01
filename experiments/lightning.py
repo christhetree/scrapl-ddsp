@@ -431,8 +431,8 @@ class SCRAPLLightingModule(pl.LightningModule):
                 f.write(
                     f"{seed_everything}\t{stage}\t{self.global_step}\t"
                     f"{self.global_n}\t{time_epoch}\t{loss.item()}\t"
-                    f"{l1_theta.item()}\t{l1_d.item()}\t{l1_s.item()}\n"
-                    f"{l2_theta.item()}\t{l2_d.item()}\t{l2_s.item()}\n"
+                    f"{l1_theta.item()}\t{l1_d.item()}\t{l1_s.item()}\t"
+                    f"{l2_theta.item()}\t{l2_d.item()}\t{l2_s.item()}\t"
                     f"{rmse_theta.item()}\t{rmse_d.item()}\t{rmse_s.item()}\n"
                 )
 

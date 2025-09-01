@@ -53,6 +53,8 @@ class ChirpletSynth(nn.Module):
         self.delta_min = delta_min
         self.delta_max = delta_max
         self.sigma0 = sigma0
+        log.info(f"am_hz_min: {am_hz_min}, am_hz_max: {am_hz_max}, "
+                 f"fm_hz_min: {fm_oct_hz_min}, fm_hz_max: {fm_oct_hz_max}")
 
         # Derived params
         self.bw_n_samples = int(bw_oct * sr)

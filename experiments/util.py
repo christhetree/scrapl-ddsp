@@ -1,5 +1,6 @@
 import logging
 import os
+from collections import defaultdict
 from typing import List, Any, Union, Dict, Tuple, Iterator, Set, Optional
 
 import torch as tr
@@ -56,7 +57,7 @@ def get_path_keys(
     ignored_spins: Optional[Set[int]] = None,
     use_complement: bool = False,
     use_am_fm_union: bool = False,  # Use the AM and FM intersection by default
-) -> List[Tuple[int, int]]:
+) -> (List[Tuple[int, int]], List[Dict[str, Any]]):
     assert len(meta["key"]) == len(
         meta["order"]
     ), f"len(meta['key']) != len(meta['order'])"
@@ -64,7 +65,11 @@ def get_path_keys(
         spins = {-1, 0, 1}
     all_keys = []
     keys = []
+    am_freqs = []
+    fm_freqs = []
     key_infos = {}
+    key_data = []
+
     for idx, order in enumerate(meta["order"]):
         if order != 2:
             continue
@@ -87,6 +92,18 @@ def get_path_keys(
         )
         key_infos[k] = key_info
         all_keys.append(k)
+        key_data.append({
+            "key": k,
+            "spin": spin,
+            "am_cf_hz": am_cf_cycles_p_sec,
+            "fm_cf_oct_hz": fm_cf_oct_hz,
+        })
+
+        am_freqs.append(am_cf_cycles_p_sec)
+        if spin == -1:
+            fm_freqs.append(-fm_cf_oct_hz)
+        else:
+            fm_freqs.append(fm_cf_oct_hz)
 
         if spin not in spins:
             continue
@@ -110,7 +127,52 @@ def get_path_keys(
         keys = complement_keys
     for k in keys:
         log.info(key_infos[k])
-    return keys
+
+    # # Plot AM and FM freqs on scatterplot
+    # import matplotlib.pyplot  as plt
+    # plt.figure()
+    # plt.scatter(am_freqs, fm_freqs)
+    # plt.xscale("log")
+    # plt.yscale("log")
+    # plt.xlabel("AM freq (Hz)")
+    # plt.ylabel("FM freq (oct/Hz)")
+    # plt.xlim(0.4, 18.0)
+    # plt.ylim(0.4, 18.0)
+    # # plt.axhline(y=1.0, color="r", linestyle="--")
+    # plt.axhline(y=1.333, color="r", linestyle="--")
+    # plt.axhline(y=4.0, color="r", linestyle="--")
+    # plt.axhline(y=12.0, color="r", linestyle="--")
+    # # plt.axhline(y=16.0, color="r", linestyle="--")
+    # # plt.axhline(y=2.8, color="r", linestyle="--")
+    # # plt.axvline(x=0.7, color="r", linestyle="--")
+    # plt.axvline(x=0.9333, color="r", linestyle="--")
+    # plt.axvline(x=2.8, color="r", linestyle="--")
+    # plt.axvline(x=8.4, color="r", linestyle="--")
+    # # plt.axvline(x=11.2, color="r", linestyle="--")
+    # plt.title("AM vs FM frequencies")
+    # plt.grid(True, which="both", ls="--")
+    # plt.show()
+    # exit()
+
+    am_freqs.sort()
+    fm_freqs.sort()
+    log.info(f"AM freqs (Hz): min = {am_freqs[0]:.2f}, max = {am_freqs[-1]:.2f}")
+    log.info(f"FM freqs (oct/Hz): min = {fm_freqs[0]:.2f}, max = {fm_freqs[-1]:.2f}")
+    am_counts = defaultdict(int)
+    for f in am_freqs:
+        am_counts[f"{f:9.4f}"] += 1
+    fm_counts = defaultdict(int)
+    for f in fm_freqs:
+        fm_counts[f"{f:9.4f}"] += 1
+
+    log.info(f"AM freqs counts:")
+    for f, c in am_counts.items():
+        log.info(f"  {f}: {c}")
+    log.info(f"FM freqs counts:")
+    for f, c in fm_counts.items():
+        log.info(f"  {f}: {c}")
+
+    return keys, key_data
 
 
 def linear_interpolate_last_dim(x: T, n: int, align_corners: bool = True) -> T:

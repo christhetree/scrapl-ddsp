@@ -9,7 +9,7 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [1]
+  devices: [4]
   max_epochs: 200
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1

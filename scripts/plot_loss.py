@@ -186,15 +186,25 @@ def prepare_tsv_data(
     # Display TV information
     if stage != "test":
         tv_x_normed = np.mean(tvs_x_normed)
+        tv_x_normed_95ci = 1.96 * (np.std(tvs_x_normed) / np.sqrt(len(tvs_x_normed)))
         tv_xy_normed = np.mean(tvs_xy_normed)
-        log.info(
-            f"TV {y_col} (x normed): {tv_x_normed:.4f}, "
-            f"TV {y_col} (xy normed): {tv_xy_normed:.4f}"
-        )
-        print_tsv_vals.extend([tv_x_normed, tv_xy_normed])
+        tv_xy_normed_95ci = 1.96 * (np.std(tvs_xy_normed) / np.sqrt(len(tvs_xy_normed)))
+        print_tsv_vals.extend([
+            tv_x_normed,
+            tv_x_normed_95ci,
+            tv_x_normed - tv_x_normed_95ci,
+            tv_x_normed + tv_x_normed_95ci,
+            tv_xy_normed,
+            tv_xy_normed_95ci,
+            tv_xy_normed - tv_xy_normed_95ci,
+            tv_xy_normed + tv_xy_normed_95ci
+        ])
     else:
-        print_tsv_vals.extend(["n/a"] * 2)
-    tsv_col_names.extend(["tv_x_normed", "tv_xy_normed"])
+        print_tsv_vals.extend(["n/a"] * 8)
+    tsv_col_names.extend(["tv_x_normed", "tv_x_normed_95ci",
+                          "tv_x_normed-", "tv_x_normed+",
+                          "tv_xy_normed", "tv_xy_normed_95ci",
+                          "tv_xy_normed-", "tv_xy_normed+"])
 
     # Display convergence information
     con_rate = np.mean(converged)
@@ -270,6 +280,8 @@ def plot_xy_vals(
     title: Optional[str] = None,
     plot_95ci: bool = True,
     plot_range: bool = True,
+    use_log_x: bool = False,
+    use_log_y: bool = False,
 ) -> None:
     x_vals = data["x_vals"]
     y_means = data["y_means"]
@@ -277,15 +289,27 @@ def plot_xy_vals(
     y_mins = data["y_mins"]
     y_maxs = data["y_maxs"]
 
+    y_vals = y_means
+    y_95n_vals = y_means - y_95cis
+    y_95p_vals = y_means + y_95cis
+    if use_log_x:
+        x_vals = np.log10(x_vals)
+    if use_log_y:
+        y_vals = np.log10(y_vals)
+        y_95n_vals = np.log10(y_95n_vals)
+        y_95p_vals = np.log10(y_95p_vals)
+        y_mins = np.log10(y_mins)
+        y_maxs = np.log10(y_maxs)
+
     mean_label = "mean"
     if title is not None:
         mean_label = title
-    ax.plot(x_vals, y_means, label=mean_label, lw=2)
+    ax.plot(x_vals, y_vals, label=mean_label, lw=2)
     if plot_95ci:
         ax.fill_between(
             x_vals,
-            y_means - y_95cis,
-            y_means + y_95cis,
+            y_95n_vals,
+            y_95p_vals,
             alpha=0.4,
         )
     if plot_range:
@@ -300,7 +324,7 @@ def plot_xy_vals(
 
 if __name__ == "__main__":
     tsv_names_and_paths = [
-        ("adam_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),  # TODO(cm): something is off here
+        # ("adam_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),  # TODO(cm): something is off here
         # ("pwa_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("saga_adam_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_just_saga_adam_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("saga_pwa_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
@@ -310,16 +334,30 @@ if __name__ == "__main__":
         # ("mss_prev", os.path.join(OUT_DIR, f"results/texture/mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("rand_mss_prev", os.path.join(OUT_DIR, f"results/texture/rand_mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("mss_rev_prev", os.path.join(OUT_DIR, f"results/texture/mss_revisited_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-
-        ("adam", os.path.join(OUT_DIR, f"results_iclr_2026/scrapl_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("pwa", os.path.join(OUT_DIR, f"results_iclr_2026/scrapl_pwa_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("saga_adam", os.path.join(OUT_DIR, f"results_iclr_2026/scrapl_saga_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("saga_pwa", os.path.join(OUT_DIR, f"results_iclr_2026/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("jtfs", os.path.join(OUT_DIR, f"results_iclr_2026/jtfst_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("mss", os.path.join(OUT_DIR, f"results_iclr_2026/mss_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("rand_mss", os.path.join(OUT_DIR, f"results_iclr_2026/rand_mss_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("mss_rev", os.path.join(OUT_DIR, f"results_iclr_2026/mss_revisited_1e-5__texture_32_32_5_meso_b32.tsv")),
         # ("saga_ds_w0", os.path.join(OUT_DIR, f"results/texture/scrapl_saga_ds_w0_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
+
+        ("adam", os.path.join(OUT_DIR, f"iclr_2026/scrapl_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("adam_old", os.path.join(OUT_DIR, f"iclr_2026/scrapl_adam_1e-5__texture_32_32_5_meso_b32__old.tsv")),
+        ("pwa", os.path.join(OUT_DIR, f"iclr_2026/scrapl_pwa_1e-5__texture_32_32_5_meso_b32.tsv")),
+        ("saga_adam", os.path.join(OUT_DIR, f"iclr_2026/scrapl_saga_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__prev.tsv")),
+        ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32.tsv")),
+        ("saga_pwa_b1_none", os.path.join(OUT_DIR, f"iclr_2026/scrapl_saga_pwa_1e-5__adaptive_n_batches_1_n_iter_20_param_agg_none__texture_32_32_5_meso_b32.tsv")),
+        ("saga_pwa_b1_mean", os.path.join(OUT_DIR, f"iclr_2026/scrapl_saga_pwa_1e-5__adaptive_n_batches_1_n_iter_20_param_agg_mean__texture_32_32_5_meso_b32.tsv")),
+        ("saga_pwa_b1_max", os.path.join(OUT_DIR, f"iclr_2026/scrapl_saga_pwa_1e-5__adaptive_n_batches_1_n_iter_20_param_agg_max__texture_32_32_5_meso_b32.tsv")),
+        ("saga_pwa_b10_none", os.path.join(OUT_DIR, f"iclr_2026/scrapl_saga_pwa_1e-5__adaptive_n_batches_10_n_iter_20_param_agg_none__texture_32_32_5_meso_b32.tsv")),
+        # ("jtfs", os.path.join(OUT_DIR, f"iclr_2026/jtfst_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("clap_2", os.path.join(OUT_DIR, f"iclr_2026/clap_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("clap", os.path.join(OUT_DIR, f"iclr_2026/clap_adam_1e-5__texture_32_32_5_meso_b32__testing.tsv")),
+        # ("panns", os.path.join(OUT_DIR, f"iclr_2026/panns_wglm_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("mss", os.path.join(OUT_DIR, f"iclr_2026/mss_1e-5__texture_32_32_5_meso_b32__2.tsv")),
+        # ("rand_mss", os.path.join(OUT_DIR, f"iclr_2026/rand_mss_1e-5__texture_32_32_5_meso_b32__2.tsv")),
+        # ("mss_rev", os.path.join(OUT_DIR, f"iclr_2026/mss_revisited_1e-5__texture_32_32_5_meso_b32__2.tsv")),
+        # ("ploss", os.path.join(OUT_DIR, f"iclr_2026/ploss_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
+
+
+        # ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_raw/scrapl_saga_pwa_1e-4__chirplet_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
+
 
         # ("pwa_saga", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
@@ -351,32 +389,39 @@ if __name__ == "__main__":
         # ("saga_w0", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_w0_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
     ]
     # stage = "train"
-    stage = "val"
-    # stage = "test"
+    # stage = "val"
+    stage = "test"
     x_col = "step"
     # x_col = "global_n"
-    # y_col = "l1_theta"
-    y_col = "l1_d"
-    # y_col = "l1_s"
+    # y_col_prefix = "l1"
+    # y_col_prefix = "l2"
+    y_col_prefix = "rmse"
 
-    # Plot
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.set_title(f"{stage} {y_col}")
-    df_rows = []
-    df_cols = []
-    for name, tsv_path in tsv_names_and_paths:
-        log.info(f"Plotting {name}, stage: {stage} ===================================")
-        data = prepare_tsv_data(
-            tsv_path, stage, x_col, y_col, y_converge_val=0.1, allow_var_n=True
-        )
-        plot_xy_vals(ax, data, title=name, plot_95ci=True, plot_range=False)
-        df_cols = ["name"] + data["tsv_col_names"]
-        df_row = [name] + data["tsv_vals"]
-        assert len(df_cols) == len(df_row)
-        df_rows.append(df_row)
+    use_log_y = False
+    # use_log_y = True
 
-    if stage != "test":
-        plt.show()
+    for y_col_suffix in ["_theta", "_d", "_s"]:
+    # for y_col_suffix in ["_theta"]:
+        y_col = f"{y_col_prefix}{y_col_suffix}"
+        # Plot
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.set_title(f"{stage} {y_col}")
+        df_rows = []
+        df_cols = []
+        for name, tsv_path in tsv_names_and_paths:
+            log.info(f"Plotting {name}, stage: {stage} ===================================")
+            data = prepare_tsv_data(
+                tsv_path, stage, x_col, y_col, y_converge_val=0.1, allow_var_n=True
+            )
+            plot_xy_vals(ax, data, title=name, plot_95ci=True, plot_range=False, use_log_y=use_log_y)
+            df_cols = ["name"] + data["tsv_col_names"]
+            df_row = [name] + data["tsv_vals"]
+            assert len(df_cols) == len(df_row)
+            df_rows.append(df_row)
 
-    df = pd.DataFrame(df_rows, columns=df_cols)
-    print(df.to_string(index=False))
+        if stage != "test":
+            plt.show()
+
+        df = pd.DataFrame(df_rows, columns=df_cols)
+        print(df.to_string(index=False))
+        print()

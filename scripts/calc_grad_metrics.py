@@ -170,7 +170,7 @@ if __name__ == "__main__":
     get_path_keys_kw_args = init_args["get_path_keys_kw_args"]
     del init_args["get_path_keys_kw_args"]
     scrapl = SCRAPLLoss(**scrapl_config["init_args"])
-    path_keys = util.get_path_keys(meta=scrapl.meta, Q1=Q1, **get_path_keys_kw_args)
+    path_keys, _ = util.get_path_keys(meta=scrapl.meta, Q1=Q1, **get_path_keys_kw_args)
     subset_indices = []
     for k in path_keys:
         assert k in scrapl.scrapl_keys
@@ -180,6 +180,7 @@ if __name__ == "__main__":
         idx for idx in range(scrapl.n_paths) if idx not in subset_indices
     ]
     log.info(f"len(subset_indices) = {len(subset_indices)}, subset_indices = {subset_indices}")
+    # exit()
 
     n_paths = scrapl.n_paths
     # sampling_factor = 0.25
@@ -195,7 +196,12 @@ if __name__ == "__main__":
     # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None.pt"))
     # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None__multibatch.pt"))
     # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_mean.pt"))
-    prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_20__n_iter_20__min_prob_frac_0.0__param_agg_None.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "probs/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_20__n_iter_20__min_prob_frac_0.0__param_agg_None.pt"))
+
+    prob = tr.load(os.path.join(DATA_DIR, "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_lo_fm_lo__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_hi_fm_hi__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_lo_fm_hi__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt"))
+    # prob = tr.load(os.path.join(DATA_DIR, "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_hi_fm_lo__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt"))
 
     # prob = tr.load(os.path.join(DATA_DIR, "probs/before_seed_and_eval_fix/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0.pt"))
     # prob = tr.load(os.path.join(DATA_DIR, "probs/before_seed_and_eval_fix/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__log_probs__n_batches_1__n_iter_20__min_prob_frac_0.0__multibatch.pt"))
@@ -244,6 +250,7 @@ if __name__ == "__main__":
     name = "grads/scrapl_saga_w0_sgd_1e-5_b32__texture_32_32_5_meso"
 
     if prob is None:
+        assert False
         data_path = os.path.join(dir_path, name)
         param_idx_to_numel = {}
         dir = data_path
@@ -400,11 +407,11 @@ if __name__ == "__main__":
     # plt.title(f"prob {metric_name} ({reduction}, elem {elementwise}, adj {compare_adj_only})")
     # plt.show()
 
-    colors = ["r" if idx in subset_indices else "b" for idx in range(n_paths)]
-    plt.bar(range(prob.size(0)), prob.numpy(), color=colors)
-    plt.ylim(0, 8 * uniform_prob)
-    plt.title(title)
-    plt.show()
+    # colors = ["r" if idx in subset_indices else "b" for idx in range(n_paths)]
+    # plt.bar(range(prob.size(0)), prob.numpy(), color=colors)
+    # plt.ylim(0, 8 * uniform_prob)
+    # plt.title(title)
+    # plt.show()
 
     vals = [(idx, p.item()) for idx, p in enumerate(prob)]
     vals = sorted(vals, key=lambda x: x[1])
