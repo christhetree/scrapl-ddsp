@@ -4,7 +4,7 @@ init_args:
   J: 12
   Q1: 8
   Q2: 2
-  J_fr: 5
+  J_fr: 3
   Q_fr: 2
   T: null
   F: null
@@ -34,10 +34,10 @@ init_args:
 #    fm_oct_hz_max: 16.0
 
 # =================================
-    am_hz_min: 0.92
-    am_hz_max: 2.81
-    fm_oct_hz_min: 1.2
-    fm_oct_hz_max: 4.1
+#    am_hz_min: 0.92
+#    am_hz_max: 2.81
+#    fm_oct_hz_min: 1.2
+#    fm_oct_hz_max: 4.1
 
 #    am_hz_min: 2.79
 #    am_hz_max: 8.5
@@ -61,6 +61,6 @@ init_args:
 #    fm_oct_hz_min: 4.0
 #    fm_oct_hz_max: 16.0
 #    spins: !!set {-1, 0, 1}
-    spins: !!set {0, 1}
-    use_complement: false
-    use_am_fm_union: false
+#    spins: !!set {0, 1}
+#    use_complement: false
+#    use_am_fm_union: false

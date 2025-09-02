@@ -5,6 +5,7 @@ from typing import List, Any, Union, Dict, Tuple, Iterator, Set, Optional
 
 import torch as tr
 import torch.nn.functional as F
+from matplotlib import patches
 from scipy.stats import loguniform
 from torch import Tensor as T, nn
 
@@ -136,21 +137,31 @@ def get_path_keys(
     # plt.yscale("log")
     # plt.xlabel("AM freq (Hz)")
     # plt.ylabel("FM freq (oct/Hz)")
-    # plt.xlim(0.4, 18.0)
-    # plt.ylim(0.4, 18.0)
+    # plt.xlim(0.8, 9.6)
+    # plt.ylim(0.4, 19.2)
     # # plt.axhline(y=1.0, color="r", linestyle="--")
-    # plt.axhline(y=1.333, color="r", linestyle="--")
-    # plt.axhline(y=4.0, color="r", linestyle="--")
-    # plt.axhline(y=12.0, color="r", linestyle="--")
+    # # plt.axhline(y=1.333, color="r", linestyle="--")
+    # # plt.axhline(y=4.0, color="r", linestyle="--")
+    # # plt.axhline(y=12.0, color="r", linestyle="--")
     # # plt.axhline(y=16.0, color="r", linestyle="--")
     # # plt.axhline(y=2.8, color="r", linestyle="--")
     # # plt.axvline(x=0.7, color="r", linestyle="--")
-    # plt.axvline(x=0.9333, color="r", linestyle="--")
-    # plt.axvline(x=2.8, color="r", linestyle="--")
-    # plt.axvline(x=8.4, color="r", linestyle="--")
+    # # plt.axvline(x=0.9333, color="r", linestyle="--")
+    # # plt.axvline(x=2.8, color="r", linestyle="--")
+    # # plt.axvline(x=8.4, color="r", linestyle="--")
     # # plt.axvline(x=11.2, color="r", linestyle="--")
     # plt.title("AM vs FM frequencies")
     # plt.grid(True, which="both", ls="--")
+    #
+    # coords = [(0.9899, 0.5), (1.9799, 0.5), (1.9799, 1.0), (0.9899, 1.0)]
+    # # coords = [(0.9899, 2.0), (1.9799, 2.0), (1.9799, 4.0), (0.9899, 4.0)]
+    # # coords = [(3.9598, 2.0), (7.9196, 2.0), (7.9196, 4.0), (3.9598, 4.0)]
+    # # coords = [(3.9598, 8.0), (7.9196, 8.0), (7.9196, 16.0), (3.9598, 16.0)]
+    # rect = patches.Polygon(
+    #     coords, closed=True, fill=False, edgecolor="black", linewidth=2, linestyle="--"
+    # )
+    # plt.gca().add_patch(rect)
+    #
     # plt.show()
     # exit()
 
@@ -171,6 +182,7 @@ def get_path_keys(
     log.info(f"FM freqs counts:")
     for f, c in fm_counts.items():
         log.info(f"  {f}: {c}")
+    # exit()
 
     return keys, key_data
 

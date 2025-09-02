@@ -40,6 +40,7 @@ if __name__ == "__main__":
     config_name = "train/chirplet/train_scrapl_saga_pwa_warmup.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa__am_lo_fm_lo.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa__adaptive_n_batches_1_n_iter_20_param_agg_none__am_lo_fm_lo.yml"  # min = 0.000003, max = 0.012895
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__adaptive_n_batches_10_n_iter_20_param_agg_none__am_lo_fm_lo.yml"  # min = 0.000000, max = 0.014541
 
     # config_name = "train/chirplet/train_scrapl_saga_pwa.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None.yml"

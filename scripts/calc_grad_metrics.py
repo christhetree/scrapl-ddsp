@@ -180,7 +180,7 @@ if __name__ == "__main__":
         idx for idx in range(scrapl.n_paths) if idx not in subset_indices
     ]
     log.info(f"len(subset_indices) = {len(subset_indices)}, subset_indices = {subset_indices}")
-    # exit()
+    exit()
 
     n_paths = scrapl.n_paths
     # sampling_factor = 0.25

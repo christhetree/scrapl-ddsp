@@ -8,12 +8,11 @@ from matplotlib import pyplot as plt
 from matplotlib.colors import TwoSlopeNorm
 from matplotlib.ticker import (
     FuncFormatter,
-    MaxNLocator,
     FixedLocator,
 )
 
 from experiments import util
-from experiments.paths import OUT_DIR, CONFIGS_DIR
+from experiments.paths import CONFIGS_DIR, DATA_DIR
 from experiments.scrapl_loss import SCRAPLLoss
 
 logging.basicConfig()
@@ -26,7 +25,7 @@ if __name__ == "__main__":
     #     "adaptive_scrapl/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
     # )
     probs_path = os.path.join(
-        OUT_DIR,
+        # OUT_DIR,
         # "iclr_2026_raw/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_lo_fm_lo__2__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
         # "iclr_2026_raw/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_hi_fm_lo__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
         # "iclr_2026_raw/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_lo_fm_hi__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
@@ -37,11 +36,15 @@ if __name__ == "__main__":
         # "iclr_2026_raw/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_lo_fm_hi__log_probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
         # "scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_lo_fm_lo__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
         # "scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_lo_fm_lo__probs__n_theta_2__n_params_28__n_batches_10__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
-
-        # "scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_lo_fm_lo__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
-        # "scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_hi_fm_hi__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
-        # "scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_lo_fm_hi__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
-        "scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_hi_fm_lo__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
+        DATA_DIR,
+        # "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_lo_fm_lo__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
+        # "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_hi_fm_hi__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
+        # "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_lo_fm_hi__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
+        # "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b28_am_hi_fm_lo__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
+        "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_lo_fm_lo__probs__n_theta_2__n_params_28__n_batches_10__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
+        # "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_hi_fm_hi__probs__n_theta_2__n_params_28__n_batches_10__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
+        # "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_lo_fm_hi__probs__n_theta_2__n_params_28__n_batches_10__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
+        # "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_hi_fm_lo__probs__n_theta_2__n_params_28__n_batches_10__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
     )
     probs = tr.load(probs_path)
     # probs = probs.exp()
@@ -103,14 +106,10 @@ if __name__ == "__main__":
     unif_prob = 1.0 / len(probs)
     z = z / unif_prob
     log.info(f"z.max() = {z.max():.4f}, z.min() = {z.min():.4f}")
-    # max_z_val = 6.2285
-    max_z_val = tr.tensor(6.2285).log1p().item()
-    # mid_z_val = tr.tensor(1.0).log1p().item()
-    mid_z_val = tr.tensor(2.0).log1p().item()
-    # z = z.clamp(min=0.125, max=8.0)
-    # z = z.log()
+    # max_z_val = tr.tensor(6.2285).log1p().item()
+    max_z_val = tr.tensor(7.0232).log1p().item()
+    mid_z_val = tr.tensor(1.0).log1p().item()
     z = z.log1p()
-    # z = (z + 1e-6).log()
 
     plt.rcParams.update({"font.size": 16})
     fig, ax = plt.subplots(1, 1, figsize=(9, 6), dpi=120)
@@ -145,11 +144,12 @@ if __name__ == "__main__":
     )
     ax.add_patch(rect)
     cbar = plt.colorbar(cf, label="Uniform Probability Ratio")
-    cbar.locator = MaxNLocator(nbins=6)
-    cbar.update_ticks()
-    # unif_prob = 1.0 / len(probs)
-    # cbar.ax.yaxis.set_major_formatter(
-    #     FuncFormatter(lambda x, _: f"{x / unif_prob:.1f}  ")
-    # )
+    ticks = tr.tensor([0.0, 0.5, 1.0, 2.0, 4.0]).log1p().tolist()
+    cbar.set_ticks(ticks)
+    # cbar.locator = MaxNLocator(nbins=6)
+    # cbar.update_ticks()
+    cbar.ax.yaxis.set_major_formatter(
+        FuncFormatter(lambda x, _: f"{tr.tensor(x).expm1().item():.1f}  ")
+    )
     plt.tight_layout()
     plt.show()

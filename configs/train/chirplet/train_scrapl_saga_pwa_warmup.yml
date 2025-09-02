@@ -1,10 +1,10 @@
 custom:
   project_name: scrapl
   model_name: scrapl_saga_pwa_1e-4
-  dataset_name: chirplet_32_32_5_meso_b16_am_lo_fm_lo
-#  dataset_name: chirplet_32_32_5_meso_b16_am_hi_fm_hi
-#  dataset_name: chirplet_32_32_5_meso_b16_am_lo_fm_hi
-#  dataset_name: chirplet_32_32_5_meso_b16_am_hi_fm_lo
+  dataset_name: chirplet2_32_32_5_meso_b32_am_lo_fm_lo
+#  dataset_name: chirplet2_32_32_5_meso_b32_am_lo_fm_med
+#  dataset_name: chirplet2_32_32_5_meso_b32_am_hi_fm_med
+#  dataset_name: chirplet2_32_32_5_meso_b32_am_hi_fm_hi
   cpu_batch_size: 3
   use_wandb_cpu: false
   use_wandb_gpu: false
@@ -20,8 +20,7 @@ trainer:
 data:
   class_path: experiments.data_modules.ThetaDSDataModule
   init_args:
-    batch_size: 16
-#    batch_size: 28
+    batch_size: 32
     num_workers: 4
     n_d: 32
     n_s: 32
@@ -34,11 +33,11 @@ model:
   class_path: experiments.lightning.SCRAPLLightingModule
   init_args:
     model: ../../models/spectral_2dcnn.yml
-    synth: ../../synths/chirplet_8khz_am_lo_fm_lo.yml
-#    synth: ../../synths/chirplet_8khz_am_hi_fm_hi.yml
-#    synth: ../../synths/chirplet_8khz_am_lo_fm_hi.yml
-#    synth: ../../synths/chirplet_8khz_am_hi_fm_lo.yml
-    loss_func: ../../losses/chirplet/scrapl_saga_pwa.yml
+    synth: ../../synths/chirplet_8khz_2_am_lo_fm_lo.yml
+#    synth: ../../synths/chirplet_8khz_2_am_lo_fm_med.yml
+#    synth: ../../synths/chirplet_8khz_2_am_hi_fm_med.yml
+#    synth: ../../synths/chirplet_8khz_2_am_hi_fm_hi.yml
+    loss_func: ../../losses/scrapl_saga_pwa.yml
 
     use_p_loss: false
     use_train_rand_seed: false
@@ -53,16 +52,16 @@ model:
     log_val_grads: false
 
     use_warmup: true
-#    warmup_n_batches: 1
-    warmup_n_batches: 10
+    warmup_n_batches: 1
+#    warmup_n_batches: 10
     warmup_n_iter: 20
     warmup_param_agg: none
 #    warmup_param_agg: mean
 #    warmup_param_agg: max
 
-    run_name: scrapl_saga_pwa_1e-4__chirplet_32_32_5_meso_b16_am_lo_fm_lo
-#    run_name: scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_hi_fm_hi
-#    run_name: scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_lo_fm_hi
-#    run_name: scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_hi_fm_lo
+    run_name: scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo
+#    run_name: scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med
+#    run_name: scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_med
+#    run_name: scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi
 
 optimizer: ../../opt/sgd_1e-4.yml
