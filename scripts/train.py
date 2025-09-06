@@ -37,10 +37,19 @@ if __name__ == "__main__":
     # config_name = "train/texture/train_scrapl_saga_pwa__adaptive_n_batches_1_n_iter_20_param_agg_max.yml"    # min = 0.000081, max = 0.020218
     # config_name = "train/texture/train_scrapl_saga_pwa__adaptive_n_batches_10_n_iter_20_param_agg_none.yml"  # min = 0.000249, max = 0.025870
 
-    config_name = "train/chirplet/train_scrapl_saga_pwa_warmup.yml"
+    # config_name = "train/chirplet/train_scrapl_saga_pwa_warmup.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa__am_lo_fm_lo.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa__adaptive_n_batches_1_n_iter_20_param_agg_none__am_lo_fm_lo.yml"  # min = 0.000003, max = 0.012895
     # config_name = "train/chirplet/train_scrapl_saga_pwa__adaptive_n_batches_10_n_iter_20_param_agg_none__am_lo_fm_lo.yml"  # min = 0.000000, max = 0.014541
+
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_lo_fm_lo.yml"
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_lo_fm_med.yml"
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_hi_fm_med.yml"
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_hi_fm_hi.yml"
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_lo_fm_lo__probs_n_batches_1.yml"  # min = 0.000002, max = 0.027627
+    config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_lo_fm_med__probs_n_batches_1.yml"  # min = 0.000001, max = 0.020115
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_hi_fm_med__probs_n_batches_1.yml"  # min = 0.000001, max = 0.015880
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_hi_fm_hi__probs_n_batches_1.yml"  # min = 0.000000, max = 0.016704
 
     # config_name = "train/chirplet/train_scrapl_saga_pwa.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None.yml"
@@ -73,12 +82,11 @@ if __name__ == "__main__":
 
     # ==================================================================================
     # config_name = "eval_mixing/train.yml"
+    # config_name = "eval_808/train.yml"
 
     log.info(f"Running with config: {config_name}")
     # seeds = None
-    # seeds = [0, 1, 2]
     seeds = list(range(20))
-    # seeds = list(range(10, 20))
 
     config_path = os.path.join(CONFIGS_DIR, config_name)
 

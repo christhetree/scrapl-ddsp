@@ -25,6 +25,7 @@ class Spectral2DCNN(nn.Module):
         latent_dim: int = 32,
         use_ln: bool = True,
         dropout_prob: float = 0.25,
+        n_params: int = 2,
     ) -> None:
         super().__init__()
         self.n_bins = n_bins
@@ -35,6 +36,7 @@ class Spectral2DCNN(nn.Module):
         self.latent_dim = latent_dim
         self.use_ln = use_ln
         self.dropout_prob = dropout_prob
+        self.n_params = n_params
 
         if out_channels is None:
             out_channels = [64] * 5
@@ -74,15 +76,27 @@ class Spectral2DCNN(nn.Module):
         self.fc_act = nn.PReLU()
         self.do = nn.Dropout(p=dropout_prob)
 
-        self.fc_d = nn.Linear(latent_dim, latent_dim // 2)
-        self.fc_d_act = nn.PReLU()
-        self.out_d = nn.Linear(latent_dim // 2, 1)
+        # self.fc_d = nn.Linear(latent_dim, latent_dim // 2)
+        # self.fc_d_act = nn.PReLU()
+        # self.out_d = nn.Linear(latent_dim // 2, 1)
+        #
+        # self.fc_s = nn.Linear(latent_dim, latent_dim // 2)
+        # self.fc_s_act = nn.PReLU()
+        # self.out_s = nn.Linear(latent_dim // 2, 1)
 
-        self.fc_s = nn.Linear(latent_dim, latent_dim // 2)
-        self.fc_s_act = nn.PReLU()
-        self.out_s = nn.Linear(latent_dim // 2, 1)
+        param_mlps = []
+        for _ in range(n_params):
+            param_mlp = nn.Sequential(
+                nn.Linear(latent_dim, latent_dim // 2),
+                nn.PReLU(),
+                nn.Dropout(p=dropout_prob),
+                nn.Linear(latent_dim // 2, 1),
+                nn.Sigmoid(),
+            )
+            param_mlps.append(param_mlp)
+        self.param_mlps = nn.ModuleList(param_mlps)
 
-    def forward(self, x: T) -> (T, T):
+    def forward(self, x: T) -> List[T]:
         assert x.ndim == 3
         x = x.unsqueeze(1)
         x = self.cnn(x)
@@ -92,17 +106,24 @@ class Spectral2DCNN(nn.Module):
         x = self.do(x)
         latent = x
 
-        x = self.fc_d(latent)
-        x = self.fc_d_act(x)
-        x = self.do(x)
-        d_hat = self.out_d(x)
-        d_hat = tr.sigmoid(d_hat).squeeze(1)
-        # d_hat = magic_clamp(d_hat, min_value=0.0, max_value=1.0).squeeze(1)
+        # x = self.fc_d(latent)
+        # x = self.fc_d_act(x)
+        # x = self.do(x)
+        # d_hat = self.out_d(x)
+        # d_hat = tr.sigmoid(d_hat).squeeze(1)
+        # # d_hat = magic_clamp(d_hat, min_value=0.0, max_value=1.0).squeeze(1)
+        #
+        # x = self.fc_s(latent)
+        # x = self.fc_s_act(x)
+        # x = self.do(x)
+        # s_hat = self.out_s(x)
+        # s_hat = tr.sigmoid(s_hat).squeeze(1)
+        # # s_hat = magic_clamp(s_hat, min_value=0.0, max_value=1.0).squeeze(1)
+        # return d_hat, s_hat
 
-        x = self.fc_s(latent)
-        x = self.fc_s_act(x)
-        x = self.do(x)
-        s_hat = self.out_s(x)
-        s_hat = tr.sigmoid(s_hat).squeeze(1)
-        # s_hat = magic_clamp(s_hat, min_value=0.0, max_value=1.0).squeeze(1)
-        return d_hat, s_hat
+        out = []
+        for param_mlp in self.param_mlps:
+            p_hat = param_mlp(latent)
+            p_hat = p_hat.squeeze(dim=1)
+            out.append(p_hat)
+        return out

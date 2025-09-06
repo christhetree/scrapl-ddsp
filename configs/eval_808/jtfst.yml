@@ -1,6 +1,6 @@
-class_path: experiments.scrapl_loss.SCRAPLLoss
+class_path: experiments.losses.JTFSTLoss
 init_args:
-  shape: 32768
+  shape: 44100
   J: 12
   Q1: 8
   Q2: 2
@@ -8,4 +8,5 @@ init_args:
   Q_fr: 2
   T: null
   F: null
+  format_: joint
   p: 2

@@ -1,0 +1,28 @@
+class_path: auraloss.freq.MultiResolutionSTFTLoss
+init_args:
+  fft_sizes:
+    - 64
+    - 128
+    - 256
+    - 512
+    - 1024
+    - 2048
+  hop_sizes:
+    - 16
+    - 32
+    - 64
+    - 128
+    - 256
+    - 512
+  win_lengths:
+    - 64
+    - 128
+    - 256
+    - 512
+    - 1024
+    - 2048
+  w_sc: 0.0
+  w_phs: 0.0
+  w_lin_mag: 1.0
+  w_log_mag: 1.0
+  mag_distance: L1

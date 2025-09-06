@@ -1,0 +1,33 @@
+class_path: eval_808.features.FeatureCollection
+init_args:
+  features:
+    - class_path: eval_808.features.CascadingFrameExtactor
+      init_args:
+        extractors:
+          - class_path: eval_808.features.Loudness
+            init_args:
+              sample_rate: 44100
+          - class_path: eval_808.features.SpectralCentroid
+            init_args:
+              sample_rate: 44100
+              window: "flat_top"
+              compress: true
+              floor: 1e-4
+              scaling: "kazazis"
+          - class_path: eval_808.features.SpectralFlatness
+        num_frames:
+          - 2
+          - 64
+        frame_size: 2048
+        hop_size: 512
+    - class_path: eval_808.features.CascadingFrameExtactor
+      init_args:
+        extractors:
+          - class_path: eval_808.features.TemporalCentroid
+            init_args:
+              sample_rate: 44100
+              scaling: "schlauch"
+        num_frames:
+          - 1
+        frame_size: 5512
+        hop_size: 5512

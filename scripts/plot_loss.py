@@ -323,6 +323,10 @@ def plot_xy_vals(
 
 
 if __name__ == "__main__":
+    # stage = "train"
+    # stage = "val"
+    stage = "test"
+    x_col = "step"
     tsv_names_and_paths = [
         # ("adam_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),  # TODO(cm): something is off here
         # ("pwa_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
@@ -354,8 +358,17 @@ if __name__ == "__main__":
         # ("mss_rev", os.path.join(OUT_DIR, f"iclr_2026/mss_revisited_1e-5__texture_32_32_5_meso_b32__2.tsv")),
         # ("ploss", os.path.join(OUT_DIR, f"iclr_2026/ploss_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
 
-        ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026/scrapl_saga_pwa_1e-4__chirplet_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
-        ("saga_pwa_b1_none", os.path.join(OUT_DIR, f"iclr_2026/scrapl_saga_pwa_1e-4__adaptive_n_batches_1_n_iter_20_param_agg_none__chirplet_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
+        # ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-4__chirplet_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
+        # ("saga_pwa_b1_none", os.path.join(OUT_DIR, f"iclr_2026_raw/scrapl_saga_pwa_1e-4__adaptive_n_batches_1_n_iter_20_param_agg_none__chirplet_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
+
+        ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_raw/kube/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
+        ("saga_pwa_b1_none", os.path.join(OUT_DIR, f"iclr_2026_raw/kube/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b16_am_lo_fm_lo__probs_n_batches_1.tsv")),
+        # ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_raw/kube/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med.tsv")),
+        # ("saga_pwa_b1_none", os.path.join(OUT_DIR, f"iclr_2026_raw/kube/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med__probs_n_batches_1.tsv")),
+        # ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_raw/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_med.tsv")),
+        # ("saga_pwa_b1_none", os.path.join(OUT_DIR, f"iclr_2026_raw/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_med__probs_n_batches_1.tsv")),
+        # ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_raw/kube/prev/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b16_am_hi_fm_hi.tsv")),
+        # ("saga_pwa_b1_none", os.path.join(OUT_DIR, f"iclr_2026_raw/kube/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b16_am_hi_fm_hi__probs_n_batches_1.tsv")),
 
         # ("pwa_saga", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
@@ -386,14 +399,10 @@ if __name__ == "__main__":
         # ("saga_bin", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_fm_bin_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
         # ("saga_w0", os.path.join(OUT_DIR, f"results/chirplet/fm/scrapl_saga_w0_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
     ]
-    # stage = "train"
-    # stage = "val"
-    stage = "test"
-    x_col = "step"
     # x_col = "global_n"
-    y_col_prefix = "l1"
+    # y_col_prefix = "l1"
     # y_col_prefix = "l2"
-    # y_col_prefix = "rmse"
+    y_col_prefix = "rmse"
 
     use_log_y = False
     # use_log_y = True

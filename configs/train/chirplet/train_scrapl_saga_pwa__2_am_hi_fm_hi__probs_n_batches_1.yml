@@ -1,0 +1,51 @@
+custom:
+  project_name: scrapl
+  model_name: scrapl_saga_pwa_1e-4
+  dataset_name: chirplet2_32_32_5_meso_b32_am_hi_fm_hi__probs_n_batches_1
+  cpu_batch_size: 3
+  use_wandb_cpu: false
+  use_wandb_gpu: false
+
+trainer:
+  accelerator: gpu
+  benchmark: false
+  devices: [6]
+  max_epochs: 50
+  num_sanity_val_steps: 1
+  accumulate_grad_batches: 1
+
+data:
+  class_path: experiments.data_modules.ThetaDSDataModule
+  init_args:
+    batch_size: 32
+    num_workers: 4
+    n_d: 32
+    n_s: 32
+    n_seeds_per_theta: 5
+    n_folds: 5
+    use_unique_seeds: true
+    use_unique_theta_in_val_test: true
+
+model:
+  class_path: experiments.lightning.SCRAPLLightingModule
+  init_args:
+    model: ../../models/spectral_2dcnn.yml
+    synth: ../../synths/chirplet_8khz_2_am_hi_fm_hi.yml
+    loss_func: ../../losses/scrapl_saga_pwa.yml
+    scrapl_probs_path: ../data/adaptive_scrapl/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt
+
+    use_p_loss: false
+    use_train_rand_seed: false
+    use_val_rand_seed: false
+
+    use_rand_seed_hat: true
+
+    feature_type: cqt
+    cqt_eps: 1e-3
+    log_x: false
+    log_x_hat: false
+    log_val_grads: false
+
+    run_name: scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi__probs_n_batches_1
+
+optimizer: ../../opt/sgd_1e-4.yml

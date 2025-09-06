@@ -653,3 +653,45 @@ class SimpleSynth(torch.nn.Module):
         y = y * self.env
 
         return y * gain
+
+
+class DDSP808Synth(Snare808):
+    def __init__(
+        self,
+        sr: int,
+        num_samples: int,
+        buffer_noise: bool = False,
+        buffer_size: int = 0,
+        J_cqt: int = 10,
+        Q_cqt: int = 12,
+        hop_len: int = 256,
+    ):
+        super().__init__(
+            sample_rate=sr,
+            num_samples=num_samples,
+            buffer_noise=buffer_noise,
+            buffer_size=buffer_size,
+        )
+        self.sr = sr
+        self.J_cqt = J_cqt
+        self.Q_cqt = Q_cqt
+        self.hop_len = hop_len
+
+        self.n_params = self.get_num_params()
+        self.param_names = [
+            "osc1_freq",
+            "osc1_mod",
+            "osc2_freq",
+            "osc2_mod",
+            "freq_decay",
+            "osc1_decay",
+            "osc2_decay",
+            "noise_decay",
+            "noise_freq",
+            "noise_q",
+            "osc1_gain",
+            "osc2_gain",
+            "noise_gain",
+            "tanh_gain",
+        ]
+        assert len(self.param_names) == self.n_params

@@ -5,5 +5,6 @@ init_args:
   Q1: 8
   Q2: 2
   T: null
-  max_order: 1
+#  T: 64
+  max_order: 2
   p: 2

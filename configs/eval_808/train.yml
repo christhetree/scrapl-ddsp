@@ -1,0 +1,71 @@
+seed_everything: 42
+
+custom:
+  project_name: scrapl
+#  model_name: ploss_1p2M_adamw_1e-4
+  model_name: mss_1p2M_adamw_1e-4
+#  model_name: mss_meso_1p2M_adamw_1e-4
+#  model_name: mss_meso_log_1p2M_adamw_1e-4
+#  model_name: scat1d_o2_1p2M_adamw_1e-4
+#  model_name: scat1d_o2_t64_1p2M_adamw_1e-4
+#  model_name: scrapl_f1_saga_pwa_1p2M_1e-4
+#  model_name: jtfs_1p2M_adamw_1e-4
+  dataset_name: theta14_10k_b16
+  cpu_batch_size: 2
+#  use_wandb_cpu: true
+  use_wandb_cpu: false
+#  use_wandb_gpu: false
+  use_wandb_gpu: true
+
+trainer:
+  accelerator: gpu
+  benchmark: false
+  devices: [6]
+  max_epochs: 100
+  num_sanity_val_steps: 1
+  accumulate_grad_batches: 1
+#  accumulate_grad_batches: 10
+
+data:
+  class_path: eval_808.data.SeedDataModule
+  init_args:
+#    batch_size: 32
+    batch_size: 16
+#    batch_size: 3
+    n_seeds: 10000
+    n_params: 14
+    val_split: 0.2
+    test_split: 0.2
+    randomize_train_seed: false
+    num_workers: 8
+
+model:
+  class_path: eval_808.lightning.DDSP808LightingModule
+  init_args:
+    model: spectral_2dcnn_14p.yml
+    synth: synth.yml
+    fe: fe.yml
+    loss_func: ../losses/mss.yml
+#    loss_func: ../losses/mss_meso.yml
+#    loss_func: ../losses/mss_meso_log.yml
+#    loss_func: ../losses/scat_1d.yml
+#    grad_mult: 1e8
+#    loss_func: ../eval_808/scrapl_saga_pwa.yml
+#    loss_func: ../eval_808/jtfst.yml
+#    grad_mult: 1e8
+    use_p_loss: false
+#    loss_func: torch.nn.MSELoss
+#    use_p_loss: true
+    feature_type: cqt
+    cqt_eps: 1e-3
+
+#    run_name: ploss_1p2M_adamw_1e-4__testing
+#    run_name: mss_1p2M_adamw_1e-4__testing
+#    run_name: mss_meso_1p2M_adamw_1e-4__testing
+#    run_name: mss_meso_log_1p2M_adamw_1e-4__testing
+#    run_name: scat1d_o2_1p2M_adamw_1e-4__testing
+#    run_name: scat1d_o2_t64_1p2M_adamw_1e-4__testing
+
+optimizer: ../opt/adam_w_1e-4.yml
+#optimizer: ../opt/sgd_1e-5.yml
+#optimizer: ../opt/sgd_1e-4.yml

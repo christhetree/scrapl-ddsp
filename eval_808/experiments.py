@@ -49,6 +49,8 @@ if __name__ == "__main__":
         frame_size=2048,
         hop_size=512,
     )
+    derp = f1.flattened_features
+
     f2 = CascadingFrameExtactor(
         extractors=[
             TemporalCentroid(sample_rate=sr, scaling="schlauch"),
