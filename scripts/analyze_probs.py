@@ -18,7 +18,8 @@ if __name__ == "__main__":
         # ("mean_1_bs", os.path.join(DATA_DIR, "adaptive_scrapl/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__log_probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_mean__seed_0.pt")),
         # ("max_1_bs", os.path.join(DATA_DIR, "adaptive_scrapl/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__log_probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_max__seed_0.pt")),
     ]
-    n_theta, n_classes = tr.load(prob_names_and_paths[0][1]).shape
+    log_probs = tr.load(prob_names_and_paths[0][1])
+    n_theta, n_classes = log_probs.shape
     unif_prob = 1 / n_classes
 
     for theta_idx in range(n_theta):

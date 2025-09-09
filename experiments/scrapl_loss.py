@@ -11,6 +11,7 @@ from hessian_eigenthings.operator import LambdaOperator
 from torch import Tensor as T
 from torch.nn import Parameter
 
+from experiments.paths import OUT_DIR
 from experiments.util import ReadOnlyTensorDict
 from scrapl.torch import TimeFrequencyScrapl
 
@@ -97,7 +98,7 @@ class SCRAPLLoss(nn.Module):
         self.unif_prob = 1.0 / self.n_paths
         log.info(
             f"SCRAPLLoss:\n"
-            f"grad_mult              = {grad_mult:.0e}\n"
+            # f"grad_mult              = {grad_mult:.0e}\n"
             f"use_pwa                = {use_pwa}\n"
             f"use_saga               = {use_saga}\n"
             f"sample_all_paths_first = {sample_all_paths_first}\n"
@@ -720,6 +721,8 @@ class SCRAPLLoss(nn.Module):
                 log.info(f"path_idx = {path_idx}, curr_vals = {curr_vals}")
             # Aggregate the theta LCs across all params
             vals = tr.stack(vals, dim=0)
+            # save_path = os.path.join(OUT_DIR, f"vals_{path_idx}.pt")
+            # tr.save(vals.detach().cpu(), save_path)
             if agg == "none":
                 assert vals.size(0) == 1
                 vals = vals[0]

@@ -21,6 +21,8 @@ if __name__ == "__main__":
 
     # config_name = "train/texture/train_ploss.yml"
     # config_name = "train/texture/train_mss.yml"
+    # config_name = "train/texture/train_mss_meso.yml"
+    # config_name = "train/texture/train_mss_meso_log.yml"
     # config_name = "train/texture/train_rand_mss.yml"
     # config_name = "train/texture/train_mss_revisited.yml"
     # config_name = "train/texture/train_clap.yml"
@@ -47,7 +49,7 @@ if __name__ == "__main__":
     # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_hi_fm_med.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_hi_fm_hi.yml"
     # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_lo_fm_lo__probs_n_batches_1.yml"  # min = 0.000002, max = 0.027627
-    config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_lo_fm_med__probs_n_batches_1.yml"  # min = 0.000001, max = 0.020115
+    # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_lo_fm_med__probs_n_batches_1.yml"  # min = 0.000001, max = 0.020115
     # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_hi_fm_med__probs_n_batches_1.yml"  # min = 0.000001, max = 0.015880
     # config_name = "train/chirplet/train_scrapl_saga_pwa__2_am_hi_fm_hi__probs_n_batches_1.yml"  # min = 0.000000, max = 0.016704
 
@@ -82,11 +84,11 @@ if __name__ == "__main__":
 
     # ==================================================================================
     # config_name = "eval_mixing/train.yml"
-    # config_name = "eval_808/train.yml"
+    config_name = "eval_808/train.yml"  # min = 0.000082, max = 0.016156
 
     log.info(f"Running with config: {config_name}")
-    # seeds = None
-    seeds = list(range(20))
+    seeds = None
+    # seeds = list(range(20))
 
     config_path = os.path.join(CONFIGS_DIR, config_name)
 

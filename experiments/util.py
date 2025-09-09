@@ -1,3 +1,4 @@
+import importlib
 import logging
 import os
 from collections import defaultdict
@@ -5,6 +6,7 @@ from typing import List, Any, Union, Dict, Tuple, Iterator, Set, Optional
 
 import torch as tr
 import torch.nn.functional as F
+import yaml
 from matplotlib import patches
 from scipy.stats import loguniform
 from torch import Tensor as T, nn
@@ -339,6 +341,17 @@ def is_connected_via_ad_graph(output: T, input_: T) -> bool:
 
     log.info(f"Looked at {len(visited)} functions, input_ not found")
     return False
+
+
+def load_class_from_yaml(config_path: str) -> Any:
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+    class_path = config["class_path"]
+    module_name, class_name = class_path.rsplit(".", 1)
+    module = importlib.import_module(module_name)
+    cls = getattr(module, class_name)
+    cls_instantiated = cls(**config["init_args"])
+    return cls_instantiated
 
 
 if __name__ == "__main__":

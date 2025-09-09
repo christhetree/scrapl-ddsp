@@ -3,12 +3,13 @@ seed_everything: 42
 custom:
   project_name: scrapl
 #  model_name: ploss_1p2M_adamw_1e-4
-  model_name: mss_1p2M_adamw_1e-4
+#  model_name: mss_1p2M_adamw_1e-4
 #  model_name: mss_meso_1p2M_adamw_1e-4
-#  model_name: mss_meso_log_1p2M_adamw_1e-4
-#  model_name: scat1d_o2_1p2M_adamw_1e-4
+#  model_name: mss_meso_log_1p2M_adamw_1e-5
+  model_name: scat1d_o2_1p2M_adamw_1e-5
 #  model_name: scat1d_o2_t64_1p2M_adamw_1e-4
-#  model_name: scrapl_f1_saga_pwa_1p2M_1e-4
+#  model_name: scrapl_saga_pwa_1p2M_1e-5
+#  model_name: scrapl_saga_pwa_1p2M_1e-5__probs_n_batches_1
 #  model_name: jtfs_1p2M_adamw_1e-4
   dataset_name: theta14_10k_b16
   cpu_batch_size: 2
@@ -20,8 +21,9 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [6]
-  max_epochs: 100
+  devices: [5]
+#  max_epochs: 100
+  max_epochs: 200
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 10
@@ -29,7 +31,6 @@ trainer:
 data:
   class_path: eval_808.data.SeedDataModule
   init_args:
-#    batch_size: 32
     batch_size: 16
 #    batch_size: 3
     n_seeds: 10000
@@ -45,11 +46,11 @@ model:
     model: spectral_2dcnn_14p.yml
     synth: synth.yml
     fe: fe.yml
-    loss_func: ../losses/mss.yml
+#    loss_func: ../losses/mss.yml
 #    loss_func: ../losses/mss_meso.yml
 #    loss_func: ../losses/mss_meso_log.yml
-#    loss_func: ../losses/scat_1d.yml
-#    grad_mult: 1e8
+    loss_func: ../eval_808/scat_1d.yml
+    grad_mult: 1e8
 #    loss_func: ../eval_808/scrapl_saga_pwa.yml
 #    loss_func: ../eval_808/jtfst.yml
 #    grad_mult: 1e8
@@ -58,6 +59,13 @@ model:
 #    use_p_loss: true
     feature_type: cqt
     cqt_eps: 1e-3
+#    scrapl_probs_path: ../data/adaptive_scrapl/scrapl_saga_pwa_1p2M_1e-4__theta14_10k_b16__probs__n_theta_14__n_params_91__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_42.pt
+
+#    use_warmup: true
+#    warmup_n_batches: 1
+##    warmup_n_batches: 10
+#    warmup_n_iter: 20
+#    warmup_param_agg: none
 
 #    run_name: ploss_1p2M_adamw_1e-4__testing
 #    run_name: mss_1p2M_adamw_1e-4__testing
@@ -65,7 +73,9 @@ model:
 #    run_name: mss_meso_log_1p2M_adamw_1e-4__testing
 #    run_name: scat1d_o2_1p2M_adamw_1e-4__testing
 #    run_name: scat1d_o2_t64_1p2M_adamw_1e-4__testing
+#    run_name: scrapl_saga_pwa_1p2M_1e-4__theta14_10k_b16
 
-optimizer: ../opt/adam_w_1e-4.yml
-#optimizer: ../opt/sgd_1e-5.yml
+#optimizer: ../opt/adam_w_1e-4.yml
 #optimizer: ../opt/sgd_1e-4.yml
+optimizer: ../opt/adam_w_1e-5.yml
+#optimizer: ../opt/sgd_1e-5.yml

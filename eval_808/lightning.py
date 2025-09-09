@@ -165,8 +165,8 @@ class DDSP808LightingModule(pl.LightningModule):
 
         self.global_n = 0
 
-        # if self.use_warmup:
-        #     self.warmup()
+        if self.use_warmup:
+            self.warmup()
 
     def state_dict(self, *args, **kwargs) -> Dict[str, T]:
         # TODO(cm): support resuming training with grad hooks
@@ -195,6 +195,70 @@ class DDSP808LightingModule(pl.LightningModule):
         else:
             raise NotImplementedError
 
+    def warmup(self) -> None:
+        # Make model and synth as deterministic as possible
+        self.model.eval()
+        self.synth.eval()
+
+        def theta_fn(x: T) -> T:
+            with tr.no_grad():
+                U = self.calc_U(x)
+            theta_0to1_hat = self.model(U)
+            theta_0to1_hat = tr.stack(theta_0to1_hat, dim=1)
+            return theta_0to1_hat
+
+        def synth_fn(theta_0to1_hat: T) -> T:
+            x_hat = self.synth(theta_0to1_hat)
+            return x_hat
+
+        assert isinstance(self.loss_func, SCRAPLLoss)
+        train_dl_iter = iter(self.trainer.datamodule.train_dataloader())
+        theta_fn_kwargs = []
+        for batch_idx in range(self.warmup_n_batches):
+            theta = next(train_dl_iter)
+            # TODO(cm): why is this needed here and not in the other lightning.py?
+            theta = theta.to(self.device)
+            with tr.no_grad():
+                x = self.synth(theta)
+            t_kwargs = {"x": x}
+            theta_fn_kwargs.append(t_kwargs)
+
+        params = list(self.model.parameters())
+
+        suffix = (
+            f"n_theta_{self.loss_func.n_theta}"
+            f"__n_params_{len(params)}"
+            f"__n_batches_{self.warmup_n_batches}"
+            f"__n_iter_{self.warmup_n_iter}"
+            f"__min_prob_frac_{self.loss_func.min_prob_frac}"
+            f"__param_agg_{self.warmup_param_agg}"
+            f"__seed_{tr.random.initial_seed()}.pt"
+        )
+        log.info(f"Running warmup with suffix: {suffix}")
+
+        self.loss_func.warmup_lc_hvp(
+            theta_fn=theta_fn,
+            synth_fn=synth_fn,
+            theta_fn_kwargs=theta_fn_kwargs,
+            params=params,
+            n_iter=self.warmup_n_iter,
+            agg=self.warmup_param_agg,
+        )
+
+        log_vals_save_path = os.path.join(
+            OUT_DIR, f"{self.run_name}__log_vals__{suffix}"
+        )
+        tr.save(self.loss_func.all_log_vals, log_vals_save_path)
+        log_probs_save_path = os.path.join(
+            OUT_DIR, f"{self.run_name}__log_probs__{suffix}"
+        )
+        tr.save(self.loss_func.all_log_probs, log_probs_save_path)
+        probs_save_path = os.path.join(OUT_DIR, f"{self.run_name}__probs__{suffix}")
+        tr.save(self.loss_func.probs, probs_save_path)
+        log.info(f"Completed warmup, saved probs to {probs_save_path}")
+        exit()
+
+
     def step(self, batch: T, stage: str) -> Dict[str, T]:
         theta_0to1 = batch
         batch_size = theta_0to1.size(0)
@@ -205,7 +269,7 @@ class DDSP808LightingModule(pl.LightningModule):
         self.log(f"global_n", float(self.global_n))
 
         with tr.no_grad():
-            x = self.synth(theta_0to1).unsqueeze(1)
+            x = self.synth(theta_0to1)
             U = self.calc_U(x)
 
         U_hat = None
@@ -217,10 +281,10 @@ class DDSP808LightingModule(pl.LightningModule):
         if self.use_p_loss:
             loss = self.loss_func(theta_0to1_hat, theta_0to1)
             with tr.no_grad():
-                x_hat = self.synth(theta_0to1_hat).unsqueeze(1)
+                x_hat = self.synth(theta_0to1_hat)
                 U_hat = self.calc_U(x_hat)
         else:
-            x_hat = self.synth(theta_0to1_hat).unsqueeze(1)
+            x_hat = self.synth(theta_0to1_hat)
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
             loss = self.loss_func(x_hat, x)

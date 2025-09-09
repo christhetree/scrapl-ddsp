@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 
 import torch as tr
@@ -48,36 +49,37 @@ if __name__ == "__main__":
         # "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_lo_fm_hi__probs__n_theta_2__n_params_28__n_batches_10__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
         # "adaptive_scrapl/scrapl_saga_pwa_1e-5__chirplet_32_32_5_meso_b16_am_hi_fm_lo__probs__n_theta_2__n_params_28__n_batches_10__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
 
-        "adaptive_scrapl/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
+        # "adaptive_scrapl/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
         # "adaptive_scrapl/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
         # "adaptive_scrapl/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_med__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
-        # "adaptive_scrapl/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
+        "adaptive_scrapl/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt",
     )
     probs = tr.load(probs_path)
     # probs = probs.exp()
     # probs = probs[0, :]
     # probs = probs[1, :]
+    n_paths = len(probs)
 
     if "am_lo_fm_lo" in probs_path:
         # coords = [(0.9333, 1.3333), (2.8, 1.3333), (2.8, 4.0), (0.9333, 4.0)]
         coords = [(0.9899, 0.5), (1.9799, 0.5), (1.9799, 1.0), (0.9899, 1.0)]
-        title = "Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth: slow AM, slow FM)"
+        title = f"Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth {n_paths} paths: slow AM, slow FM)"
     elif "am_hi_fm_hi" in probs_path:
         # coords = [(2.8, 4.0), (8.4, 4.0), (8.4, 12.0), (2.8, 12.0)]
         coords = [(3.9598, 8.0), (7.9196, 8.0), (7.9196, 16.0), (3.9598, 16.0)]
-        title = "Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth: fast AM, fast FM)"
+        title = f"Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth {n_paths} paths: fast AM, fast FM)"
     elif "am_lo_fm_hi" in probs_path:
         coords = [(0.9333, 4.0), (2.8, 4.0), (2.8, 12.0), (0.9333, 12.0)]
-        title = "Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth: slow AM, fast FM)"
+        title = f"Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth {n_paths} paths: slow AM, fast FM)"
     elif "am_hi_fm_lo" in probs_path:
         coords = [(2.8, 1.3333), (8.4, 1.3333), (8.4, 4.0), (2.8, 4.0)]
-        title = "Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth: fast AM, slow FM)"
+        title = f"Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth {n_paths} paths: fast AM, slow FM)"
     elif "am_lo_fm_med" in probs_path:
         coords = [(0.9899, 2.0), (1.9799, 2.0), (1.9799, 4.0), (0.9899, 4.0)]
-        title = "Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth: slow AM, med FM)"
+        title = f"Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth {n_paths} paths: slow AM, moderate FM)"
     elif "am_hi_fm_med" in probs_path:
         coords = [(3.9598, 2.0), (7.9196, 2.0), (7.9196, 4.0), (3.9598, 4.0)]
-        title = "Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth: fast AM, med FM)"
+        title = f"Adaptive SCRAPL Path Sampling Probabilities\n(Chirplet Synth {n_paths} paths: fast AM, moderate FM)"
     else:
         raise ValueError(f"Unrecognized probs_path: {probs_path}")
 
@@ -120,9 +122,10 @@ if __name__ == "__main__":
 
     unif_prob = 1.0 / len(probs)
     z = z / unif_prob
+    z_max = z.max().item()
     log.info(f"z.max() = {z.max():.4f}, z.min() = {z.min():.4f}")
     # max_z_val = tr.tensor(6.2285).log1p().item()
-    # max_z_val = tr.tensor(7.0232).log1p().item()
+    # max_z_val = tr.tensor(7.0231).log1p().item()
     max_z_val = tr.tensor(7.2690).log1p().item()
     mid_z_val = tr.tensor(1.0).log1p().item()
     z = z.log1p()
@@ -164,10 +167,11 @@ if __name__ == "__main__":
     )
     ax.add_patch(rect)
     cbar = plt.colorbar(cf, label="Uniform Probability Ratio")
-    # ticks = tr.tensor([0.0, 0.5, 1.0, 2.0, 4.0]).log1p().tolist()
-    # cbar.set_ticks(ticks)
-    cbar.locator = MaxNLocator(nbins=6)
-    cbar.update_ticks()
+    # ticks = tr.tensor([0.0, 0.5, 1.0, 2.0, 4.0, math.floor(z_max * 10) / 10.0]).log1p().tolist()
+    ticks = tr.tensor([0.0, 0.5, 1.0, 2.0, 4.0]).log1p().tolist()
+    cbar.set_ticks(ticks)
+    # cbar.locator = MaxNLocator(nbins=6)
+    # cbar.update_ticks()
     cbar.ax.yaxis.set_major_formatter(
         FuncFormatter(lambda x, _: f"{tr.tensor(x).expm1().item():.1f}  ")
     )

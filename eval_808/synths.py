@@ -3,8 +3,9 @@ Modules for synthesizing drum sounds
 
 TODO: should we use torchsynth for this?
 """
-
 import json
+import logging
+import os
 from collections import OrderedDict
 from typing import Dict
 from typing import Optional
@@ -14,18 +15,27 @@ from typing import Union
 import torch
 import torchaudio
 from einops import repeat
+from torch import Tensor as T, nn
+import torch as tr
+
+logging.basicConfig()
+log = logging.getLogger(__name__)
+log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
-class ParamaterNormalizer:
+class ParamaterNormalizer(nn.Module):
     """
     Holds min and max values for a parameter and provides methods for normalizing
     between 0 and 1 and vice versa
     """
 
     def __init__(self, min_value, max_value, description=None):
-        self.min_value = min_value
-        self.max_value = max_value
+        super().__init__()
         self.description = description
+        # self.min_value = min_value
+        # self.max_value = max_value
+        self.register_buffer("min_value", tr.tensor(min_value, dtype=tr.float32))
+        self.register_buffer("max_value", tr.tensor(max_value, dtype=tr.float32))
 
     def __repr__(self):
         return (
@@ -44,7 +54,8 @@ class AbstractModule(torch.nn.Module):
     def __init__(self, sample_rate: int):
         super().__init__()
         self.sample_rate = sample_rate
-        self.normalizers = OrderedDict()
+        # self.normalizers = OrderedDict()
+        self.normalizers = nn.ModuleDict()
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError
@@ -695,3 +706,8 @@ class DDSP808Synth(Snare808):
             "tanh_gain",
         ]
         assert len(self.param_names) == self.n_params
+
+    def forward(self, params: T, num_samples: Optional[int] = None) -> T:
+        y = super().forward(params, num_samples)
+        y = y.unsqueeze(1)
+        return y
