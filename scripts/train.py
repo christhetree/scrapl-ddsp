@@ -84,11 +84,13 @@ if __name__ == "__main__":
 
     # ==================================================================================
     # config_name = "eval_mixing/train.yml"
-    config_name = "eval_808/train.yml"  # min = 0.000082, max = 0.016156
+    # config_name = "eval_808/train.yml"  # min = 0.000082, max = 0.016156
+    config_name = "eval_808/train_mars_808.yml"
 
     log.info(f"Running with config: {config_name}")
     seeds = None
     # seeds = list(range(20))
+    # seeds = list(range(10, 20))
 
     config_path = os.path.join(CONFIGS_DIR, config_name)
 

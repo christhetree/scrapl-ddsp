@@ -4,6 +4,7 @@ init_args:
   J: 12
   Q1: 8
   Q2: 2
-  T: null
+#  T: null
+  T: 64
   max_order: 2
   p: 2

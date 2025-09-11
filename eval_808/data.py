@@ -1,11 +1,12 @@
 import logging
 import os
 from typing import List
-
+import numpy as np
 import pytorch_lightning as pl
 import torch as tr
 from torch import Tensor as T
 from torch.utils.data import DataLoader, Dataset
+import torchaudio
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -77,6 +78,105 @@ class SeedDataModule(pl.LightningDataModule):
             seeds=test_seeds,
             n_params=n_params,
         )
+
+    def train_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
+            drop_last=True,
+        )
+
+    def val_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            drop_last=True,
+        )
+
+    def test_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self.test_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            drop_last=True,
+        )
+
+
+class WavDataset(Dataset):
+    def __init__(
+        self,
+        samples: T,
+    ):
+        super().__init__()
+        self.samples = samples
+
+    def __len__(self) -> int:
+        return self.samples.size(0)
+
+    def __getitem__(self, idx: int) -> T:
+        return self.samples[idx]
+
+
+class WavDataModule(pl.LightningDataModule):
+    def __init__(
+        self,
+        batch_size: int,
+        root_dir: str,
+        sr: int,
+        n_samples: int,
+        n_train: int,
+        n_val: int,
+        n_test: int,
+        shuffle_seed: int = 42,
+        num_workers: int = 0,
+    ):
+        super().__init__()
+        self.batch_size = batch_size
+        self.root_dir = root_dir
+        self.sr = sr
+        self.n_samples = n_samples
+        self.n_train = n_train
+        self.n_val = n_val
+        self.n_test = n_test
+        self.num_workers = num_workers
+
+        sample_paths = [p for p in os.listdir(root_dir) if p.endswith(".wav")]
+        log.info(f"Found {len(sample_paths)} .wav files in {root_dir}")
+        assert len(sample_paths) >= (n_train + n_val + n_test), (
+            f"Not enough .wav files in {root_dir}"
+        )
+        sample_paths = sorted(sample_paths)
+        np.random.seed(shuffle_seed)
+        np.random.shuffle(sample_paths)
+
+        samples = []
+        for p in sample_paths:
+            sample, sample_sr = torchaudio.load(os.path.join(root_dir, p))
+            assert sample_sr == sr
+            if sample.size(0) > 1:
+                sample = tr.mean(sample, dim=0, keepdim=True)
+                log.warning(f"File {p} has more than 1 channel")
+            if sample.size(1) >= n_samples:
+                sample = sample[:, :n_samples]
+            else:
+                sample = tr.nn.functional.pad(
+                    sample, (0, n_samples - sample.size(1)), mode="constant", value=0.0
+                )
+            samples.append(sample)
+        samples = tr.stack(samples, dim=0)
+
+        train_samples = samples[:n_train]
+        val_samples = samples[n_train : n_train + n_val]
+        test_samples = samples[n_train + n_val : n_train + n_val + n_test]
+
+        self.train_dataset = WavDataset(train_samples)
+        self.val_dataset = WavDataset(val_samples)
+        self.test_dataset = WavDataset(test_samples)
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(

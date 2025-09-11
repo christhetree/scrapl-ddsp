@@ -21,7 +21,7 @@ class Spectral2DCNN(nn.Module):
         out_channels: Optional[List[int]] = None,
         bin_dilations: Optional[List[int]] = None,
         temp_dilations: Optional[List[int]] = None,
-        pool_size: Tuple[int, int] = (2, 2),
+        pool_sizes: Optional[List[List[int]]] = None,
         latent_dim: int = 32,
         use_ln: bool = True,
         dropout_prob: float = 0.25,
@@ -32,14 +32,13 @@ class Spectral2DCNN(nn.Module):
         self.n_frames = n_frames
         self.in_ch = in_ch
         self.kernel_size = kernel_size
-        self.pool_size = pool_size
         self.latent_dim = latent_dim
         self.use_ln = use_ln
         self.dropout_prob = dropout_prob
         self.n_params = n_params
 
         if out_channels is None:
-            out_channels = [64] * 5
+            out_channels = [128] * 5
         self.out_channels = out_channels
         if bin_dilations is None:
             bin_dilations = [1] * len(out_channels)
@@ -47,10 +46,20 @@ class Spectral2DCNN(nn.Module):
         if temp_dilations is None:
             temp_dilations = [1] * len(out_channels)
         self.temp_dilations = temp_dilations
-        assert len(out_channels) == len(bin_dilations) == len(temp_dilations)
+        if pool_sizes is None:
+            pool_sizes = [(2, 2)] * len(out_channels)
+        self.pool_sizes = pool_sizes
+        assert (
+            len(out_channels)
+            == len(bin_dilations)
+            == len(temp_dilations)
+            == len(pool_sizes)
+        )
 
         layers = []
-        for out_ch, b_dil, t_dil in zip(out_channels, bin_dilations, temp_dilations):
+        for out_ch, b_dil, t_dil, pool_size in zip(
+            out_channels, bin_dilations, temp_dilations, pool_sizes
+        ):
             if use_ln:
                 layers.append(
                     nn.LayerNorm([n_bins, n_frames], elementwise_affine=False)
@@ -100,6 +109,7 @@ class Spectral2DCNN(nn.Module):
         assert x.ndim == 3
         x = x.unsqueeze(1)
         x = self.cnn(x)
+        # log.info(f"x.shape after cnn: {x.shape}")
         x = tr.mean(x, dim=(2, 3))
         x = self.fc(x)
         x = self.fc_act(x)

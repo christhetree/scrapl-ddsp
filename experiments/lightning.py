@@ -327,7 +327,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                 self.global_step * self.trainer.accumulate_grad_batches * batch_size
             )
         # TODO(cm): check if this works for DDP
-        self.log(f"global_n", float(self.global_n), sync_dist=True)
+        # self.log(f"global_n", float(self.global_n))
 
         # TODO(cm): make this cleaner
         seed_range = 9999999
@@ -393,27 +393,27 @@ class SCRAPLLightingModule(pl.LightningModule):
             loss_d = self.loss_func(theta_d_0to1_hat, theta_d_0to1)
             loss_s = self.loss_func(theta_s_0to1_hat, theta_s_0to1)
             loss = loss_d + loss_s
-            self.log(
-                f"{stage}/p_loss_{self.loss_name}", loss, prog_bar=True, sync_dist=True
-            )
+            # self.log(
+            #     f"{stage}/p_loss_{self.loss_name}", loss, prog_bar=True
+            # )
         else:
             x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat)
             # x_hat = self.synth(theta_d_0to1_hat, theta_s_0to1_hat, seed_hat, seed_target=seed)
             with tr.no_grad():
                 U_hat = self.calc_U(x_hat)
             loss = self.loss_func(x_hat, x)
-            self.log(f"{stage}/{self.loss_name}", loss, prog_bar=True, sync_dist=True)
+            # self.log(f"{stage}/{self.loss_name}", loss, prog_bar=True)
 
-        self.log(f"{stage}/l1_d", l1_d, prog_bar=True, sync_dist=True)
-        self.log(f"{stage}/l1_s", l1_s, prog_bar=True, sync_dist=True)
-        self.log(f"{stage}/l1_theta", l1_theta, prog_bar=True, sync_dist=True)
-        self.log(f"{stage}/l2_d", l2_d, prog_bar=False, sync_dist=True)
-        self.log(f"{stage}/l2_s", l2_s, prog_bar=False, sync_dist=True)
-        self.log(f"{stage}/l2_theta", l2_theta, prog_bar=False, sync_dist=True)
-        self.log(f"{stage}/rmse_d", rmse_d, prog_bar=False, sync_dist=True)
-        self.log(f"{stage}/rmse_s", rmse_s, prog_bar=False, sync_dist=True)
-        self.log(f"{stage}/rmse_theta", rmse_theta, prog_bar=False, sync_dist=True)
-        self.log(f"{stage}/loss", loss, prog_bar=False, sync_dist=True)
+        # self.log(f"{stage}/l1_d", l1_d, prog_bar=True)
+        # self.log(f"{stage}/l1_s", l1_s, prog_bar=True)
+        # self.log(f"{stage}/l1_theta", l1_theta, prog_bar=True)
+        # self.log(f"{stage}/l2_d", l2_d, prog_bar=False)
+        # self.log(f"{stage}/l2_s", l2_s, prog_bar=False)
+        # self.log(f"{stage}/l2_theta", l2_theta, prog_bar=False)
+        # self.log(f"{stage}/rmse_d", rmse_d, prog_bar=False)
+        # self.log(f"{stage}/rmse_s", rmse_s, prog_bar=False)
+        # self.log(f"{stage}/rmse_theta", rmse_theta, prog_bar=False)
+        self.log(f"{stage}/loss", loss, prog_bar=False)
 
         with tr.no_grad():
             if x is None and self.log_x:
@@ -424,7 +424,7 @@ class SCRAPLLightingModule(pl.LightningModule):
                 U_hat = self.calc_U(x_hat)
 
         # TSV logging
-        if self.tsv_path:
+        if stage != "train" and self.tsv_path:
             seed_everything = tr.random.initial_seed()
             time_epoch = time.time()
             with open(self.tsv_path, "a") as f:

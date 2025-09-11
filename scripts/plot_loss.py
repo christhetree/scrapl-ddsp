@@ -340,15 +340,15 @@ if __name__ == "__main__":
         # ("mss_rev_prev", os.path.join(OUT_DIR, f"results/texture/mss_revisited_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
         # ("saga_ds_w0", os.path.join(OUT_DIR, f"results/texture/scrapl_saga_ds_w0_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
 
-        # ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("saga_pwa_b10_none", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__adaptive_n_batches_10_n_iter_20_param_agg_none__texture_32_32_5_meso_b32.tsv")),
-        # ("jtfs", os.path.join(OUT_DIR, f"iclr_2026_done/jtfst_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("mss", os.path.join(OUT_DIR, f"iclr_2026_done/mss_1e-5__texture_32_32_5_meso_b32__2.tsv")),
-        # ("mss_rev", os.path.join(OUT_DIR, f"iclr_2026_done/mss_revisited_1e-5__texture_32_32_5_meso_b32__2.tsv")),
-        # ("rand_mss", os.path.join(OUT_DIR, f"iclr_2026_done/rand_mss_1e-5__texture_32_32_5_meso_b32__2.tsv")),
-        # ("clap", os.path.join(OUT_DIR, f"iclr_2026_raw/clap_adam_1e-5__texture_32_32_5_meso_b32__testing.tsv")),
+        ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32.tsv")),
+        ("saga_pwa_b10_none", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__adaptive_n_batches_10_n_iter_20_param_agg_none__texture_32_32_5_meso_b32.tsv")),
+        ("jtfs", os.path.join(OUT_DIR, f"iclr_2026_done/jtfst_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("mss", os.path.join(OUT_DIR, f"iclr_2026_done/mss_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("mss_rev", os.path.join(OUT_DIR, f"iclr_2026_done/mss_revisited_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("rand_mss", os.path.join(OUT_DIR, f"iclr_2026_done/rand_mss_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("clap", os.path.join(OUT_DIR, f"iclr_2026_done/clap_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
         # ("panns", os.path.join(OUT_DIR, f"iclr_2026_done/panns_wglm_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("ploss", os.path.join(OUT_DIR, f"iclr_2026_done/ploss_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
+        ("ploss", os.path.join(OUT_DIR, f"iclr_2026_done/ploss_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
 
         # ("adam", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
         # # ("saga_adam", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
@@ -367,14 +367,14 @@ if __name__ == "__main__":
         # ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-4__chirplet_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
         # ("saga_pwa_b1_none", os.path.join(OUT_DIR, f"iclr_2026_raw/scrapl_saga_pwa_1e-4__adaptive_n_batches_1_n_iter_20_param_agg_none__chirplet_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
 
-        ("lo_lo", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo.tsv")),
-        ("lo_lo_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo__probs_n_batches_1.tsv")),
-        ("lo_med", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med.tsv")),
-        ("lo_med_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med__probs_n_batches_1.tsv")),
-        ("hi_med", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_med.tsv")),
-        ("hi_med_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_med__probs_n_batches_1.tsv")),
-        ("hi_hi", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi.tsv")),
-        ("hi_hi_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi__probs_n_batches_1.tsv")),
+        # ("lo_lo", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo.tsv")),
+        # ("lo_lo_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo__probs_n_batches_1.tsv")),
+        # ("lo_med", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med.tsv")),
+        # ("lo_med_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med__probs_n_batches_1.tsv")),
+        # ("hi_med", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_med.tsv")),
+        # ("hi_med_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_med__probs_n_batches_1.tsv")),
+        # ("hi_hi", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi.tsv")),
+        # ("hi_hi_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi__probs_n_batches_1.tsv")),
 
         # ("pwa_saga", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
@@ -424,7 +424,7 @@ if __name__ == "__main__":
         for name, tsv_path in tsv_names_and_paths:
             log.info(f"Plotting {name}, stage: {stage} ===================================")
             data = prepare_tsv_data(
-                tsv_path, stage, x_col, y_col, y_converge_val=0.1, allow_var_n=True
+                tsv_path, stage, x_col, y_col, y_converge_val=0.1, allow_var_n=False
             )
             plot_xy_vals(ax, data, title=name, plot_95ci=True, plot_range=False, use_log_y=use_log_y)
             df_cols = ["name"] + data["tsv_col_names"]
@@ -441,7 +441,7 @@ if __name__ == "__main__":
             df["tv_x_normed_95ci"] = df["tv_x_normed_95ci"] * 100
         df["con_rate"] = df["con_rate"] * 100
         # pd.set_option("display.float_format", lambda x: "%.2f" % x)
-        # pd.set_option("display.float_format", lambda x: "%.3f" % x)
+        pd.set_option("display.float_format", lambda x: "%.3f" % x)
         # pd.set_option("display.float_format", lambda x: "%.0f" % x)
         print(df.to_string(index=False))
         print()

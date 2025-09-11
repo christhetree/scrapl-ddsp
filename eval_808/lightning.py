@@ -4,16 +4,19 @@ import time
 from datetime import datetime
 from typing import Dict, Optional, Literal
 
+import auraloss
 import pytorch_lightning as pl
 import torch as tr
+import torchaudio
 from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
 
 from eval_808.features import FeatureCollection, CascadingFrameExtactor
+from experiments import util
 from experiments.lightning import SCRAPLLightingModule
-from experiments.losses import JTFSTLoss, Scat1DLoss
-from experiments.paths import OUT_DIR
+from experiments.losses import JTFSTLoss, Scat1DLoss, MFCCDistance
+from experiments.paths import OUT_DIR, CONFIGS_DIR
 from experiments.scrapl_loss import SCRAPLLoss
 
 logging.basicConfig()
@@ -97,6 +100,30 @@ class DDSP808LightingModule(pl.LightningModule):
         self.mse = nn.MSELoss()
         self.global_n = 0
 
+        self.audio_dists = nn.ModuleDict()
+        win_len = 2048
+        hop_len = 512
+        self.audio_dists["mss_meso_log"] = util.load_class_from_yaml(
+            os.path.join(CONFIGS_DIR, "losses/mss_meso_log.yml")
+        )
+        self.audio_dists["scat_1d_o2"] = util.load_class_from_yaml(
+            os.path.join(CONFIGS_DIR, "eval_808/scat_1d.yml")
+        )
+        self.audio_dists["mel_stft"] = auraloss.freq.MelSTFTLoss(
+            sample_rate=synth.sr,
+            fft_size=win_len,
+            hop_size=hop_len,
+            win_length=win_len,
+            n_mels=128,
+        )
+        self.audio_dists["mfcc"] = MFCCDistance(
+            sr=synth.sr,
+            log_mels=True,
+            n_fft=win_len,
+            hop_len=hop_len,
+            n_mels=128,
+        )
+
         if grad_mult != 1.0:
             assert not isinstance(self.loss_func, SCRAPLLoss)
             log.info(f"Adding grad multiplier hook of {self.grad_mult}")
@@ -120,20 +147,22 @@ class DDSP808LightingModule(pl.LightningModule):
             "global_n",
             "time_epoch",
             "loss",
-            "l1_theta",
-            "l2_theta",
-            "rmse_theta",
+            # "l1_theta",
+            # "l2_theta",
+            # "rmse_theta",
         ]
-        for idx in range(self.n_params):
-            param_name = synth.param_names[idx]
-            tsv_cols.append(f"l1_{param_name}")
-            tsv_cols.append(f"l2_{param_name}")
-            tsv_cols.append(f"rmse_{param_name}")
-        tsv_cols.extend([
-            "l1_fe",
-            "l2_fe",
-            "rmse_fe",
-        ])
+        # for idx in range(self.n_params):
+        #     param_name = synth.param_names[idx]
+        #     tsv_cols.append(f"l1_{param_name}")
+        #     tsv_cols.append(f"l2_{param_name}")
+        #     tsv_cols.append(f"rmse_{param_name}")
+        tsv_cols.extend(
+            [
+                "l1_fe",
+                "l2_fe",
+                "rmse_fe",
+            ]
+        )
         for fe_name in fe_names:
             tsv_cols.append(f"l1_{fe_name}")
             tsv_cols.append(f"l2_{fe_name}")
@@ -150,6 +179,14 @@ class DDSP808LightingModule(pl.LightningModule):
         if tr.cuda.is_available() and not use_warmup:
             self.model = tr.compile(self.model)
 
+        self.samples_dir = os.path.join(OUT_DIR, "eval_808_samples")
+        self.max_n_samples = 16
+        os.makedirs(self.samples_dir, exist_ok=True)
+
+    def on_fit_start(self) -> None:
+        if self.use_warmup:
+            self.warmup()
+
     def on_train_start(self) -> None:
         try:
             if self.loss_func.use_pwa:
@@ -164,9 +201,6 @@ class DDSP808LightingModule(pl.LightningModule):
             pass
 
         self.global_n = 0
-
-        if self.use_warmup:
-            self.warmup()
 
     def state_dict(self, *args, **kwargs) -> Dict[str, T]:
         # TODO(cm): support resuming training with grad hooks
@@ -215,11 +249,13 @@ class DDSP808LightingModule(pl.LightningModule):
         train_dl_iter = iter(self.trainer.datamodule.train_dataloader())
         theta_fn_kwargs = []
         for batch_idx in range(self.warmup_n_batches):
-            theta = next(train_dl_iter)
+            # theta = next(train_dl_iter)
             # TODO(cm): why is this needed here and not in the other lightning.py?
-            theta = theta.to(self.device)
-            with tr.no_grad():
-                x = self.synth(theta)
+            # theta = theta.to(self.device)
+            # with tr.no_grad():
+            #     x = self.synth(theta)
+            x = next(train_dl_iter)
+            x = x.to(self.device)
             t_kwargs = {"x": x}
             theta_fn_kwargs.append(t_kwargs)
 
@@ -258,10 +294,11 @@ class DDSP808LightingModule(pl.LightningModule):
         log.info(f"Completed warmup, saved probs to {probs_save_path}")
         exit()
 
-
     def step(self, batch: T, stage: str) -> Dict[str, T]:
-        theta_0to1 = batch
-        batch_size = theta_0to1.size(0)
+        # theta_0to1 = batch
+        # batch_size = theta_0to1.size(0)
+        x = batch
+        batch_size = x.size(0)
         if stage == "train":
             self.global_n = (
                 self.global_step * self.trainer.accumulate_grad_batches * batch_size
@@ -269,7 +306,7 @@ class DDSP808LightingModule(pl.LightningModule):
         self.log(f"global_n", float(self.global_n))
 
         with tr.no_grad():
-            x = self.synth(theta_0to1)
+            # x = self.synth(theta_0to1)
             U = self.calc_U(x)
 
         U_hat = None
@@ -278,38 +315,38 @@ class DDSP808LightingModule(pl.LightningModule):
         theta_0to1_hat = tr.stack(theta_0to1_hat, dim=1)
 
         # Loss
-        if self.use_p_loss:
-            loss = self.loss_func(theta_0to1_hat, theta_0to1)
-            with tr.no_grad():
-                x_hat = self.synth(theta_0to1_hat)
-                U_hat = self.calc_U(x_hat)
-        else:
-            x_hat = self.synth(theta_0to1_hat)
-            with tr.no_grad():
-                U_hat = self.calc_U(x_hat)
-            loss = self.loss_func(x_hat, x)
+        # if self.use_p_loss:
+        #     loss = self.loss_func(theta_0to1_hat, theta_0to1)
+        #     with tr.no_grad():
+        #         x_hat = self.synth(theta_0to1_hat)
+        #         U_hat = self.calc_U(x_hat)
+        # else:
+        x_hat = self.synth(theta_0to1_hat)
+        with tr.no_grad():
+            U_hat = self.calc_U(x_hat)
+        loss = self.loss_func(x_hat, x)
 
-        # Theta metrics
-        l1_theta = self.l1(theta_0to1_hat, theta_0to1)
-        l2_theta = self.mse(theta_0to1_hat, theta_0to1)
-        rmse_theta = l2_theta.sqrt()
-        self.log(f"{stage}/l1_theta", l1_theta, prog_bar=True)
-        self.log(f"{stage}/l2_theta", l2_theta, prog_bar=False)
-        self.log(f"{stage}/rmse_theta", rmse_theta, prog_bar=False)
-        l1_theta_vals = []
-        l2_theta_vals = []
-        rmse_theta_vals = []
-        for idx in range(self.n_params):
-            l1 = self.l1(theta_0to1_hat[:, idx], theta_0to1[:, idx])
-            l2 = self.mse(theta_0to1_hat[:, idx], theta_0to1[:, idx])
-            rmse = l2.sqrt()
-            l1_theta_vals.append(l1)
-            l2_theta_vals.append(l2)
-            rmse_theta_vals.append(rmse)
-            param_name = self.synth.param_names[idx]
-            self.log(f"{stage}/l1_{param_name}", l1, prog_bar=False)
-            self.log(f"{stage}/l2_{param_name}", l2, prog_bar=False)
-            self.log(f"{stage}/rmse_{param_name}", rmse, prog_bar=False)
+        # # Theta metrics
+        # l1_theta = self.l1(theta_0to1_hat, theta_0to1)
+        # l2_theta = self.mse(theta_0to1_hat, theta_0to1)
+        # rmse_theta = l2_theta.sqrt()
+        # self.log(f"{stage}/l1_theta", l1_theta, prog_bar=True)
+        # self.log(f"{stage}/l2_theta", l2_theta, prog_bar=False)
+        # self.log(f"{stage}/rmse_theta", rmse_theta, prog_bar=False)
+        # l1_theta_vals = []
+        # l2_theta_vals = []
+        # rmse_theta_vals = []
+        # for idx in range(self.n_params):
+        #     l1 = self.l1(theta_0to1_hat[:, idx], theta_0to1[:, idx])
+        #     l2 = self.mse(theta_0to1_hat[:, idx], theta_0to1[:, idx])
+        #     rmse = l2.sqrt()
+        #     l1_theta_vals.append(l1)
+        #     l2_theta_vals.append(l2)
+        #     rmse_theta_vals.append(rmse)
+        #     param_name = self.synth.param_names[idx]
+        #     self.log(f"{stage}/l1_{param_name}", l1, prog_bar=False)
+        #     self.log(f"{stage}/l2_{param_name}", l2, prog_bar=False)
+        #     self.log(f"{stage}/rmse_{param_name}", rmse, prog_bar=False)
 
         # Feature metrics
         feat = self.fe(x.squeeze(1))
@@ -318,9 +355,6 @@ class DDSP808LightingModule(pl.LightningModule):
         l1_feat = self.l1(feat_hat, feat)
         l2_feat = self.mse(feat_hat, feat)
         rmse_feat = l2_feat.sqrt()
-        self.log(f"{stage}/l1_fe", l1_feat, prog_bar=True)
-        self.log(f"{stage}/l2_fe", l2_feat, prog_bar=False)
-        self.log(f"{stage}/rmse_fe", rmse_feat, prog_bar=False)
         l1_fe_vals = []
         l2_fe_vals = []
         rmse_fe_vals = []
@@ -332,11 +366,25 @@ class DDSP808LightingModule(pl.LightningModule):
             l2_fe_vals.append(l2)
             rmse_fe_vals.append(rmse)
             feat_name = self.fe_names[idx]
-            self.log(f"{stage}/l1_{feat_name}", l1, prog_bar=False)
-            self.log(f"{stage}/l2_{feat_name}", l2, prog_bar=False)
-            self.log(f"{stage}/rmse_{feat_name}", rmse, prog_bar=False)
+            self.log(f"{stage}/l1_fe_{feat_name}", l1, prog_bar=False)
+            self.log(f"{stage}/l2_fe_{feat_name}", l2, prog_bar=False)
+            self.log(f"{stage}/rmse_fe_{feat_name}", rmse, prog_bar=False)
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
+
+        # Audio metrics
+        if stage != "train":
+            for name, dist in self.audio_dists.items():
+                with tr.no_grad():
+                    dist_val = dist(x_hat, x)
+                self.log(f"{stage}/audio_{name}", dist_val, prog_bar=False)
+            with tr.no_grad():
+                l1_U = self.l1(U_hat, U)
+                l2_U = self.mse(U_hat, U)
+                rmse_U = l2_U.sqrt()
+            self.log(f"{stage}/audio_U_l1", l1_U, prog_bar=False)
+            self.log(f"{stage}/audio_U_l2", l2_U, prog_bar=False)
+            self.log(f"{stage}/audio_U_rmse", rmse_U, prog_bar=False)
 
         # TSV logging
         if self.tsv_path:
@@ -349,19 +397,21 @@ class DDSP808LightingModule(pl.LightningModule):
                 f"{self.global_n}",
                 f"{time_epoch}",
                 f"{loss.item()}",
-                f"{l1_theta.item()}",
-                f"{l2_theta.item()}",
-                f"{rmse_theta.item()}",
+                # f"{l1_theta.item()}",
+                # f"{l2_theta.item()}",
+                # f"{rmse_theta.item()}",
             ]
-            for idx in range(self.n_params):
-                row_elems.append(f"{l1_theta_vals[idx].item()}")
-                row_elems.append(f"{l2_theta_vals[idx].item()}")
-                row_elems.append(f"{rmse_theta_vals[idx].item()}")
-            row_elems.extend([
-                f"{l1_feat.item()}",
-                f"{l2_feat.item()}",
-                f"{rmse_feat.item()}",
-            ])
+            # for idx in range(self.n_params):
+            #     row_elems.append(f"{l1_theta_vals[idx].item()}")
+            #     row_elems.append(f"{l2_theta_vals[idx].item()}")
+            #     row_elems.append(f"{rmse_theta_vals[idx].item()}")
+            row_elems.extend(
+                [
+                    f"{l1_feat.item()}",
+                    f"{l2_feat.item()}",
+                    f"{rmse_feat.item()}",
+                ]
+            )
             for idx in range(self.n_features):
                 row_elems.append(f"{l1_fe_vals[idx].item()}")
                 row_elems.append(f"{l2_fe_vals[idx].item()}")
@@ -370,13 +420,24 @@ class DDSP808LightingModule(pl.LightningModule):
             with open(self.tsv_path, "a") as f:
                 f.write(row)
 
+        if stage != "train":
+            for idx in range(batch_size):
+                if idx >= self.max_n_samples:
+                    break
+                curr_x = x[idx, :, :].detach().cpu()
+                curr_x_hat = x_hat[idx, :, :].detach().cpu()
+                save_path = os.path.join(self.samples_dir, f"{self.run_name}__{stage}__{idx}.wav")
+                torchaudio.save(save_path, curr_x, sample_rate=self.synth.sr)
+                save_path = os.path.join(self.samples_dir, f"{self.run_name}__{stage}__{idx}__hat.wav")
+                torchaudio.save(save_path, curr_x_hat, sample_rate=self.synth.sr)
+
         out_dict = {
             "loss": loss,
             "U": U,
             "U_hat": U_hat,
             "x": x,
             "x_hat": x_hat,
-            "theta_0to1": theta_0to1,
+            # "theta_0to1": theta_0to1,
             "theta_0to1_hat": theta_0to1_hat,
         }
         return out_dict

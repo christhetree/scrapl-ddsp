@@ -9,7 +9,7 @@ init_args:
   kernel_size: [3, 3]
 #  out_channels: [64, 64, 64, 64, 64]
   out_channels: [128, 128, 128, 128, 128]
-  pool_size: [2, 2]
+  pool_sizes: [[ 2, 2 ], [ 2, 2 ], [ 2, 2 ], [ 2, 2 ], [ 2, 2 ]]
 #  latent_dim: 32
   latent_dim: 64
   use_ln: true

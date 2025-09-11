@@ -1,13 +1,12 @@
 class_path: experiments.models.Spectral2DCNN
 init_args:
-  n_bins: 120
+  n_bins: 108
   n_frames: 173
   in_ch: 1
   kernel_size: [3, 3]
-  out_channels: [128, 128, 128, 128, 128, 128]
-  pool_size: [2, 2]
-  latent_dim: 256
+  out_channels: [128, 128, 128, 128, 128]
+  pool_sizes: [[2, 2], [2, 2], [2, 3], [3, 3], [3, 3]]
+  latent_dim: 128
   use_ln: true
-  dropout_prob: 0.4
-#  dropout_prob: 0.0
+  dropout_prob: 0.25
   n_params: 14
