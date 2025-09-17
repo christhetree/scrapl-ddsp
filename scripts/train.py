@@ -85,7 +85,7 @@ if __name__ == "__main__":
     # ==================================================================================
     # config_name = "eval_mixing/train.yml"
     # config_name = "eval_808/train.yml"  # min = 0.000082, max = 0.016156
-    config_name = "eval_808/train_mars_808.yml"
+    config_name = "eval_808/train_mars_808.yml"  # min = 0.000138, max = 0.024875
 
     log.info(f"Running with config: {config_name}")
     seeds = None

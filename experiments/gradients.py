@@ -5,15 +5,14 @@ from typing import Optional
 
 import numpy as np
 import torch as tr
-import yaml
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, cm
 from torch import Tensor as T
 from torch import nn
 from tqdm import tqdm
 
-from experiments.losses import SCRAPLLoss, JTFSTLoss
+from experiments import util
 from experiments.paths import CONFIGS_DIR, OUT_DIR
-from experiments.synth import ChirpTextureSynth
+from experiments.synths import ChirpTextureSynth
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ def calc_distance_grad_matrices(
 ) -> (T, T, T, T, T):
     # TODO(cm): control meso seed
     seed = tr.tensor(seed)
-    x = synth(theta_density, theta_slope, seed)
+    x = synth.make_x(theta_density, theta_slope, seed)
     # J_cqt = 5
     # cqt_params = {
     #     "sr": synth.sr,
@@ -70,7 +69,7 @@ def calc_distance_grad_matrices(
             if use_rand_seeds:
                 # TODO(cm): make cleaner
                 seed_hat = tr.randint(seed.item(), seed.item() + 999999, (1,))
-            x_hat = synth(theta_density_hat, theta_slope_hat, seed_hat)
+            x_hat = synth.make_x(theta_density_hat, theta_slope_hat, seed_hat)
 
             # with tr.no_grad():
             #     U = SCRAPLLightingModule.calc_cqt(x_hat, cqt).squeeze()
@@ -134,7 +133,18 @@ def plot_gradients(
 
     fontsize = 14
     ax = plt.gca()
-    ax.imshow(dist_matrix.numpy(), cmap="gray_r")
+    # ax.imshow(dist_matrix.numpy(), cmap="gray_r")
+    # theta_slope_hats = theta_slope_hats.detach().cpu()
+    # theta_density_hats = theta_density_hats.detach().cpu()
+    dist_matrix = dist_matrix.detach().cpu()
+    cf = ax.contourf(
+        theta_slope_indices,
+        theta_density_indices,
+        dist_matrix,
+        levels=16,
+        cmap=cm.coolwarm,
+    )
+
     # ax.imshow(tr.log1p(dist_matrix).numpy(), cmap='gray_r')
     x_labels = [f"{theta_slope_hat:.2f}" for theta_slope_hat in theta_slope_hats]
     ax.set_xticks(theta_slope_indices)
@@ -147,13 +157,13 @@ def plot_gradients(
 
     theta_slope_idx = tr.argmin(tr.abs(theta_slope_hats - theta_slope)).item()
     theta_density_idx = tr.argmin(tr.abs(theta_density_hats - theta_density)).item()
-    ax.scatter([theta_slope_idx], [theta_density_idx], color="blue", marker="o", s=100)
+    ax.scatter([theta_slope_idx], [theta_density_idx], color="green", marker="o", s=100)
     ax.quiver(
         theta_slope_indices,
         theta_density_indices,
         -sgm.numpy(),
         -dgm.numpy(),
-        color="red",
+        color="black",
         angles="xy",
         scale=8.0,
         scale_units="width",
@@ -168,7 +178,7 @@ def plot_gradients(
 
 
 if __name__ == "__main__":
-    seed = 42
+    seed = 43
     tr.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
@@ -184,52 +194,37 @@ if __name__ == "__main__":
 
     # config_path = os.path.join(CONFIGS_DIR, "synths/chirp_8khz.yml")
     config_path = os.path.join(CONFIGS_DIR, "synths/chirp_texture_8khz.yml")
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-    synth = ChirpTextureSynth(**config["init_args"])
+    synth = util.load_class_from_yaml(config_path)
     synth = synth.to(device)
 
-    config_path = os.path.join(CONFIGS_DIR, "losses/scrapl_dtfa.yml")
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-    scrapl_loss = SCRAPLLoss(**config["init_args"])
+    config_path = os.path.join(CONFIGS_DIR, "losses/scrapl.yml")
+    scrapl_loss = util.load_class_from_yaml(config_path)
 
-    config_path = os.path.join(CONFIGS_DIR, "losses/jtfst_dtfa.yml")
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-    jtfst_loss = JTFSTLoss(**config["init_args"])
+    config_path = os.path.join(CONFIGS_DIR, "losses/jtfst.yml")
+    jtfs_loss = util.load_class_from_yaml(config_path)
 
-    # config_path = os.path.join(CONFIGS_DIR, "losses/jtfst2_mine_2d.yml")
-    # with open(config_path, 'r') as f:
-    #     config = yaml.safe_load(f)
-    # jtfst_mine_2d_loss = MyJTFST2DLoss(**config["init_args"])
+    config_path = os.path.join(CONFIGS_DIR, "losses/mss_meso_log.yml")
+    mss_meso_log_loss = util.load_class_from_yaml(config_path)
 
     # dist_func = nn.L1Loss()
     # dist_func = nn.MSELoss()
-    # dist_func = auraloss.freq.RandomResolutionSTFTLoss(max_fft_size=16384 * 2 - 1)
-    # dist_func = auraloss.freq.MultiResolutionSTFTLoss()
     # dist_func = jtfst_loss
-    dist_func = scrapl_loss
-    # dist_func = jtfst_mine_2d_loss
-    # dist_func = WaveletLoss(sr=synth.sr,
-    #                         n_samples=synth.n_samples,
-    #                         J=6,
-    #                         Q1=24)
-    # dist_func = TimeFrequencyScatteringLoss(shape=(synth.n_samples,), J=6)
-    # dist_func = MultiScaleSpectralLoss()
+    # dist_func = scrapl_loss
+    dist_func = mss_meso_log_loss
 
     dist_func = dist_func.to(device)
 
     # use_rand_seeds = False  # Micro
     use_rand_seeds = True  # Meso
-    theta_density = tr.tensor(0.5)
+    theta_density = tr.tensor(0.2)
     # theta_slope = tr.tensor(0.25)
-    theta_slope = tr.tensor(0.4)
+    theta_slope = tr.tensor(0.5)
     n_density = 9
     n_slope = 9
-    n_trials = 50
+    n_trials = 1
+    # n_trials = 50
 
-    if dist_func == jtfst_loss or dist_func == scrapl_loss:
+    if dist_func == jtfs_loss or dist_func == scrapl_loss:
         psi1_freqs = [f["xi"] * synth.sr for f in dist_func.jtfs.psi1_f]
         psi1_max_freq = max(psi1_freqs)
         psi1_min_freq = min(psi1_freqs)
@@ -266,10 +261,10 @@ if __name__ == "__main__":
         )
     else:
         suffix = f"d{n_density}s{n_slope}t{n_trials}"
-    # exit()
 
-    for path_idx in tqdm(range(dist_func.n_paths)):
-        dist_func.fixed_path_idx = path_idx
+    # for path_idx in tqdm(range(dist_func.n_paths)):
+    for path_idx in tqdm([None]):
+        # dist_func.fixed_path_idx = path_idx
 
         if use_rand_seeds:
             save_name = f"{dist_func.__class__.__name__}__meso__{suffix}__p{path_idx}"

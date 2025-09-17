@@ -131,7 +131,7 @@ if __name__ == "__main__":
     z = z.log1p()
 
     plt.rcParams.update({"font.size": 16})
-    fig, ax = plt.subplots(1, 1, figsize=(9, 6), dpi=120)
+    fig, ax = plt.subplots(1, 1, figsize=(9, 6), dpi=240)
     norm = TwoSlopeNorm(vmin=0.0, vcenter=mid_z_val, vmax=max_z_val)
     cf = ax.contourf(unique_x, unique_y, z, levels=32, cmap=cm.coolwarm, norm=norm)
     ax.scatter(x, y, color="black", s=15.0)

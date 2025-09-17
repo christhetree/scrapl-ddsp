@@ -2,31 +2,33 @@ seed_everything: 42
 
 custom:
   project_name: scrapl
-#  model_name: mss_meso_log_724k_adamw_1e-5
-#  model_name: mss_rev_724k_adamw_1e-5
-  model_name: scrapl_T128_F1_saga_pwa_724k_1e-5
+#  model_name: mss_meso_log_724k_adamw_1e-4
+#  model_name: mss_rev_724k_adamw_1e-4
+  model_name: scrapl_saga_pwa_724k_1e-4
+#  model_name: scrapl_T2048_F1_Jfr5_saga_pwa_724k_5e-5
 #  model_name: jtfs_T128_F1_724k_adamw_1e-5
-  dataset_name: mars_808_n681_b16_seed0
-  cpu_batch_size: 2
+  dataset_name: mars_808_n681_b8
+  cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
-#  use_wandb_gpu: false
-  use_wandb_gpu: true
+  use_wandb_gpu: false
+#  use_wandb_gpu: true
 
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [4]
-  max_epochs: 200
+  devices: [0]
+  max_epochs: 50
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 2
+  enable_checkpointing: false
 
 data:
   class_path: eval_808.data.WavDataModule
   init_args:
-    batch_size: 16
-#    batch_size: 8
+#    batch_size: 16
+    batch_size: 8
     root_dir: ../data/808_dataset
     sr: 44100
     n_samples: 44100
@@ -56,7 +58,7 @@ model:
 #    use_p_loss: true
     feature_type: cqt
     cqt_eps: 1e-3
-#    scrapl_probs_path: ../data/adaptive_scrapl/scrapl_saga_pwa_1p2M_1e-4__theta14_10k_b16__probs__n_theta_14__n_params_91__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_42.pt
+#    scrapl_probs_path: ../data/adaptive_scrapl/scrapl_T128_F1_saga_pwa_724k_1e-5__mars_808_n681_b24_seed0__probs__n_theta_14__n_params_88__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_42.pt
 
 #    use_warmup: true
 #    warmup_n_batches: 1
@@ -64,12 +66,24 @@ model:
 #    warmup_n_iter: 20
 #    warmup_param_agg: none
 
-#    run_name: mss_meso_log_724k_adamw_1e-5__mars_808_n681_b16_seed0
-#    run_name: mss_rev_724k_adamw_1e-5__mars_808_n681_b16_seed0
-    run_name: scrapl_T128_F1_saga_pwa_724k_1e-5__mars_808_n681_b16_seed0
+#    run_name: mss_meso_log_724k_adamw_1e-4__mars_808_n681_b8
+#    run_name: mss_rev_724k_adamw_1e-4__mars_808_n681_b8
+#    run_name: scrapl_Q24_T128_F1_saga_pwa_724k_1e-4__mars_808_n681_b16_seed0_env2
+    run_name: scrapl_saga_pwa_724k_1e-4__mars_808_n681_b8
+#    run_name: scrapl_T2048_F1_Jfr5_saga_pwa_724k_5e-5__mars_808_n681_b8_noise
 #    run_name: jtfs_T128_F1_724k_adamw_1e-5__mars_808_n681_b16_seed0
 
 #    run_name: scrapl_saga_pwa_1p2M_1e-5__theta14_10k_b16
 
 #optimizer: ../opt/adam_w_1e-5.yml
-optimizer: ../opt/sgd_1e-5.yml
+#optimizer: ../opt/adam_w_1e-4.yml
+#optimizer: ../opt/sgd_1e-5.yml
+optimizer: ../opt/sgd_1e-4.yml
+#optimizer: ../opt/sgd_5e-5.yml
+
+#lr_scheduler:
+#  class_path: torch.optim.lr_scheduler.LinearLR
+#  init_args:
+#    start_factor: 1.0        # multiplier for initial lr (so 1.0 → 1e-4)
+#    end_factor: 0.1          # multiplier for final lr (so 0.1 → 1e-5)
+#    total_iters: 10000        # number of steps (epochs if interval=epoch)

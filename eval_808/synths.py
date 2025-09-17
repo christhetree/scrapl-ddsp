@@ -3,6 +3,7 @@ Modules for synthesizing drum sounds
 
 TODO: should we use torchsynth for this?
 """
+
 import json
 import logging
 import os
@@ -77,6 +78,11 @@ class ExpDecayEnvelope(AbstractModule):
         )
         self.attack_samples = int(0.001 * self.sample_rate)
         self.attack_incr = 1.0 / self.attack_samples
+        self.register_buffer(
+            "attack",
+            tr.linspace(0.0, 1.0, self.attack_samples).view(1, -1),
+            persistent=False,
+        )
 
     def forward(self, num_samples: int, decay: torch.Tensor):
         assert decay.ndim == 2
@@ -94,45 +100,72 @@ class ExpDecayEnvelope(AbstractModule):
         decay_samples = num_samples - self.attack_samples
         assert decay_samples > 0, "num_samples must be greater than attack_samples"
 
-        env = torch.ones(decay_rate.shape[0], decay_samples, device=decay_rate.device)
-        env[:, 1:] = decay_rate
-        env = torch.cumprod(env, dim=-1)
+        # env = torch.ones(decay_rate.shape[0], decay_samples, device=decay_rate.device)
+        # env[:, 1:] = decay_rate
+        # env = torch.cumprod(env, dim=-1)
 
-        # Add attack
-        attack = torch.ones(
-            decay_rate.shape[0], self.attack_samples, device=decay_rate.device
+        # ==============================================================================
+        # Sample indices for decay phase
+        bs = decay_rate.size(0)
+        t = (
+            torch.arange(num_samples - self.attack_samples, device=decay.device)
+            .view(1, -1)
+            .expand(bs, -1)
         )
-        attack = torch.cumsum(attack * self.attack_incr, dim=-1)
+        env = decay_rate**t
+        # assert torch.allclose(env, env2, atol=1e-7)
+        # ==============================================================================
+
+        # # Add attack
+        # attack = torch.ones(
+        #     decay_rate.shape[0], self.attack_samples, device=decay_rate.device
+        # )
+        # attack = torch.cumsum(attack * self.attack_incr, dim=-1)
 
         # Combine attack and decay
+        # env = torch.cat((attack, env), dim=-1)
+        attack = self.attack.expand(bs, -1)
         env = torch.cat((attack, env), dim=-1)
         return env
 
 
-class ExponentialDecay(AbstractModule):
+class ExpDecayEnvelope2(AbstractModule):
     """
     Exponential decay envelope
+    C++ version: ExpDecayEnvelope
     """
 
-    def __init__(self, sample_rate: int):
+    def __init__(
+        self, sample_rate: int, decay_min: float = -3.0, decay_max: float = 6.0
+    ):
         super().__init__(sample_rate=sample_rate)
         self.sample_rate = sample_rate
-        self.normalizers["decay"] = ParamaterNormalizer(10.0, 2000.0, "decay time ms")
+        self.normalizers["decay"] = ParamaterNormalizer(
+            decay_min, decay_max, "decay exponent (log)"
+        )
+        self.attack_samples = int(0.001 * self.sample_rate)
+        self.register_buffer(
+            "attack",
+            tr.linspace(0.0, 1.0, self.attack_samples).view(1, -1),
+            persistent=False,
+        )
 
     def forward(self, num_samples: int, decay: torch.Tensor):
         assert decay.ndim == 2
         assert decay.shape[1] == 1
+        assert (
+            decay.min() >= 0.0 and decay.max() <= 1.0
+        ), "param must be between 0 and 1"
 
-        # Calculated the samplewise decay rate
-        decay_ms = self.normalizers["decay"].from_0to1(decay)
-        decay_samples = decay_ms * self.sample_rate / 1000.0
-        decay_rate = 1.0 - (6.91 / decay_samples)
+        decay_samples = num_samples - self.attack_samples
+        decay_ramp = tr.linspace(1.0, 0.0, decay_samples, device=decay.device).view(1, -1)
+        decay = self.normalizers["decay"].from_0to1(decay).exp()
+        decay_ramp = decay_ramp ** decay
 
-        # Calculate the envelope
-        env = torch.ones(decay_rate.shape[0], num_samples, device=decay_rate.device)
-        env[:, 1:] = decay_rate
-        env = torch.cumprod(env, dim=-1)
-
+        bs = decay.size(0)
+        decay_ramp = decay_ramp.expand(bs, -1)
+        attack = self.attack.expand(bs, -1)
+        env = torch.cat((attack, decay_ramp), dim=-1)
         return env
 
 
@@ -673,7 +706,7 @@ class DDSP808Synth(Snare808):
         num_samples: int,
         buffer_noise: bool = False,
         buffer_size: int = 0,
-        J_cqt: int = 10,
+        J_cqt: int = 9,
         Q_cqt: int = 12,
         hop_len: int = 256,
     ):
@@ -710,4 +743,14 @@ class DDSP808Synth(Snare808):
     def forward(self, params: T, num_samples: Optional[int] = None) -> T:
         y = super().forward(params, num_samples)
         y = y.unsqueeze(1)
+        # if self.is_meso:
+        #     bs = y.size(0)
+        #     shifted_ys = []
+        #     for idx in range(bs):
+        #         delta = tr.randint(low=0, high=2048, size=(1,)).item()
+        #         curr_y = y[idx, :, :]
+        #         curr_y = tr.roll(curr_y, shifts=delta, dims=-1)
+        #         curr_y[:, :delta] = 0.0
+        #         shifted_ys.append(curr_y)
+        #     y = tr.stack(shifted_ys, dim=0)
         return y

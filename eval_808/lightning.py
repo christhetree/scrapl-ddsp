@@ -69,6 +69,21 @@ class DDSP808LightingModule(pl.LightningModule):
         self.warmup_n_iter = warmup_n_iter
         self.warmup_param_agg = warmup_param_agg
 
+        # ckpt_path = os.path.join(OUT_DIR, f"ploss_724k_adamw_1e-5__theta14_10k_b16__epoch_42_step_8041.ckpt")
+        # ckpt_path = None
+        # if ckpt_path is not None and os.path.exists(ckpt_path):
+        #     log.info(f"Loading pretrained model from {ckpt_path}")
+        #     state_dict = tr.load(ckpt_path, map_location="cpu")["state_dict"]
+        #     model_state_dict = {
+        #         k.replace("model._orig_mod.", ""): v
+        #         for k, v in state_dict.items()
+        #         if k.startswith("model._orig_mod.")
+        #     }
+        #     msg = self.model.load_state_dict(model_state_dict, strict=True)
+        #     log.info(f"Loaded model with msg: {msg}")
+        # else:
+        #     log.info(f"No pretrained model found at {ckpt_path}, training from scratch")
+
         self.n_params = synth.n_params
         fe_names = []
         for feature in fe.features:
@@ -106,9 +121,9 @@ class DDSP808LightingModule(pl.LightningModule):
         self.audio_dists["mss_meso_log"] = util.load_class_from_yaml(
             os.path.join(CONFIGS_DIR, "losses/mss_meso_log.yml")
         )
-        self.audio_dists["scat_1d_o2"] = util.load_class_from_yaml(
-            os.path.join(CONFIGS_DIR, "eval_808/scat_1d.yml")
-        )
+        # self.audio_dists["scat_1d_o2"] = util.load_class_from_yaml(
+        #     os.path.join(CONFIGS_DIR, "eval_808/scat_1d.yml")
+        # )
         self.audio_dists["mel_stft"] = auraloss.freq.MelSTFTLoss(
             sample_rate=synth.sr,
             fft_size=win_len,
@@ -139,41 +154,41 @@ class DDSP808LightingModule(pl.LightningModule):
             if scrapl_probs_path is not None:
                 self.loss_func.load_probs(scrapl_probs_path)
 
-        # TSV logging
-        tsv_cols = [
-            "seed",
-            "stage",
-            "step",
-            "global_n",
-            "time_epoch",
-            "loss",
-            # "l1_theta",
-            # "l2_theta",
-            # "rmse_theta",
-        ]
-        # for idx in range(self.n_params):
-        #     param_name = synth.param_names[idx]
-        #     tsv_cols.append(f"l1_{param_name}")
-        #     tsv_cols.append(f"l2_{param_name}")
-        #     tsv_cols.append(f"rmse_{param_name}")
-        tsv_cols.extend(
-            [
-                "l1_fe",
-                "l2_fe",
-                "rmse_fe",
-            ]
-        )
-        for fe_name in fe_names:
-            tsv_cols.append(f"l1_{fe_name}")
-            tsv_cols.append(f"l2_{fe_name}")
-            tsv_cols.append(f"rmse_{fe_name}")
-        if run_name and not use_warmup:
-            self.tsv_path = os.path.join(OUT_DIR, f"{self.run_name}.tsv")
-            if not os.path.exists(self.tsv_path):
-                with open(self.tsv_path, "w") as f:
-                    f.write("\t".join(tsv_cols) + "\n")
-        else:
-            self.tsv_path = None
+        # # TSV logging
+        # tsv_cols = [
+        #     "seed",
+        #     "stage",
+        #     "step",
+        #     "global_n",
+        #     "time_epoch",
+        #     "loss",
+        #     # "l1_theta",
+        #     # "l2_theta",
+        #     # "rmse_theta",
+        # ]
+        # # for idx in range(self.n_params):
+        # #     param_name = synth.param_names[idx]
+        # #     tsv_cols.append(f"l1_{param_name}")
+        # #     tsv_cols.append(f"l2_{param_name}")
+        # #     tsv_cols.append(f"rmse_{param_name}")
+        # tsv_cols.extend(
+        #     [
+        #         "l1_fe",
+        #         "l2_fe",
+        #         "rmse_fe",
+        #     ]
+        # )
+        # for fe_name in fe_names:
+        #     tsv_cols.append(f"l1_{fe_name}")
+        #     tsv_cols.append(f"l2_{fe_name}")
+        #     tsv_cols.append(f"rmse_{fe_name}")
+        # if run_name and not use_warmup:
+        #     self.tsv_path = os.path.join(OUT_DIR, f"{self.run_name}.tsv")
+        #     if not os.path.exists(self.tsv_path):
+        #         with open(self.tsv_path, "w") as f:
+        #             f.write("\t".join(tsv_cols) + "\n")
+        # else:
+        #     self.tsv_path = None
 
         # Compile
         if tr.cuda.is_available() and not use_warmup:
@@ -314,7 +329,7 @@ class DDSP808LightingModule(pl.LightningModule):
         theta_0to1_hat = self.model(U)
         theta_0to1_hat = tr.stack(theta_0to1_hat, dim=1)
 
-        # Loss
+        # # Loss
         # if self.use_p_loss:
         #     loss = self.loss_func(theta_0to1_hat, theta_0to1)
         #     with tr.no_grad():
@@ -326,7 +341,7 @@ class DDSP808LightingModule(pl.LightningModule):
             U_hat = self.calc_U(x_hat)
         loss = self.loss_func(x_hat, x)
 
-        # # Theta metrics
+        # Theta metrics
         # l1_theta = self.l1(theta_0to1_hat, theta_0to1)
         # l2_theta = self.mse(theta_0to1_hat, theta_0to1)
         # rmse_theta = l2_theta.sqrt()
@@ -344,31 +359,29 @@ class DDSP808LightingModule(pl.LightningModule):
         #     l2_theta_vals.append(l2)
         #     rmse_theta_vals.append(rmse)
         #     param_name = self.synth.param_names[idx]
-        #     self.log(f"{stage}/l1_{param_name}", l1, prog_bar=False)
-        #     self.log(f"{stage}/l2_{param_name}", l2, prog_bar=False)
-        #     self.log(f"{stage}/rmse_{param_name}", rmse, prog_bar=False)
+        #     self.log(f"{stage}/l1_theta_{param_name}", l1, prog_bar=False)
+        #     self.log(f"{stage}/l2_theta_{param_name}", l2, prog_bar=False)
+        #     self.log(f"{stage}/rmse_theta_{param_name}", rmse, prog_bar=False)
 
         # Feature metrics
-        feat = self.fe(x.squeeze(1))
-        feat_hat = self.fe(x_hat.squeeze(1))
-        assert feat_hat.shape == (batch_size, self.n_features)
-        l1_feat = self.l1(feat_hat, feat)
-        l2_feat = self.mse(feat_hat, feat)
-        rmse_feat = l2_feat.sqrt()
-        l1_fe_vals = []
-        l2_fe_vals = []
-        rmse_fe_vals = []
-        for idx in range(self.n_features):
-            l1 = self.l1(feat_hat[:, idx], feat[:, idx])
-            l2 = self.mse(feat_hat[:, idx], feat[:, idx])
-            rmse = l2.sqrt()
-            l1_fe_vals.append(l1)
-            l2_fe_vals.append(l2)
-            rmse_fe_vals.append(rmse)
-            feat_name = self.fe_names[idx]
-            self.log(f"{stage}/l1_fe_{feat_name}", l1, prog_bar=False)
-            self.log(f"{stage}/l2_fe_{feat_name}", l2, prog_bar=False)
-            self.log(f"{stage}/rmse_fe_{feat_name}", rmse, prog_bar=False)
+        if stage != "train":
+            feat = self.fe(x.squeeze(1))
+            feat_hat = self.fe(x_hat.squeeze(1))
+            assert feat_hat.shape == (batch_size, self.n_features)
+            l1_fe_vals = []
+            l2_fe_vals = []
+            rmse_fe_vals = []
+            for idx in range(self.n_features):
+                l1 = self.l1(feat_hat[:, idx], feat[:, idx])
+                l2 = self.mse(feat_hat[:, idx], feat[:, idx])
+                rmse = l2.sqrt()
+                l1_fe_vals.append(l1)
+                l2_fe_vals.append(l2)
+                rmse_fe_vals.append(rmse)
+                feat_name = self.fe_names[idx]
+                self.log(f"{stage}/l1_fe_{feat_name}", l1, prog_bar=False)
+                self.log(f"{stage}/l2_fe_{feat_name}", l2, prog_bar=False)
+                self.log(f"{stage}/rmse_fe_{feat_name}", rmse, prog_bar=False)
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
 
@@ -387,38 +400,38 @@ class DDSP808LightingModule(pl.LightningModule):
             self.log(f"{stage}/audio_U_rmse", rmse_U, prog_bar=False)
 
         # TSV logging
-        if self.tsv_path:
-            seed_everything = tr.random.initial_seed()
-            time_epoch = time.time()
-            row_elems = [
-                f"{seed_everything}",
-                stage,
-                f"{self.global_step}",
-                f"{self.global_n}",
-                f"{time_epoch}",
-                f"{loss.item()}",
-                # f"{l1_theta.item()}",
-                # f"{l2_theta.item()}",
-                # f"{rmse_theta.item()}",
-            ]
-            # for idx in range(self.n_params):
-            #     row_elems.append(f"{l1_theta_vals[idx].item()}")
-            #     row_elems.append(f"{l2_theta_vals[idx].item()}")
-            #     row_elems.append(f"{rmse_theta_vals[idx].item()}")
-            row_elems.extend(
-                [
-                    f"{l1_feat.item()}",
-                    f"{l2_feat.item()}",
-                    f"{rmse_feat.item()}",
-                ]
-            )
-            for idx in range(self.n_features):
-                row_elems.append(f"{l1_fe_vals[idx].item()}")
-                row_elems.append(f"{l2_fe_vals[idx].item()}")
-                row_elems.append(f"{rmse_fe_vals[idx].item()}")
-            row = "\t".join(row_elems) + "\n"
-            with open(self.tsv_path, "a") as f:
-                f.write(row)
+        # if stage != "train" and self.tsv_path:
+        #     seed_everything = tr.random.initial_seed()
+        #     time_epoch = time.time()
+        #     row_elems = [
+        #         f"{seed_everything}",
+        #         stage,
+        #         f"{self.global_step}",
+        #         f"{self.global_n}",
+        #         f"{time_epoch}",
+        #         f"{loss.item()}",
+        #         # f"{l1_theta.item()}",
+        #         # f"{l2_theta.item()}",
+        #         # f"{rmse_theta.item()}",
+        #     ]
+        #     # for idx in range(self.n_params):
+        #     #     row_elems.append(f"{l1_theta_vals[idx].item()}")
+        #     #     row_elems.append(f"{l2_theta_vals[idx].item()}")
+        #     #     row_elems.append(f"{rmse_theta_vals[idx].item()}")
+        #     row_elems.extend(
+        #         [
+        #             f"{l1_feat.item()}",
+        #             f"{l2_feat.item()}",
+        #             f"{rmse_feat.item()}",
+        #         ]
+        #     )
+        #     for idx in range(self.n_features):
+        #         row_elems.append(f"{l1_fe_vals[idx].item()}")
+        #         row_elems.append(f"{l2_fe_vals[idx].item()}")
+        #         row_elems.append(f"{rmse_fe_vals[idx].item()}")
+        #     row = "\t".join(row_elems) + "\n"
+        #     with open(self.tsv_path, "a") as f:
+        #         f.write(row)
 
         if stage != "train":
             for idx in range(batch_size):
@@ -433,12 +446,12 @@ class DDSP808LightingModule(pl.LightningModule):
 
         out_dict = {
             "loss": loss,
-            "U": U,
-            "U_hat": U_hat,
-            "x": x,
-            "x_hat": x_hat,
+            # "U": U,
+            # "U_hat": U_hat,
+            # "x": x,
+            # "x_hat": x_hat,
             # "theta_0to1": theta_0to1,
-            "theta_0to1_hat": theta_0to1_hat,
+            # "theta_0to1_hat": theta_0to1_hat,
         }
         return out_dict
 

@@ -98,6 +98,7 @@ class SCRAPLLoss(nn.Module):
         self.unif_prob = 1.0 / self.n_paths
         log.info(
             f"SCRAPLLoss:\n"
+            f"J={J}, Q1={Q1}, Q2={Q2}, Jfr={J_fr}, Qfr={Q_fr}, T={T}, F={F}\n"
             # f"grad_mult              = {grad_mult:.0e}\n"
             f"use_pwa                = {use_pwa}\n"
             f"use_saga               = {use_saga}\n"

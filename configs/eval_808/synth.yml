@@ -4,6 +4,7 @@ init_args:
   num_samples: 44100
   buffer_noise: true
   buffer_size: 44100
+#  buffer_noise: false
   J_cqt: 9
   Q_cqt: 12
   hop_len: 256
