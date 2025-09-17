@@ -428,21 +428,34 @@ class DDSP808LightingModule(pl.LightningModule):
         return self.step(batch, stage="test")
 
     def log_fe_metrics(self, x: T, x_hat: T, stage: str, prefix: str = "") -> None:
-        bs = x.size(0)
         feat = self.fe(x.squeeze(1))
         feat_hat = self.fe(x_hat.squeeze(1))
-        assert feat_hat.shape == (bs, self.n_features)
-        l1_fe_vals = []
-        l2_fe_vals = []
-        rmse_fe_vals = []
+        assert len(feat) == self.n_features
         for idx in range(self.n_features):
-            l1 = self.l1(feat_hat[:, idx], feat[:, idx])
-            l2 = self.mse(feat_hat[:, idx], feat[:, idx])
-            rmse = l2.sqrt()
-            l1_fe_vals.append(l1)
-            l2_fe_vals.append(l2)
-            rmse_fe_vals.append(rmse)
             feat_name = self.fe_names[idx]
+            curr_feat = feat[idx]
+            curr_feat_hat = feat_hat[idx]
+            assert curr_feat.size() == curr_feat_hat.size()
+            # TODO(cm): this is nasty
+            # Scale by loudness for spectral features
+            if "SpectralCentroid" in feat_name or "SpectralFlatness" in feat_name:
+                loudness_min_val = self.fe.features[0].extractors[0].min_val
+                loudness_name = feat_name.replace(
+                    "SpectralCentroid", "Loudness"
+                ).replace("SpectralFlatness", "Loudness")
+                loudness_idx = self.fe_names.index(loudness_name)
+                loudness = feat[loudness_idx] - loudness_min_val
+                loudness_hat = feat_hat[loudness_idx] - loudness_min_val
+                assert loudness.min() >= 0.0
+                assert loudness_hat.min() >= 0.0
+                assert curr_feat.size() == loudness.size()
+                assert curr_feat_hat.size() == loudness_hat.size()
+                curr_feat = curr_feat * loudness
+                curr_feat_hat = curr_feat_hat * loudness_hat
+
+            l1 = self.l1(curr_feat_hat, curr_feat)
+            l2 = self.mse(curr_feat_hat, curr_feat)
+            rmse = l2.sqrt()
             self.log(f"{stage}/{prefix}l1_fe_{feat_name}", l1, prog_bar=False)
             self.log(f"{stage}/{prefix}l2_fe_{feat_name}", l2, prog_bar=False)
             self.log(f"{stage}/{prefix}rmse_fe_{feat_name}", rmse, prog_bar=False)
@@ -490,9 +503,13 @@ class DDSP808LightingModule(pl.LightningModule):
                 break
             curr_x = x[idx, :, :].detach().cpu()
             curr_x_hat = x_hat[idx, :, :].detach().cpu()
-            save_path = os.path.join(self.samples_dir, f"{self.run_name}__{stage}__{idx}.wav")
+            save_path = os.path.join(
+                self.samples_dir, f"{self.run_name}__{stage}__{idx}.wav"
+            )
             torchaudio.save(save_path, curr_x, sample_rate=self.synth.sr)
-            save_path = os.path.join(self.samples_dir, f"{self.run_name}__{stage}__{idx}__hat.wav")
+            save_path = os.path.join(
+                self.samples_dir, f"{self.run_name}__{stage}__{idx}__hat.wav"
+            )
             torchaudio.save(save_path, curr_x_hat, sample_rate=self.synth.sr)
 
     def on_validation_epoch_end(self) -> None:

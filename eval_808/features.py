@@ -37,8 +37,8 @@ class FeatureCollection(torch.nn.Module):
     def forward(self, x: torch.Tensor):
         results = []
         for feature in self.features:
-            results.append(feature(x))
-        return torch.cat(results, dim=-1)
+            results.extend(feature(x))
+        return results
 
 
 class NumpyWrapper(torch.nn.Module):
@@ -81,7 +81,7 @@ class CascadingFrameExtactor(torch.nn.Module):
         frame_size: int = 2048,
         hop_size: int = 1024,
         pad_start: int = None,
-        include_mean: bool = True,
+        include_mean: bool = False,
         include_diff: bool = False,
         always_from_onset: bool = False,
     ):
@@ -99,6 +99,7 @@ class CascadingFrameExtactor(torch.nn.Module):
         frame_feature_names = []
         k = 0
         for n in num_frames:
+            frame_feature_names.append(f"{k}_{n}")
             if include_mean:
                 frame_feature_names.append(f"{k}_{n}_mean")
             if include_diff and n > 1:
@@ -121,7 +122,7 @@ class CascadingFrameExtactor(torch.nn.Module):
         for extractor, feature in self.flattened_features:
             flattened_y.append(y[extractor][feature].unsqueeze(-1))
 
-        return torch.cat(flattened_y, dim=-1)
+        return flattened_y
 
     def get_as_dict(self, x: torch.Tensor):
         """
@@ -144,6 +145,7 @@ class CascadingFrameExtactor(torch.nn.Module):
             for n in self.num_frames:
                 frames = x[..., k : k + n, :]
                 y = extractor(frames)
+                results[ename][f"{k}_{n}"] = y
 
                 if self.include_mean:
                     y_mean = y.mean(dim=-1)
@@ -206,6 +208,11 @@ class Loudness(torch.nn.Module):
         b_coefs = np.array(b_coefs)
         self.register_buffer("a_coefs", torch.tensor(a_coefs, dtype=torch.float))
         self.register_buffer("b_coefs", torch.tensor(b_coefs, dtype=torch.float))
+        self.register_buffer(
+            "min_val",
+            -0.691 + 10.0 * torch.log10(torch.tensor(self.epsilon)),
+            persistent=False,
+        )
 
     def prefilter(self, x: torch.Tensor):
         """
