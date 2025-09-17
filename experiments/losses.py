@@ -367,6 +367,7 @@ class MFCCDistance(nn.Module):
         n_mels: int = 128,
         n_mfcc: int = 40,
         p: int = 1,
+        reduction: str = "mean",
     ):
         super().__init__()
         self.sr = sr
@@ -386,8 +387,8 @@ class MFCCDistance(nn.Module):
                 "n_mels": n_mels,
             },
         )
-        self.l1 = nn.L1Loss()
-        self.mse = nn.MSELoss()
+        self.l1 = nn.L1Loss(reduction=reduction)
+        self.mse = nn.MSELoss(reduction=reduction)
 
     def forward(self, x: T, x_target: T) -> T:
         assert x.ndim == 3

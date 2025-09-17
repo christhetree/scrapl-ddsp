@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from datetime import datetime
-from typing import Dict, Optional, Literal
+from typing import Dict, Optional, Literal, List, Tuple, Any
 
 import auraloss
 import pytorch_lightning as pl
@@ -198,6 +198,9 @@ class DDSP808LightingModule(pl.LightningModule):
         self.max_n_samples = 16
         os.makedirs(self.samples_dir, exist_ok=True)
 
+        self.val_batches = []
+        self.test_batches = []
+
     def on_fit_start(self) -> None:
         if self.use_warmup:
             self.warmup()
@@ -309,10 +312,10 @@ class DDSP808LightingModule(pl.LightningModule):
         log.info(f"Completed warmup, saved probs to {probs_save_path}")
         exit()
 
-    def step(self, batch: T, stage: str) -> Dict[str, T]:
+    def step(self, batch: Tuple[T, List[str]], stage: str) -> Dict[str, T]:
         # theta_0to1 = batch
         # batch_size = theta_0to1.size(0)
-        x = batch
+        x, drum_types = batch
         batch_size = x.size(0)
         if stage == "train":
             self.global_n = (
@@ -363,41 +366,7 @@ class DDSP808LightingModule(pl.LightningModule):
         #     self.log(f"{stage}/l2_theta_{param_name}", l2, prog_bar=False)
         #     self.log(f"{stage}/rmse_theta_{param_name}", rmse, prog_bar=False)
 
-        # Feature metrics
-        if stage != "train":
-            feat = self.fe(x.squeeze(1))
-            feat_hat = self.fe(x_hat.squeeze(1))
-            assert feat_hat.shape == (batch_size, self.n_features)
-            l1_fe_vals = []
-            l2_fe_vals = []
-            rmse_fe_vals = []
-            for idx in range(self.n_features):
-                l1 = self.l1(feat_hat[:, idx], feat[:, idx])
-                l2 = self.mse(feat_hat[:, idx], feat[:, idx])
-                rmse = l2.sqrt()
-                l1_fe_vals.append(l1)
-                l2_fe_vals.append(l2)
-                rmse_fe_vals.append(rmse)
-                feat_name = self.fe_names[idx]
-                self.log(f"{stage}/l1_fe_{feat_name}", l1, prog_bar=False)
-                self.log(f"{stage}/l2_fe_{feat_name}", l2, prog_bar=False)
-                self.log(f"{stage}/rmse_fe_{feat_name}", rmse, prog_bar=False)
-
         self.log(f"{stage}/loss", loss, prog_bar=True)
-
-        # Audio metrics
-        if stage != "train":
-            for name, dist in self.audio_dists.items():
-                with tr.no_grad():
-                    dist_val = dist(x_hat, x)
-                self.log(f"{stage}/audio_{name}", dist_val, prog_bar=False)
-            with tr.no_grad():
-                l1_U = self.l1(U_hat, U)
-                l2_U = self.mse(U_hat, U)
-                rmse_U = l2_U.sqrt()
-            self.log(f"{stage}/audio_U_l1", l1_U, prog_bar=False)
-            self.log(f"{stage}/audio_U_l2", l2_U, prog_bar=False)
-            self.log(f"{stage}/audio_U_rmse", rmse_U, prog_bar=False)
 
         # TSV logging
         # if stage != "train" and self.tsv_path:
@@ -433,16 +402,10 @@ class DDSP808LightingModule(pl.LightningModule):
         #     with open(self.tsv_path, "a") as f:
         #         f.write(row)
 
-        if stage != "train":
-            for idx in range(batch_size):
-                if idx >= self.max_n_samples:
-                    break
-                curr_x = x[idx, :, :].detach().cpu()
-                curr_x_hat = x_hat[idx, :, :].detach().cpu()
-                save_path = os.path.join(self.samples_dir, f"{self.run_name}__{stage}__{idx}.wav")
-                torchaudio.save(save_path, curr_x, sample_rate=self.synth.sr)
-                save_path = os.path.join(self.samples_dir, f"{self.run_name}__{stage}__{idx}__hat.wav")
-                torchaudio.save(save_path, curr_x_hat, sample_rate=self.synth.sr)
+        if stage == "val":
+            self.val_batches.append((drum_types, x, x_hat, U, U_hat))
+        if stage == "test":
+            self.test_batches.append((drum_types, x, x_hat, U, U_hat))
 
         out_dict = {
             "loss": loss,
@@ -463,3 +426,81 @@ class DDSP808LightingModule(pl.LightningModule):
 
     def test_step(self, batch: T, stage: str) -> Dict[str, T]:
         return self.step(batch, stage="test")
+
+    def log_fe_metrics(self, x: T, x_hat: T, stage: str, prefix: str = "") -> None:
+        bs = x.size(0)
+        feat = self.fe(x.squeeze(1))
+        feat_hat = self.fe(x_hat.squeeze(1))
+        assert feat_hat.shape == (bs, self.n_features)
+        l1_fe_vals = []
+        l2_fe_vals = []
+        rmse_fe_vals = []
+        for idx in range(self.n_features):
+            l1 = self.l1(feat_hat[:, idx], feat[:, idx])
+            l2 = self.mse(feat_hat[:, idx], feat[:, idx])
+            rmse = l2.sqrt()
+            l1_fe_vals.append(l1)
+            l2_fe_vals.append(l2)
+            rmse_fe_vals.append(rmse)
+            feat_name = self.fe_names[idx]
+            self.log(f"{stage}/{prefix}l1_fe_{feat_name}", l1, prog_bar=False)
+            self.log(f"{stage}/{prefix}l2_fe_{feat_name}", l2, prog_bar=False)
+            self.log(f"{stage}/{prefix}rmse_fe_{feat_name}", rmse, prog_bar=False)
+
+    def log_audio_metrics(
+        self, x: T, x_hat: T, U: T, U_hat: T, stage: str, prefix: str = ""
+    ) -> None:
+        for name, dist in self.audio_dists.items():
+            with tr.no_grad():
+                dist_val = dist(x_hat, x)
+            self.log(f"{stage}/{prefix}audio_{name}", dist_val, prog_bar=False)
+            with tr.no_grad():
+                l1_U = self.l1(U_hat, U)
+                l2_U = self.mse(U_hat, U)
+                rmse_U = l2_U.sqrt()
+            self.log(f"{stage}/{prefix}audio_U_l1", l1_U, prog_bar=False)
+            self.log(f"{stage}/{prefix}audio_U_l2", l2_U, prog_bar=False)
+            self.log(f"{stage}/{prefix}audio_U_rmse", rmse_U, prog_bar=False)
+
+    def log_results(self, batches: List[Tuple[Any]], stage: str) -> None:
+        drum_types, x, x_hat, U, U_hat = zip(*batches)
+        drum_types = [dt for sublist in drum_types for dt in sublist]
+        x = tr.cat(x, dim=0)
+        x_hat = tr.cat(x_hat, dim=0)
+        U = tr.cat(U, dim=0)
+        U_hat = tr.cat(U_hat, dim=0)
+
+        self.log_fe_metrics(x, x_hat, stage)
+        self.log_audio_metrics(x, x_hat, U, U_hat, stage)
+        unique_drum_types = sorted(list(set(drum_types)))
+        for drum_type in unique_drum_types:
+            idxs = [i for i, dt in enumerate(drum_types) if dt == drum_type]
+            assert len(idxs) > 0
+            curr_x = x[idxs, :, :]
+            curr_x_hat = x_hat[idxs, :, :]
+            curr_U = U[idxs, :, :]
+            curr_U_hat = U_hat[idxs, :, :]
+            self.log_fe_metrics(curr_x, curr_x_hat, stage, prefix=f"{drum_type}__")
+            self.log_audio_metrics(
+                curr_x, curr_x_hat, curr_U, curr_U_hat, stage, prefix=f"{drum_type}__"
+            )
+
+        for idx in range(x.size(0)):
+            if idx >= self.max_n_samples:
+                break
+            curr_x = x[idx, :, :].detach().cpu()
+            curr_x_hat = x_hat[idx, :, :].detach().cpu()
+            save_path = os.path.join(self.samples_dir, f"{self.run_name}__{stage}__{idx}.wav")
+            torchaudio.save(save_path, curr_x, sample_rate=self.synth.sr)
+            save_path = os.path.join(self.samples_dir, f"{self.run_name}__{stage}__{idx}__hat.wav")
+            torchaudio.save(save_path, curr_x_hat, sample_rate=self.synth.sr)
+
+    def on_validation_epoch_end(self) -> None:
+        assert self.val_batches
+        self.log_results(self.val_batches, stage="val")
+        self.val_batches = []
+
+    def on_test_epoch_end(self) -> None:
+        assert self.test_batches
+        self.log_results(self.test_batches, stage="test")
+        self.test_batches = []

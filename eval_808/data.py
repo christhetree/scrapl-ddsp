@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List
+from typing import List, Tuple
 import numpy as np
 import pytorch_lightning as pl
 import torch as tr
@@ -111,15 +111,19 @@ class WavDataset(Dataset):
     def __init__(
         self,
         samples: T,
+        drum_types: List[str],
     ):
         super().__init__()
+        assert samples.size(0) == len(drum_types)
         self.samples = samples
+        assert set(drum_types) == {"BD", "SD", "HH", "Tom"}
+        self.drum_types = drum_types
 
     def __len__(self) -> int:
         return self.samples.size(0)
 
-    def __getitem__(self, idx: int) -> T:
-        return self.samples[idx]
+    def __getitem__(self, idx: int) -> Tuple[T, str]:
+        return self.samples[idx], self.drum_types[idx]
 
 
 class WavDataModule(pl.LightningDataModule):
@@ -155,7 +159,22 @@ class WavDataModule(pl.LightningDataModule):
         np.random.shuffle(sample_paths)
 
         samples = []
+        drum_types = []
         for p in sample_paths:
+            f_name = os.path.basename(p)
+            if f_name.startswith("BD "):
+                drum_types.append("BD")
+            elif f_name.startswith("SD "):
+                drum_types.append("SD")
+            elif f_name.startswith("OH "):
+                drum_types.append("HH")
+            elif f_name.startswith("CH "):
+                drum_types.append("HH")
+            elif f_name.startswith("Tom "):
+                drum_types.append("Tom")
+            else:
+                raise ValueError(f"Unknown drum type in file name: {f_name}")
+
             sample, sample_sr = torchaudio.load(os.path.join(root_dir, p))
             assert sample_sr == sr
             if sample.size(0) > 1:
@@ -169,14 +188,32 @@ class WavDataModule(pl.LightningDataModule):
                 )
             samples.append(sample)
         samples = tr.stack(samples, dim=0)
+        # Print drum type stats
+        unique, counts = np.unique(drum_types, return_counts=True)
+        drum_type_counts = dict(zip(unique, counts))
+        log.info(f"Drum type counts: {drum_type_counts}")
 
         train_samples = samples[:n_train]
-        val_samples = samples[n_train : n_train + n_val]
-        test_samples = samples[n_train + n_val : n_train + n_val + n_test]
+        train_drum_types = drum_types[:n_train]
+        unique, counts = np.unique(train_drum_types, return_counts=True)
+        drum_type_counts = dict(zip(unique, counts))
+        log.info(f"Train drum type counts: {drum_type_counts}")
 
-        self.train_dataset = WavDataset(train_samples)
-        self.val_dataset = WavDataset(val_samples)
-        self.test_dataset = WavDataset(test_samples)
+        val_samples = samples[n_train : n_train + n_val]
+        val_drum_types = drum_types[n_train : n_train + n_val]
+        unique, counts = np.unique(val_drum_types, return_counts=True)
+        drum_type_counts = dict(zip(unique, counts))
+        log.info(f"Validation drum type counts: {drum_type_counts}")
+
+        test_samples = samples[n_train + n_val : n_train + n_val + n_test]
+        test_drum_types = drum_types[n_train + n_val : n_train + n_val + n_test]
+        unique, counts = np.unique(test_drum_types, return_counts=True)
+        drum_type_counts = dict(zip(unique, counts))
+        log.info(f"Test drum type counts: {drum_type_counts}")
+
+        self.train_dataset = WavDataset(train_samples, train_drum_types)
+        self.val_dataset = WavDataset(val_samples, val_drum_types)
+        self.test_dataset = WavDataset(test_samples, test_drum_types)
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(

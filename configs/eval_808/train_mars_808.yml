@@ -3,8 +3,8 @@ seed_everything: 42
 custom:
   project_name: scrapl
 #  model_name: mss_meso_log_724k_adamw_1e-4
-#  model_name: mss_rev_724k_adamw_1e-4
-  model_name: scrapl_saga_pwa_724k_1e-4
+  model_name: mss_rev_724k_adamw_1e-4
+#  model_name: scrapl_saga_pwa_724k_1e-4
 #  model_name: scrapl_T2048_F1_Jfr5_saga_pwa_724k_5e-5
 #  model_name: jtfs_T128_F1_724k_adamw_1e-5
   dataset_name: mars_808_n681_b8
@@ -22,7 +22,7 @@ trainer:
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 2
-  enable_checkpointing: false
+#  enable_checkpointing: false
 
 data:
   class_path: eval_808.data.WavDataModule
@@ -47,10 +47,10 @@ model:
 #    loss_func: ../losses/mss.yml
 #    loss_func: ../losses/mss_meso.yml
 #    loss_func: ../losses/mss_meso_log.yml
-#    loss_func: ../losses/mss_revisited.yml
+    loss_func: ../losses/mss_revisited.yml
 #    loss_func: ../eval_808/scat_1d.yml
 #    grad_mult: 1e8
-    loss_func: ../eval_808/scrapl_saga_pwa.yml
+#    loss_func: ../eval_808/scrapl_saga_pwa.yml
 #    loss_func: ../eval_808/jtfst.yml
 #    grad_mult: 1e8
     use_p_loss: false
@@ -67,18 +67,18 @@ model:
 #    warmup_param_agg: none
 
 #    run_name: mss_meso_log_724k_adamw_1e-4__mars_808_n681_b8
-#    run_name: mss_rev_724k_adamw_1e-4__mars_808_n681_b8
+    run_name: mss_rev_724k_adamw_1e-4__mars_808_n681_b8
 #    run_name: scrapl_Q24_T128_F1_saga_pwa_724k_1e-4__mars_808_n681_b16_seed0_env2
-    run_name: scrapl_saga_pwa_724k_1e-4__mars_808_n681_b8
+#    run_name: scrapl_saga_pwa_724k_1e-4__mars_808_n681_b8
 #    run_name: scrapl_T2048_F1_Jfr5_saga_pwa_724k_5e-5__mars_808_n681_b8_noise
 #    run_name: jtfs_T128_F1_724k_adamw_1e-5__mars_808_n681_b16_seed0
 
 #    run_name: scrapl_saga_pwa_1p2M_1e-5__theta14_10k_b16
 
 #optimizer: ../opt/adam_w_1e-5.yml
-#optimizer: ../opt/adam_w_1e-4.yml
+optimizer: ../opt/adam_w_1e-4.yml
 #optimizer: ../opt/sgd_1e-5.yml
-optimizer: ../opt/sgd_1e-4.yml
+#optimizer: ../opt/sgd_1e-4.yml
 #optimizer: ../opt/sgd_5e-5.yml
 
 #lr_scheduler:
