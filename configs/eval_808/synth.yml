@@ -8,3 +8,5 @@ init_args:
   J_cqt: 9
   Q_cqt: 12
   hop_len: 256
+  delta_min: -1024
+  delta_max: 1024

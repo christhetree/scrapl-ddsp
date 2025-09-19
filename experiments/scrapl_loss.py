@@ -343,6 +343,7 @@ class SCRAPLLoss(nn.Module):
         assert x.size(1) == x_target.size(1) == 1
         if path_idx is None:
             path_idx = self.sample_path(seed)
+            log.debug(f"Sample path_idx = {path_idx}")
         else:
             log.debug(f"Using specified path_idx = {path_idx}")
             assert 0 <= path_idx < self.n_paths

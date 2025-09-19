@@ -1,23 +1,24 @@
-seed_everything: 42
+seed_everything: 420
 
 custom:
   project_name: scrapl
-#  model_name: mss_meso_log_724k_adamw_1e-4
-  model_name: mss_rev_724k_adamw_1e-4
-#  model_name: scrapl_saga_pwa_724k_1e-4
-#  model_name: scrapl_T2048_F1_Jfr5_saga_pwa_724k_5e-5
+#  model_name: mss_meso_log_724k_adamw_1e-4t5
+  model_name: mss_rev_724k_adamw_1e-4t5
+#  model_name: scrapl_Jfr5_T2048_F1_saga_pwa_724k_1e-4t5
+#  model_name: scrapl_J13_Jfr5_T4096_F1_saga_pwa_724k_1e-4t5
 #  model_name: jtfs_T128_F1_724k_adamw_1e-5
-  dataset_name: mars_808_n681_b8
+#  dataset_name: mars_808_n681_b8_micro
+  dataset_name: mars_808_n681_b8_meso1024
   cpu_batch_size: 3
 #  use_wandb_cpu: true
   use_wandb_cpu: false
-  use_wandb_gpu: false
-#  use_wandb_gpu: true
+#  use_wandb_gpu: false
+  use_wandb_gpu: true
 
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [0]
+  devices: [4]
   max_epochs: 50
   num_sanity_val_steps: 1
   accumulate_grad_batches: 1
@@ -35,6 +36,12 @@ data:
     n_train: 425
     n_val: 128
     n_test: 128
+    n_delta_per_item: 1
+#    n_delta_per_item: 5
+#    delta_min: 0
+#    delta_max: 0
+    delta_min: -1024
+    delta_max: 1024
     shuffle_seed: 0
     num_workers: 8
 
@@ -66,11 +73,9 @@ model:
 #    warmup_n_iter: 20
 #    warmup_param_agg: none
 
-#    run_name: mss_meso_log_724k_adamw_1e-4__mars_808_n681_b8
-    run_name: mss_rev_724k_adamw_1e-4__mars_808_n681_b8
-#    run_name: scrapl_Q24_T128_F1_saga_pwa_724k_1e-4__mars_808_n681_b16_seed0_env2
-#    run_name: scrapl_saga_pwa_724k_1e-4__mars_808_n681_b8
-#    run_name: scrapl_T2048_F1_Jfr5_saga_pwa_724k_5e-5__mars_808_n681_b8_noise
+#    run_name: mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_meso1024_s419
+    run_name: mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_meso1024
+#    run_name: scrapl_Jfr5_T2048_F1_saga_pwa_724k_1e-4t5__mars_808_n681_b8_meso1024
 #    run_name: jtfs_T128_F1_724k_adamw_1e-5__mars_808_n681_b16_seed0
 
 #    run_name: scrapl_saga_pwa_1p2M_1e-5__theta14_10k_b16
@@ -81,9 +86,9 @@ optimizer: ../opt/adam_w_1e-4.yml
 #optimizer: ../opt/sgd_1e-4.yml
 #optimizer: ../opt/sgd_5e-5.yml
 
-#lr_scheduler:
-#  class_path: torch.optim.lr_scheduler.LinearLR
-#  init_args:
-#    start_factor: 1.0        # multiplier for initial lr (so 1.0 → 1e-4)
-#    end_factor: 0.1          # multiplier for final lr (so 0.1 → 1e-5)
-#    total_iters: 10000        # number of steps (epochs if interval=epoch)
+lr_scheduler:
+  class_path: torch.optim.lr_scheduler.LinearLR
+  init_args:
+    start_factor: 1.0        # multiplier for initial lr (so 1.0 → 1e-4)
+    end_factor: 0.1          # multiplier for final lr (so 0.1 → 1e-5)
+    total_iters: 50          # number of epochs

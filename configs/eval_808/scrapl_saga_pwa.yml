@@ -2,12 +2,19 @@ class_path: experiments.scrapl_loss.SCRAPLLoss
 init_args:
   shape: 44100
   J: 12
+#  J: 13
   Q1: 8
   Q2: 2
-  J_fr: 3
+#  J_fr: 3
+  J_fr: 5
+#  J_fr: 6
   Q_fr: 2
-  T: null
-  F: null
+#  Q_fr: 3
+#  T: null
+  T: 2048
+#  T: 4096
+#  F: null
+  F: 1
   p: 2
   grad_mult: 1e8
   use_pwa: true

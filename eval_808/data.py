@@ -112,18 +112,41 @@ class WavDataset(Dataset):
         self,
         samples: T,
         drum_types: List[str],
+        n_delta_per_item: int = 1,
+        delta_min: int = -2048,
+        delta_max: int = 2048,
     ):
         super().__init__()
         assert samples.size(0) == len(drum_types)
         self.samples = samples
         assert set(drum_types) == {"BD", "SD", "HH", "Tom"}
         self.drum_types = drum_types
+        self.n_delta_per_item = n_delta_per_item
+        self.delta_min = delta_min
+        self.delta_max = delta_max
+
+        self.deltas = tr.randint(
+            delta_min,
+            delta_max + 1,
+            (self.samples.size(0) * n_delta_per_item,),
+        )
+        # deltas = tr.randint(
+        #     delta_max // 2,
+        #     delta_max + 1,
+        #     (self.samples.size(0) * n_delta_per_item,),
+        # )
+        # signs = tr.randint(0, 2, (self.samples.size(0) * n_delta_per_item,)) * 2 - 1
+        # self.deltas = deltas * signs
 
     def __len__(self) -> int:
-        return self.samples.size(0)
+        return self.samples.size(0) * self.n_delta_per_item
 
-    def __getitem__(self, idx: int) -> Tuple[T, str]:
-        return self.samples[idx], self.drum_types[idx]
+    def __getitem__(self, idx: int) -> Tuple[T, str, T]:
+        sample_idx = idx // self.n_delta_per_item
+        sample = self.samples[sample_idx]
+        drum_type = self.drum_types[sample_idx]
+        delta = self.deltas[idx]
+        return sample, drum_type, delta
 
 
 class WavDataModule(pl.LightningDataModule):
@@ -136,6 +159,9 @@ class WavDataModule(pl.LightningDataModule):
         n_train: int,
         n_val: int,
         n_test: int,
+        n_delta_per_item: int = 1,
+        delta_min: int = 0,
+        delta_max: int = 0,
         shuffle_seed: int = 42,
         num_workers: int = 0,
     ):
@@ -147,13 +173,23 @@ class WavDataModule(pl.LightningDataModule):
         self.n_train = n_train
         self.n_val = n_val
         self.n_test = n_test
+        self.n_delta_per_item = n_delta_per_item
+        self.delta_min = delta_min
+        self.delta_max = delta_max
+        self.shuffle_seed = shuffle_seed
         self.num_workers = num_workers
 
+        log.info(
+            f"shuffle_seed: {shuffle_seed}, "
+            f"delta_min: {delta_min}, "
+            f"delta_max: {delta_max}, "
+            f"n_delta_per_item: {n_delta_per_item}"
+        )
         sample_paths = [p for p in os.listdir(root_dir) if p.endswith(".wav")]
         log.info(f"Found {len(sample_paths)} .wav files in {root_dir}")
-        assert len(sample_paths) >= (n_train + n_val + n_test), (
-            f"Not enough .wav files in {root_dir}"
-        )
+        assert len(sample_paths) >= (
+            n_train + n_val + n_test
+        ), f"Not enough .wav files in {root_dir}"
         sample_paths = sorted(sample_paths)
         np.random.seed(shuffle_seed)
         np.random.shuffle(sample_paths)
@@ -211,9 +247,15 @@ class WavDataModule(pl.LightningDataModule):
         drum_type_counts = dict(zip(unique, counts))
         log.info(f"Test drum type counts: {drum_type_counts}")
 
-        self.train_dataset = WavDataset(train_samples, train_drum_types)
-        self.val_dataset = WavDataset(val_samples, val_drum_types)
-        self.test_dataset = WavDataset(test_samples, test_drum_types)
+        self.train_dataset = WavDataset(
+            train_samples, train_drum_types, n_delta_per_item, delta_min, delta_max
+        )
+        self.val_dataset = WavDataset(
+            val_samples, val_drum_types, n_delta_per_item, delta_min, delta_max
+        )
+        self.test_dataset = WavDataset(
+            test_samples, test_drum_types, n_delta_per_item, delta_min, delta_max
+        )
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(

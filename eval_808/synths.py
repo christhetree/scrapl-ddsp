@@ -158,9 +158,11 @@ class ExpDecayEnvelope2(AbstractModule):
         ), "param must be between 0 and 1"
 
         decay_samples = num_samples - self.attack_samples
-        decay_ramp = tr.linspace(1.0, 0.0, decay_samples, device=decay.device).view(1, -1)
+        decay_ramp = tr.linspace(1.0, 0.0, decay_samples, device=decay.device).view(
+            1, -1
+        )
         decay = self.normalizers["decay"].from_0to1(decay).exp()
-        decay_ramp = decay_ramp ** decay
+        decay_ramp = decay_ramp**decay
 
         bs = decay.size(0)
         decay_ramp = decay_ramp.expand(bs, -1)
@@ -709,6 +711,8 @@ class DDSP808Synth(Snare808):
         J_cqt: int = 9,
         Q_cqt: int = 12,
         hop_len: int = 256,
+        delta_min: int = -2048,
+        delta_max: int = 2048,
     ):
         super().__init__(
             sample_rate=sr,
@@ -720,6 +724,8 @@ class DDSP808Synth(Snare808):
         self.J_cqt = J_cqt
         self.Q_cqt = Q_cqt
         self.hop_len = hop_len
+        self.delta_min = delta_min
+        self.delta_max = delta_max
 
         self.n_params = self.get_num_params()
         self.param_names = [
@@ -740,17 +746,21 @@ class DDSP808Synth(Snare808):
         ]
         assert len(self.param_names) == self.n_params
 
-    def forward(self, params: T, num_samples: Optional[int] = None) -> T:
-        y = super().forward(params, num_samples)
+    def forward(self, params: T, delta: Optional[T] = None) -> T:
+        y = super().forward(params, num_samples=None)
         y = y.unsqueeze(1)
-        # if self.is_meso:
-        #     bs = y.size(0)
-        #     shifted_ys = []
-        #     for idx in range(bs):
-        #         delta = tr.randint(low=0, high=2048, size=(1,)).item()
-        #         curr_y = y[idx, :, :]
-        #         curr_y = tr.roll(curr_y, shifts=delta, dims=-1)
-        #         curr_y[:, :delta] = 0.0
-        #         shifted_ys.append(curr_y)
-        #     y = tr.stack(shifted_ys, dim=0)
+        bs = params.size(0)
+        if delta is None:
+            delta = torch.zeros(bs, device=params.device, dtype=torch.long)
+        assert delta.ndim == 1
+        shifted_ys = []
+        for idx in range(bs):
+            curr_y = y[idx, :, :]
+            curr_delta = delta[idx].item()
+            assert self.delta_min <= curr_delta <= self.delta_max
+            n_padding = curr_delta - self.delta_min
+            curr_y = tr.nn.functional.pad(curr_y, (n_padding, 0), mode="constant", value=0.0)
+            curr_y = curr_y[:, : self.num_samples]
+            shifted_ys.append(curr_y)
+        y = tr.stack(shifted_ys, dim=0)
         return y

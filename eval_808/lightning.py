@@ -312,10 +312,17 @@ class DDSP808LightingModule(pl.LightningModule):
         log.info(f"Completed warmup, saved probs to {probs_save_path}")
         exit()
 
-    def step(self, batch: Tuple[T, List[str]], stage: str) -> Dict[str, T]:
+    def step(self, batch: Tuple[T, List[str], T], stage: str) -> Dict[str, T]:
         # theta_0to1 = batch
         # batch_size = theta_0to1.size(0)
-        x, drum_types = batch
+        x, drum_types, delta = batch
+        # Add padding introduced by synth for delta_min < 0
+        if self.synth.delta_min < 0:
+            x = tr.nn.functional.pad(
+                x, (-self.synth.delta_min, 0), mode="constant", value=0.0
+            )
+            x = x[:, :, : self.synth.num_samples]
+
         batch_size = x.size(0)
         if stage == "train":
             self.global_n = (
@@ -339,7 +346,10 @@ class DDSP808LightingModule(pl.LightningModule):
         #         x_hat = self.synth(theta_0to1_hat)
         #         U_hat = self.calc_U(x_hat)
         # else:
-        x_hat = self.synth(theta_0to1_hat)
+
+        if stage != "train":
+            delta = None
+        x_hat = self.synth(params=theta_0to1_hat, delta=delta)
         with tr.no_grad():
             U_hat = self.calc_U(x_hat)
         loss = self.loss_func(x_hat, x)
@@ -428,6 +438,11 @@ class DDSP808LightingModule(pl.LightningModule):
         return self.step(batch, stage="test")
 
     def log_fe_metrics(self, x: T, x_hat: T, stage: str, prefix: str = "") -> None:
+        # Remove padding introduced by synth for delta_min < 0
+        n_padding = -self.synth.delta_min
+        if n_padding > 0:
+            x = x[:, :, n_padding:]
+            x_hat = x_hat[:, :, n_padding:]
         feat = self.fe(x.squeeze(1))
         feat_hat = self.fe(x_hat.squeeze(1))
         assert len(feat) == self.n_features
