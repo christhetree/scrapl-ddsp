@@ -1,11 +1,4 @@
-[submodule "speechbrain"]
-	path = speechbrain
-	url = git@github.com:christhetree/speechbrain.git
-	branch = cm--scrapl
 [submodule "kymatio"]
 	path = kymatio
 	url = git@github.com:christhetree/kymatio.git
 	branch = cm--scrapl
-[submodule "automix-toolkit"]
-	path = automix-toolkit
-	url = git@github.com:christhetree/automix-toolkit.git

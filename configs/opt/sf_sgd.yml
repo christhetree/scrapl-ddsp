@@ -1,5 +1,0 @@
-class_path: schedulefree.SGDScheduleFree
-init_args:
-  lr: 1e-4
-  momentum: 0.000001
-  weight_decay: 0.01

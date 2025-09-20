@@ -1,5 +1,0 @@
-class_path: torch.optim.SGD
-init_args:
-  lr: 5e-5
-  momentum: 0.0
-  weight_decay: 0.01

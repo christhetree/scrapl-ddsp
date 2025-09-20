@@ -1,3 +1,0 @@
-class_path: eval_mixing.diff_mst_modules.AdvancedMixConsole
-init_args:
-  sample_rate: 44100

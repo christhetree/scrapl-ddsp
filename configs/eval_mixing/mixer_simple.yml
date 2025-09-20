@@ -1,3 +1,0 @@
-class_path: automix.models.dmc.Mixer
-init_args:
-  sample_rate: 44100

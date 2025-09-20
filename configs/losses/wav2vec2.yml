@@ -1,8 +1,0 @@
-class_path: experiments.losses.Wav2Vec2EmbeddingLoss
-init_args:
-  model_size: base
-#  model_size: large
-  normalize: true
-  eps: 1e-8
-  use_time_varying: false
-  p: 2
