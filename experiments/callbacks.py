@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 from collections import defaultdict
 from typing import Any, Dict
 
@@ -34,6 +35,14 @@ class ConsoleLRMonitor(LearningRateMonitor):
             latest_stat_str = {k: f"{v:.8f}" for k, v in latest_stat.items()}
             if latest_stat:
                 log.info(f"\nCurrent LR: {latest_stat_str}")
+
+
+class CleanupLogsCallback(Callback):
+    def on_test_end(self, trainer, pl_module):
+        log_dir = trainer.logger.log_dir if trainer.logger is not None else None
+        if log_dir and os.path.exists(log_dir):
+            log.info(f"Removing log directory: {log_dir}")
+            shutil.rmtree(log_dir)
 
 
 class LogScalogramCallback(Callback):

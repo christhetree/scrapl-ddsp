@@ -4,23 +4,24 @@ custom:
   project_name: scrapl
 #  model_name: mss_meso_log_724k_adamw_1e-4t5
   model_name: mss_rev_724k_adamw_1e-4t5
-#  model_name: scrapl_Jfr5_T2048_F1_saga_pwa_724k_1e-4t5
+#  model_name: scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5
 #  model_name: scrapl_J13_Jfr5_T4096_F1_saga_pwa_724k_1e-4t5
 #  model_name: jtfs_T128_F1_724k_adamw_1e-5
-#  dataset_name: mars_808_n681_b8_micro
-  dataset_name: mars_808_n681_b8_meso1024
-  cpu_batch_size: 3
+  dataset_name: mars_808_n681_b8_micro
+#  dataset_name: mars_808_n681_b16_meso2048
+  cpu_batch_size: 8
 #  use_wandb_cpu: true
   use_wandb_cpu: false
-#  use_wandb_gpu: false
-  use_wandb_gpu: true
+  use_wandb_gpu: false
+#  use_wandb_gpu: true
 
 trainer:
   accelerator: gpu
   benchmark: false
   devices: [4]
   max_epochs: 50
-  num_sanity_val_steps: 1
+#  num_sanity_val_steps: 1
+  num_sanity_val_steps: 0
   accumulate_grad_batches: 1
 #  accumulate_grad_batches: 2
 #  enable_checkpointing: false
@@ -38,10 +39,10 @@ data:
     n_test: 128
     n_delta_per_item: 1
 #    n_delta_per_item: 5
-#    delta_min: 0
-#    delta_max: 0
-    delta_min: -1024
-    delta_max: 1024
+    delta_min: 0
+    delta_max: 0
+#    delta_min: -2048
+#    delta_max: 2048
     shuffle_seed: 0
     num_workers: 8
 
@@ -74,8 +75,10 @@ model:
 #    warmup_param_agg: none
 
 #    run_name: mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_meso1024_s419
-    run_name: mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_meso1024
-#    run_name: scrapl_Jfr5_T2048_F1_saga_pwa_724k_1e-4t5__mars_808_n681_b8_meso1024
+    run_name: mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_micro
+#    run_name: mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_meso0-2048
+#    run_name: scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b16_micro
+#    run_name: scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b16_meso2048
 #    run_name: jtfs_T128_F1_724k_adamw_1e-5__mars_808_n681_b16_seed0
 
 #    run_name: scrapl_saga_pwa_1p2M_1e-5__theta14_10k_b16

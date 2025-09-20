@@ -21,7 +21,11 @@ assert os.path.isdir(OUT_DIR)
 
 WANDB_LOGS_DIR = os.path.join(OUT_DIR, "wandb_logs")
 LIGHTNING_LOGS_DIR = os.path.join(OUT_DIR, "lightning_logs")
+AUDIO_SAVE_DIR = os.path.join(OUT_DIR, "eval_808_samples")
+TSV_SAVE_DIR = OUT_DIR
 
-# if torch.cuda.is_available():
+if torch.cuda.is_available():
 #     WANDB_LOGS_DIR = "/import/c4dm-datasets-ext/cm007/out/wandb_logs"
 #     LIGHTNING_LOGS_DIR = "/import/c4dm-datasets-ext/cm007/out/lightning_logs"
+    AUDIO_SAVE_DIR = "/import/c4dm-datasets-ext/cm007/out/eval_808_samples"
+    TSV_SAVE_DIR = "/import/c4dm-datasets-ext/cm007/out"

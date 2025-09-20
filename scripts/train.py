@@ -1,10 +1,12 @@
 import logging
 import os
+import tempfile
 
 # Prevents a bug with PyTorch and CUDA_VISIBLE_DEVICES
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import torch
+import yaml
 
 from experiments.cli import CustomLightningCLI
 from experiments.paths import CONFIGS_DIR
@@ -14,6 +16,25 @@ log = logging.getLogger(__name__)
 log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 torch.set_float32_matmul_precision("high")
+
+
+def load_yaml_recursive(path):
+    with open(path, "r") as f:
+        cfg = yaml.safe_load(f)
+
+    def _resolve(node, base_dir):
+        if isinstance(node, dict):
+            return {k: _resolve(v, base_dir) for k, v in node.items()}
+        elif isinstance(node, list):
+            return [_resolve(v, base_dir) for v in node]
+        elif isinstance(node, str) and node.endswith((".yaml", ".yml")):
+            subpath = os.path.join(base_dir, node)
+            return load_yaml_recursive(subpath)  # recurse
+        else:
+            return node
+
+    return _resolve(cfg, os.path.dirname(path))
+
 
 if __name__ == "__main__":
     # config_name = "train.yml"
@@ -85,12 +106,26 @@ if __name__ == "__main__":
     # ==================================================================================
     # config_name = "eval_mixing/train.yml"
     # config_name = "eval_808/train.yml"  # min = 0.000082, max = 0.016156
-    config_name = "eval_808/train_mars_808.yml"  # min = 0.000138, max = 0.024875
+    # config_name = "eval_808/train_mars_808.yml"  # min = 0.000138, max = 0.024875
+    # config_name = "eval_808/train_mss_micro.yml"
+    # config_name = "eval_808/train_mss_meso.yml"
+    # config_name = "eval_808/train_mss_log_micro.yml"
+    # config_name = "eval_808/train_mss_log_meso.yml"
+    # config_name = "eval_808/train_mss_rev_micro.yml"
+    # config_name = "eval_808/train_mss_rev_meso.yml"
+    # config_name = "eval_808/train_rand_mss_micro.yml"
+    config_name = "eval_808/train_rand_mss_meso.yml"
+    # config_name = "eval_808/train_scrapl_micro.yml"
+    # config_name = "eval_808/train_scrapl_meso.yml"
+    # config_name = "eval_808/train_scrapl_no_log1p_micro.yml"
+    # config_name = "eval_808/train_scrapl_no_log1p_meso.yml"
+    # config_name = "eval_808/train_jtfs_micro.yml"
+    # config_name = "eval_808/train_jtfs_meso.yml"
 
     log.info(f"Running with config: {config_name}")
-    seeds = None
-    # seeds = list(range(20))
-    # seeds = list(range(10, 20))
+    # seeds = None
+    seeds = list(range(40))
+    # seeds = list(range(26, 40))
 
     config_path = os.path.join(CONFIGS_DIR, config_name)
 
@@ -105,8 +140,15 @@ if __name__ == "__main__":
         log.info(f"Running with seeds: {seeds}")
         for seed in seeds:
             log.info(f"Current seed_everything value: {seed}")
+            config = load_yaml_recursive(config_path)
+            config["data"]["init_args"]["shuffle_seed"] = seed
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as tmp:
+                yaml.dump(config, tmp)
+                new_config_path = tmp.name
+
             cli = CustomLightningCLI(
-                args=["fit", "-c", config_path, "--seed_everything", str(seed)],
+                args=["fit", "-c", new_config_path, "--seed_everything", str(seed)],
+                # run=False, args=["-c", new_config_path, "--seed_everything", str(seed)],
                 trainer_defaults=CustomLightningCLI.make_trainer_defaults()
             )
             trainer = cli.trainer

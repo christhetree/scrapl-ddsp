@@ -11,12 +11,13 @@ import torchaudio
 from nnAudio.features import CQT
 from torch import Tensor as T
 from torch import nn
+from tqdm import tqdm
 
 from eval_808.features import FeatureCollection, CascadingFrameExtactor
 from experiments import util
 from experiments.lightning import SCRAPLLightingModule
 from experiments.losses import JTFSTLoss, Scat1DLoss, MFCCDistance
-from experiments.paths import OUT_DIR, CONFIGS_DIR
+from experiments.paths import OUT_DIR, CONFIGS_DIR, AUDIO_SAVE_DIR, TSV_SAVE_DIR
 from experiments.scrapl_loss import SCRAPLLoss
 
 logging.basicConfig()
@@ -56,13 +57,13 @@ class DDSP808LightingModule(pl.LightningModule):
             self.run_name = run_name
         log.info(f"Run name: {self.run_name}")
         self.grad_mult = grad_mult
-        if type(self.loss_func) in {
-            JTFSTLoss,
-            Scat1DLoss,
-        }:
-            assert self.grad_mult != 1.0
-        else:
-            assert self.grad_mult == 1.0
+        # if type(self.loss_func) in {
+        #     JTFSTLoss,
+        #     Scat1DLoss,
+        # }:
+        #     assert self.grad_mult != 1.0
+        # else:
+        #     assert self.grad_mult == 1.0
         self.scrapl_probs_path = scrapl_probs_path
         self.use_warmup = use_warmup
         self.warmup_n_batches = warmup_n_batches
@@ -138,6 +139,9 @@ class DDSP808LightingModule(pl.LightningModule):
             hop_len=hop_len,
             n_mels=128,
         )
+        self.jtfs = util.load_class_from_yaml(
+            os.path.join(CONFIGS_DIR, "eval_808/jtfst.yml")
+        )
 
         if grad_mult != 1.0:
             assert not isinstance(self.loss_func, SCRAPLLoss)
@@ -154,48 +158,53 @@ class DDSP808LightingModule(pl.LightningModule):
             if scrapl_probs_path is not None:
                 self.loss_func.load_probs(scrapl_probs_path)
 
-        # # TSV logging
-        # tsv_cols = [
-        #     "seed",
-        #     "stage",
-        #     "step",
-        #     "global_n",
-        #     "time_epoch",
-        #     "loss",
-        #     # "l1_theta",
-        #     # "l2_theta",
-        #     # "rmse_theta",
-        # ]
-        # # for idx in range(self.n_params):
-        # #     param_name = synth.param_names[idx]
-        # #     tsv_cols.append(f"l1_{param_name}")
-        # #     tsv_cols.append(f"l2_{param_name}")
-        # #     tsv_cols.append(f"rmse_{param_name}")
-        # tsv_cols.extend(
-        #     [
-        #         "l1_fe",
-        #         "l2_fe",
-        #         "rmse_fe",
-        #     ]
-        # )
-        # for fe_name in fe_names:
-        #     tsv_cols.append(f"l1_{fe_name}")
-        #     tsv_cols.append(f"l2_{fe_name}")
-        #     tsv_cols.append(f"rmse_{fe_name}")
-        # if run_name and not use_warmup:
-        #     self.tsv_path = os.path.join(OUT_DIR, f"{self.run_name}.tsv")
-        #     if not os.path.exists(self.tsv_path):
-        #         with open(self.tsv_path, "w") as f:
-        #             f.write("\t".join(tsv_cols) + "\n")
-        # else:
-        #     self.tsv_path = None
+        # TSV logging
+        self.drum_types = ["BD", "SD", "Tom", "HH"]
+        tsv_cols = [
+            "seed",
+            "stage",
+            "step",
+            "global_n",
+            "time_epoch",
+        ]
+        for fe_name in fe_names:
+            tsv_cols.append(f"fe__{fe_name}__l1")
+            tsv_cols.append(f"fe__{fe_name}__mse")
+            tsv_cols.append(f"fe__{fe_name}__rmse")
+        for audio_name in self.audio_dists.keys():
+            tsv_cols.append(f"audio__{audio_name}")
+        tsv_cols.append("audio__U__l1")
+        tsv_cols.append("audio__U__mse")
+        tsv_cols.append("audio__U__rmse")
+        for drum_type in self.drum_types:
+            for fe_name in fe_names:
+                tsv_cols.append(f"{drum_type}__fe__{fe_name}__l1")
+                tsv_cols.append(f"{drum_type}__fe__{fe_name}__mse")
+                tsv_cols.append(f"{drum_type}__fe__{fe_name}__rmse")
+            for audio_name in self.audio_dists.keys():
+                tsv_cols.append(f"{drum_type}__audio__{audio_name}")
+            tsv_cols.append(f"{drum_type}__audio__U__l1")
+            tsv_cols.append(f"{drum_type}__audio__U__mse")
+            tsv_cols.append(f"{drum_type}__audio__U__rmse")
+        tsv_cols.append("audio__jtfs")
+        for drum_type in self.drum_types:
+            tsv_cols.append(f"{drum_type}__audio__jtfs")
+        self.tsv_cols = tsv_cols
+
+        if run_name and not use_warmup:
+            self.tsv_path = os.path.join(TSV_SAVE_DIR, f"{self.run_name}.tsv")
+            if not os.path.exists(self.tsv_path):
+                with open(self.tsv_path, "w") as f:
+                    f.write("\t".join(tsv_cols) + "\n")
+        else:
+            self.tsv_path = None
 
         # Compile
         if tr.cuda.is_available() and not use_warmup:
             self.model = tr.compile(self.model)
 
-        self.samples_dir = os.path.join(OUT_DIR, "eval_808_samples")
-        self.max_n_samples = 16
+        self.samples_dir = AUDIO_SAVE_DIR
+        self.max_n_samples = 128
         os.makedirs(self.samples_dir, exist_ok=True)
 
         self.val_batches = []
@@ -266,16 +275,20 @@ class DDSP808LightingModule(pl.LightningModule):
         assert isinstance(self.loss_func, SCRAPLLoss)
         train_dl_iter = iter(self.trainer.datamodule.train_dataloader())
         theta_fn_kwargs = []
+        synth_fn_kwargs = []
         for batch_idx in range(self.warmup_n_batches):
             # theta = next(train_dl_iter)
             # TODO(cm): why is this needed here and not in the other lightning.py?
             # theta = theta.to(self.device)
             # with tr.no_grad():
             #     x = self.synth(theta)
-            x = next(train_dl_iter)
+            x, drum_types, delta = next(train_dl_iter)
             x = x.to(self.device)
+            delta = delta.to(self.device)
             t_kwargs = {"x": x}
             theta_fn_kwargs.append(t_kwargs)
+            s_kwargs = {"delta": delta}
+            synth_fn_kwargs.append(s_kwargs)
 
         params = list(self.model.parameters())
 
@@ -328,7 +341,7 @@ class DDSP808LightingModule(pl.LightningModule):
             self.global_n = (
                 self.global_step * self.trainer.accumulate_grad_batches * batch_size
             )
-        self.log(f"global_n", float(self.global_n))
+        # self.log(f"global_n", float(self.global_n))
 
         with tr.no_grad():
             # x = self.synth(theta_0to1)
@@ -378,40 +391,6 @@ class DDSP808LightingModule(pl.LightningModule):
 
         self.log(f"{stage}/loss", loss, prog_bar=True)
 
-        # TSV logging
-        # if stage != "train" and self.tsv_path:
-        #     seed_everything = tr.random.initial_seed()
-        #     time_epoch = time.time()
-        #     row_elems = [
-        #         f"{seed_everything}",
-        #         stage,
-        #         f"{self.global_step}",
-        #         f"{self.global_n}",
-        #         f"{time_epoch}",
-        #         f"{loss.item()}",
-        #         # f"{l1_theta.item()}",
-        #         # f"{l2_theta.item()}",
-        #         # f"{rmse_theta.item()}",
-        #     ]
-        #     # for idx in range(self.n_params):
-        #     #     row_elems.append(f"{l1_theta_vals[idx].item()}")
-        #     #     row_elems.append(f"{l2_theta_vals[idx].item()}")
-        #     #     row_elems.append(f"{rmse_theta_vals[idx].item()}")
-        #     row_elems.extend(
-        #         [
-        #             f"{l1_feat.item()}",
-        #             f"{l2_feat.item()}",
-        #             f"{rmse_feat.item()}",
-        #         ]
-        #     )
-        #     for idx in range(self.n_features):
-        #         row_elems.append(f"{l1_fe_vals[idx].item()}")
-        #         row_elems.append(f"{l2_fe_vals[idx].item()}")
-        #         row_elems.append(f"{rmse_fe_vals[idx].item()}")
-        #     row = "\t".join(row_elems) + "\n"
-        #     with open(self.tsv_path, "a") as f:
-        #         f.write(row)
-
         if stage == "val":
             self.val_batches.append((drum_types, x, x_hat, U, U_hat))
         if stage == "test":
@@ -437,14 +416,18 @@ class DDSP808LightingModule(pl.LightningModule):
     def test_step(self, batch: T, stage: str) -> Dict[str, T]:
         return self.step(batch, stage="test")
 
-    def log_fe_metrics(self, x: T, x_hat: T, stage: str, prefix: str = "") -> None:
+    def log_fe_metrics(
+        self, x: T, x_hat: T, stage: str, prefix: str = ""
+    ) -> List[float]:
+        tsv_vals = []
         # Remove padding introduced by synth for delta_min < 0
         n_padding = -self.synth.delta_min
         if n_padding > 0:
             x = x[:, :, n_padding:]
             x_hat = x_hat[:, :, n_padding:]
-        feat = self.fe(x.squeeze(1))
-        feat_hat = self.fe(x_hat.squeeze(1))
+        with tr.no_grad():
+            feat = self.fe(x.squeeze(1))
+            feat_hat = self.fe(x_hat.squeeze(1))
         assert len(feat) == self.n_features
         for idx in range(self.n_features):
             feat_name = self.fe_names[idx]
@@ -467,28 +450,34 @@ class DDSP808LightingModule(pl.LightningModule):
                 assert curr_feat_hat.size() == loudness_hat.size()
                 curr_feat = curr_feat * loudness
                 curr_feat_hat = curr_feat_hat * loudness_hat
-
-            l1 = self.l1(curr_feat_hat, curr_feat)
-            l2 = self.mse(curr_feat_hat, curr_feat)
-            rmse = l2.sqrt()
-            self.log(f"{stage}/{prefix}l1_fe_{feat_name}", l1, prog_bar=False)
-            self.log(f"{stage}/{prefix}l2_fe_{feat_name}", l2, prog_bar=False)
-            self.log(f"{stage}/{prefix}rmse_fe_{feat_name}", rmse, prog_bar=False)
+            with tr.no_grad():
+                l1 = self.l1(curr_feat_hat, curr_feat)
+                l2 = self.mse(curr_feat_hat, curr_feat)
+                rmse = l2.sqrt()
+            # self.log(f"{stage}/{prefix}l1_fe_{feat_name}", l1, prog_bar=False)
+            # self.log(f"{stage}/{prefix}l2_fe_{feat_name}", l2, prog_bar=False)
+            # self.log(f"{stage}/{prefix}rmse_fe_{feat_name}", rmse, prog_bar=False)
+            tsv_vals.extend([l1.cpu().item(), l2.cpu().item(), rmse.cpu().item()])
+        return tsv_vals
 
     def log_audio_metrics(
         self, x: T, x_hat: T, U: T, U_hat: T, stage: str, prefix: str = ""
-    ) -> None:
+    ) -> List[float]:
+        tsv_vals = []
         for name, dist in self.audio_dists.items():
             with tr.no_grad():
                 dist_val = dist(x_hat, x)
-            self.log(f"{stage}/{prefix}audio_{name}", dist_val, prog_bar=False)
-            with tr.no_grad():
-                l1_U = self.l1(U_hat, U)
-                l2_U = self.mse(U_hat, U)
-                rmse_U = l2_U.sqrt()
-            self.log(f"{stage}/{prefix}audio_U_l1", l1_U, prog_bar=False)
-            self.log(f"{stage}/{prefix}audio_U_l2", l2_U, prog_bar=False)
-            self.log(f"{stage}/{prefix}audio_U_rmse", rmse_U, prog_bar=False)
+            # self.log(f"{stage}/{prefix}audio_{name}", dist_val, prog_bar=False)
+            tsv_vals.append(dist_val.cpu().item())
+        with tr.no_grad():
+            l1_U = self.l1(U_hat, U)
+            l2_U = self.mse(U_hat, U)
+            rmse_U = l2_U.sqrt()
+        # self.log(f"{stage}/{prefix}audio_U_l1", l1_U, prog_bar=False)
+        # self.log(f"{stage}/{prefix}audio_U_l2", l2_U, prog_bar=False)
+        # self.log(f"{stage}/{prefix}audio_U_rmse", rmse_U, prog_bar=False)
+        tsv_vals.extend([l1_U.cpu().item(), l2_U.cpu().item(), rmse_U.cpu().item()])
+        return tsv_vals
 
     def log_results(self, batches: List[Tuple[Any]], stage: str) -> None:
         drum_types, x, x_hat, U, U_hat = zip(*batches)
@@ -497,35 +486,86 @@ class DDSP808LightingModule(pl.LightningModule):
         x_hat = tr.cat(x_hat, dim=0)
         U = tr.cat(U, dim=0)
         U_hat = tr.cat(U_hat, dim=0)
+        tsv_vals = [
+            f"{tr.random.initial_seed()}",
+            stage,
+            f"{self.global_step}",
+            f"{self.global_n}",
+            f"{time.time()}",
+        ]
 
-        self.log_fe_metrics(x, x_hat, stage)
-        self.log_audio_metrics(x, x_hat, U, U_hat, stage)
-        unique_drum_types = sorted(list(set(drum_types)))
-        for drum_type in unique_drum_types:
+        tsv_vals.extend(self.log_fe_metrics(x, x_hat, stage))
+        tsv_vals.extend(self.log_audio_metrics(x, x_hat, U, U_hat, stage))
+        for drum_type in self.drum_types:
             idxs = [i for i, dt in enumerate(drum_types) if dt == drum_type]
             assert len(idxs) > 0
             curr_x = x[idxs, :, :]
             curr_x_hat = x_hat[idxs, :, :]
             curr_U = U[idxs, :, :]
             curr_U_hat = U_hat[idxs, :, :]
-            self.log_fe_metrics(curr_x, curr_x_hat, stage, prefix=f"{drum_type}__")
-            self.log_audio_metrics(
-                curr_x, curr_x_hat, curr_U, curr_U_hat, stage, prefix=f"{drum_type}__"
+            tsv_vals.extend(
+                self.log_fe_metrics(curr_x, curr_x_hat, stage, prefix=f"{drum_type}__")
+            )
+            tsv_vals.extend(
+                self.log_audio_metrics(
+                    curr_x,
+                    curr_x_hat,
+                    curr_U,
+                    curr_U_hat,
+                    stage,
+                    prefix=f"{drum_type}__",
+                )
             )
 
-        for idx in range(x.size(0)):
-            if idx >= self.max_n_samples:
-                break
-            curr_x = x[idx, :, :].detach().cpu()
-            curr_x_hat = x_hat[idx, :, :].detach().cpu()
-            save_path = os.path.join(
-                self.samples_dir, f"{self.run_name}__{stage}__{idx}.wav"
-            )
-            torchaudio.save(save_path, curr_x, sample_rate=self.synth.sr)
-            save_path = os.path.join(
-                self.samples_dir, f"{self.run_name}__{stage}__{idx}__hat.wav"
-            )
-            torchaudio.save(save_path, curr_x_hat, sample_rate=self.synth.sr)
+        if stage == "test":
+            jtfs_vals = []
+            for idx in tqdm(range(x.size(0))):
+                curr_x = x[idx, :, :].unsqueeze(0)
+                curr_x_hat = x_hat[idx, :, :].unsqueeze(0)
+                with tr.no_grad():
+                    jtfs_dist = self.jtfs(curr_x_hat, curr_x)
+                jtfs_vals.append(jtfs_dist)
+            jtfs_dists = tr.stack(jtfs_vals, dim=0)
+            jtfs_dist = jtfs_dists.mean()
+            # self.log(f"{stage}/audio_jtfs", jtfs_dist, prog_bar=False)
+            tsv_vals.append(jtfs_dist.cpu().item())
+            for drum_type in self.drum_types:
+                idxs = [i for i, dt in enumerate(drum_types) if dt == drum_type]
+                assert len(idxs) > 0
+                dt_jtfs_dists = jtfs_dists[idxs]
+                dt_jtfs_dist = dt_jtfs_dists.mean()
+                # self.log(
+                #     f"{stage}/{drum_type}__audio_jtfs", dt_jtfs_dist, prog_bar=False
+                # )
+                tsv_vals.append(dt_jtfs_dist.cpu().item())
+        else:
+            tsv_vals.append(None)
+            for _ in self.drum_types:
+                tsv_vals.append(None)
+
+        assert len(tsv_vals) == len(self.tsv_cols), f"{len(tsv_vals)} vs {len(self.tsv_cols)}"
+        if self.tsv_path:
+            tsv_vals = [str(v) for v in tsv_vals]
+            row = "\t".join(tsv_vals) + "\n"
+            with open(self.tsv_path, "a") as f:
+                f.write(row)
+
+        if stage == "test":
+            seed = tr.random.initial_seed()
+            for idx in range(x.size(0)):
+                if idx >= self.max_n_samples:
+                    break
+                curr_x = x[idx, :, :].detach().cpu()
+                curr_x_hat = x_hat[idx, :, :].detach().cpu()
+                save_path = os.path.join(
+                    self.samples_dir, f"{self.run_name}__seed_{seed}__{stage}__{idx}.wav"
+                )
+                torchaudio.save(save_path, curr_x, sample_rate=self.synth.sr)
+                save_path = os.path.join(
+                    self.samples_dir,
+                    f"{self.run_name}__seed_{seed}__{stage}__{idx}__hat.wav",
+                )
+                torchaudio.save(save_path, curr_x_hat, sample_rate=self.synth.sr)
 
     def on_validation_epoch_end(self) -> None:
         assert self.val_batches

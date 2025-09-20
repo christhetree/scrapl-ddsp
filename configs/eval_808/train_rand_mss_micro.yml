@@ -1,0 +1,55 @@
+seed_everything: 420
+
+custom:
+  project_name: scrapl
+  model_name: rand_mss_724k_adamw_1e-4t5
+  dataset_name: mars_808_n681_b8_micro
+  cpu_batch_size: 8
+  use_wandb_cpu: false
+  use_wandb_gpu: false
+
+trainer:
+  accelerator: gpu
+  benchmark: false
+  devices: [4]
+  max_epochs: 50
+  num_sanity_val_steps: 0
+  accumulate_grad_batches: 1
+
+data:
+  class_path: eval_808.data.WavDataModule
+  init_args:
+    batch_size: 8
+    root_dir: ../data/808_dataset
+    sr: 44100
+    n_samples: 44100
+    n_train: 425
+    n_val: 128
+    n_test: 128
+    n_delta_per_item: 1
+    delta_min: 0
+    delta_max: 0
+    shuffle_seed: 0
+    num_workers: 8
+
+model:
+  class_path: eval_808.lightning.DDSP808LightingModule
+  init_args:
+    model: spectral_2dcnn_14p.yml
+    synth: synth.yml
+    fe: fe.yml
+    loss_func: ../losses/rand_mss.yml
+    use_p_loss: false
+    feature_type: cqt
+    cqt_eps: 1e-3
+
+    run_name: rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_micro
+
+optimizer: ../opt/adam_w_1e-4.yml
+
+lr_scheduler:
+  class_path: torch.optim.lr_scheduler.LinearLR
+  init_args:
+    start_factor: 1.0        # multiplier for initial lr (so 1.0 → 1e-4)
+    end_factor: 0.1          # multiplier for final lr (so 0.1 → 1e-5)
+    total_iters: 50          # number of epochs

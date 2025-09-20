@@ -4,19 +4,13 @@ init_args:
   J: 12
   Q1: 8
   Q2: 2
-#  J_fr: 3
   J_fr: 5
   Q_fr: 2
-#  Q_fr: 3
-#  T: null
   T: 2048
-#  F: null
   F: 1
   p: 2
-#  use_log1p: false
-  use_log1p: true
-#  grad_mult: 1e8
-  grad_mult: 1.0
+  use_log1p: false
+  grad_mult: 1e8
   use_pwa: true
   use_saga: true
   sample_all_paths_first: false

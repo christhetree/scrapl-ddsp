@@ -16,6 +16,7 @@ from experiments.callbacks import (
     LogScalogramCallback,
     LogGradientCallback,
     ConsoleLRMonitor,
+    CleanupLogsCallback,
 )
 from experiments.paths import CONFIGS_DIR, WANDB_LOGS_DIR, LIGHTNING_LOGS_DIR
 
@@ -207,6 +208,7 @@ class CustomLightningCLI(LightningCLI):
                 # LogScalogramCallback(),
                 # LogGradientCallback(),
                 # LogAudioCallback(),
+                CleanupLogsCallback(),
             ],
             "logger": {
                 "class_path": "pytorch_lightning.loggers.TensorBoardLogger",

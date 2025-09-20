@@ -33,11 +33,15 @@ class JTFSTLoss(nn.Module):
         F: Optional[Union[str, int]] = None,
         format_: str = "joint",
         p: int = 2,
+        use_log1p: bool = False,
+        log1p_eps: float = 1e-3,  # TODO(cm): what's a good default here?
     ):
         super().__init__()
         assert format_ in ["time", "joint"]
         self.format = format_
         self.p = p
+        self.use_log1p = use_log1p
+        self.log1p_eps = log1p_eps
         self.jtfs = TimeFrequencyScattering(
             shape=(shape,),
             J=J,
@@ -59,7 +63,11 @@ class JTFSTLoss(nn.Module):
         x_target = x_target.view(-1, 1, n_samples)
         assert x.size(1) == x_target.size(1) == 1
         Sx = self.jtfs(x)
+        x_target = x_target.contiguous()
         Sx_target = self.jtfs(x_target)
+        if self.use_log1p:
+            Sx = tr.log1p(Sx / self.log1p_eps)
+            Sx_target = tr.log1p(Sx_target / self.log1p_eps)
         if self.format == "time":
             Sx = Sx[:, :, 1:, :]  # Remove the 0th order coefficients
             Sx_target = Sx_target[:, :, 1:, :]  # Remove the 0th order coefficients

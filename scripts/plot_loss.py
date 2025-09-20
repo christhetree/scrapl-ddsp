@@ -339,10 +339,6 @@ def plot_xy_vals(
 
 
 if __name__ == "__main__":
-    # stage = "train"
-    stage = "val"
-    # stage = "test"
-    x_col = "step"
     tsv_names_and_paths = [
         # ("adam_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),  # TODO(cm): something is off here
         # ("pwa_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
@@ -392,14 +388,25 @@ if __name__ == "__main__":
         # ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-4__chirplet_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
         # ("saga_pwa_b1_none", os.path.join(OUT_DIR, f"iclr_2026_raw/scrapl_saga_pwa_1e-4__adaptive_n_batches_1_n_iter_20_param_agg_none__chirplet_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
 
-        ("lo_lo", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo.tsv")),
-        ("lo_lo_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo__probs_n_batches_1.tsv")),
+        # ("lo_lo", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo.tsv")),
+        # ("lo_lo_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo__probs_n_batches_1.tsv")),
         # ("lo_med", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med.tsv")),
         # ("lo_med_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med__probs_n_batches_1.tsv")),
         # ("hi_med", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_med.tsv")),
         # ("hi_med_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_med__probs_n_batches_1.tsv")),
         # ("hi_hi", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi.tsv")),
         # ("hi_hi_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi__probs_n_batches_1.tsv")),
+
+        # DDSP 808
+        ("mss_log_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        ("mss_rev_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        ("scrapl_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        ("mss_log_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        ("mss_rev_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        ("scrapl_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+
+
+        # Old
 
         # ("pwa_saga", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
         # ("saga_a0.25", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
@@ -430,10 +437,23 @@ if __name__ == "__main__":
         # ("saga_bin", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_fm_bin_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
         # ("saga_w0", os.path.join(OUT_DIR, f"results/chirplet/fm/scrapl_saga_w0_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
     ]
-    # x_col = "global_n"
+
+    # stage = "train"
+    # stage = "val"
+    stage = "test"
+    x_col = "step"
+
+    y_col_prefix = ""
+    # y_col_prefix = "BD__"
+    # y_col_prefix = "SD__"
+    # y_col_prefix = "Tom__"
+    # y_col_prefix = "HH__"
     # y_col_prefix = "l1"
-    y_col_prefix = "l2"
+    # y_col_prefix = "l2"
     # y_col_prefix = "rmse"
+
+    y_col_dist = "l1"
+    # y_col_dist = "rmse"
 
     use_log_y = False
     # use_log_y = True
@@ -444,14 +464,27 @@ if __name__ == "__main__":
     colors = ["black", "blue"]
 
     # for y_col_suffix in ["_theta", "_d", "_s"]:
-    for y_col_suffix in ["_theta"]:
+    # for y_col_suffix in ["_theta"]:
+    for y_col_suffix in [
+        f"audio__mss_meso_log",
+        f"audio__mel_stft",
+        f"audio__mfcc",
+        f"audio__U__{y_col_dist}",
+        f"audio__jtfs",
+        f"fe__Loudness_0_2__{y_col_dist}",
+        f"fe__Loudness_2_64__{y_col_dist}",
+        f"fe__SpectralCentroid_0_2__{y_col_dist}",
+        f"fe__SpectralCentroid_2_64__{y_col_dist}",
+        f"fe__SpectralFlatness_0_2__{y_col_dist}",
+        f"fe__SpectralFlatness_2_64__{y_col_dist}",
+        # f"fe__TemporalCentroid_0_1__{y_col_dist}",
+    ]:
         y_col = f"{y_col_prefix}{y_col_suffix}"
         # Plot
         plt.rcParams.update({"font.size": 12})
         # plt.rcParams.update({"font.size": 14})
-        # fig, ax = plt.subplots(figsize=(6, 4), dpi=240)
-        # fig, ax = plt.subplots(figsize=(8.5, 4), dpi=240)
         fig, ax = plt.subplots(figsize=(6, 4), dpi=240)
+        # fig, ax = plt.subplots(figsize=(8.5, 4), dpi=240)
         ax.set_title(f"{stage} {y_col}")
         # ax.set_title("Chirplet Synth 315 paths:\nslow AM, slow FM")
         # ax.set_title("Chirplet Synth 315 paths:\nslow AM, moderate FM")
@@ -462,7 +495,7 @@ if __name__ == "__main__":
         for idx, (name, tsv_path) in enumerate(tsv_names_and_paths):
             log.info(f"Plotting {name}, stage: {stage} ===================================")
             data = prepare_tsv_data(
-                tsv_path, stage, x_col, y_col, y_converge_val=0.1, allow_var_n=True
+                tsv_path, stage, x_col, y_col, y_converge_val=0.1, allow_var_n=False
             )
             # color = colors[idx]
             color = None
@@ -478,12 +511,12 @@ if __name__ == "__main__":
             plt.show()
 
         df = pd.DataFrame(df_rows, columns=df_cols)
-        if stage != "test":
-            df["tv_x_normed"] = df["tv_x_normed"] * 100
-            df["tv_x_normed_95ci"] = df["tv_x_normed_95ci"] * 100
-        df["con_rate"] = df["con_rate"] * 100
+        # if stage != "test":
+        #     df["tv_x_normed"] = df["tv_x_normed"] * 100
+        #     df["tv_x_normed_95ci"] = df["tv_x_normed_95ci"] * 100
+        # df["con_rate"] = df["con_rate"] * 100
         # pd.set_option("display.float_format", lambda x: "%.2f" % x)
-        pd.set_option("display.float_format", lambda x: "%.3f" % x)
+        # pd.set_option("display.float_format", lambda x: "%.3f" % x)
         # pd.set_option("display.float_format", lambda x: "%.0f" % x)
         print(df.to_string(index=False))
         print()

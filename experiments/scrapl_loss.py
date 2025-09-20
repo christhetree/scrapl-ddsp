@@ -48,6 +48,8 @@ class SCRAPLLoss(nn.Module):
         T: Optional[Union[str, int]] = None,
         F: Optional[Union[str, int]] = None,
         p: int = 2,
+        use_log1p: bool = False,
+        log1p_eps: float = 1e-3,  # TODO(cm): what's a good default here?
         grad_mult: float = 1e8,
         use_pwa: bool = True,
         use_saga: bool = True,
@@ -62,11 +64,13 @@ class SCRAPLLoss(nn.Module):
     ):
         super().__init__()
         self.p = p
+        self.use_log1p = use_log1p
+        self.log1p_eps = log1p_eps
         self.grad_mult = grad_mult
-        if use_pwa:
+        if use_pwa and not use_log1p:
             assert (
                 grad_mult > 1.0
-            ), "Using PWA requires a grad multiplier to avoid float precision errors"
+            ), "Using PWA with no log1p requires a grad multiplier to avoid float precision errors"
         self.use_pwa = use_pwa
         self.use_saga = use_saga
         self.sample_all_paths_first = sample_all_paths_first
@@ -99,7 +103,8 @@ class SCRAPLLoss(nn.Module):
         log.info(
             f"SCRAPLLoss:\n"
             f"J={J}, Q1={Q1}, Q2={Q2}, Jfr={J_fr}, Qfr={Q_fr}, T={T}, F={F}\n"
-            # f"grad_mult              = {grad_mult:.0e}\n"
+            f"use_log1p              = {use_log1p}, eps = {log1p_eps}\n"
+            f"grad_mult              = {grad_mult}\n"
             f"use_pwa                = {use_pwa}\n"
             f"use_saga               = {use_saga}\n"
             f"sample_all_paths_first = {sample_all_paths_first}\n"
@@ -321,8 +326,12 @@ class SCRAPLLoss(nn.Module):
         n2, n_fr = self.scrapl_keys[path_idx]
         Sx = self.jtfs.scattering_singlepath(x, n2, n_fr)
         Sx = Sx["coef"].squeeze(-1)
+        if self.use_log1p:
+            Sx = tr.log1p(Sx / self.log1p_eps)
         Sx_target = self.jtfs.scattering_singlepath(x_target, n2, n_fr)
         Sx_target = Sx_target["coef"].squeeze(-1)
+        if self.use_log1p:
+            Sx_target = tr.log1p(Sx_target / self.log1p_eps)
         diff = Sx_target - Sx
         dist = tr.linalg.vector_norm(diff, ord=self.p, dim=(-2, -1))
         # TODO(cm): add reduction option
@@ -723,8 +732,13 @@ class SCRAPLLoss(nn.Module):
                 log.info(f"path_idx = {path_idx}, curr_vals = {curr_vals}")
             # Aggregate the theta LCs across all params
             vals = tr.stack(vals, dim=0)
-            # save_path = os.path.join(OUT_DIR, f"vals_{path_idx}.pt")
+
+            # save_dir = os.path.join(OUT_DIR, "warmup_micro_log1p")
+            # # save_dir = os.path.join(OUT_DIR, "warmup_meso_log1p")
+            # os.makedirs(save_dir, exist_ok=True)
+            # save_path = os.path.join(save_dir, f"vals_{path_idx}.pt")
             # tr.save(vals.detach().cpu(), save_path)
+
             if agg == "none":
                 assert vals.size(0) == 1
                 vals = vals[0]
