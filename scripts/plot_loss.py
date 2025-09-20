@@ -398,13 +398,23 @@ if __name__ == "__main__":
         # ("hi_hi_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi__probs_n_batches_1.tsv")),
 
         # DDSP 808
-        ("mss_log_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
-        ("mss_rev_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
-        ("scrapl_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("mss_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("mss_log_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("mss_rev_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("rand_mss_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("scrapl_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("scrapl_no_log1p_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_724k_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("scrapl_og_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_saga_pwa_724k_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("jtfs_mi", os.path.join(OUT_DIR, f"iclr_2026_raw/eval_808/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
+
+        ("mss_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
         ("mss_log_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
         ("mss_rev_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        ("rand_mss_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
         ("scrapl_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
-
+        ("scrapl_no_log1p_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_724k_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        ("scrapl_og_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_saga_pwa_724k_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        ("jtfs_me", os.path.join(OUT_DIR, f"iclr_2026_raw/eval_808/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
 
         # Old
 
@@ -477,7 +487,7 @@ if __name__ == "__main__":
         f"fe__SpectralCentroid_2_64__{y_col_dist}",
         f"fe__SpectralFlatness_0_2__{y_col_dist}",
         f"fe__SpectralFlatness_2_64__{y_col_dist}",
-        # f"fe__TemporalCentroid_0_1__{y_col_dist}",
+        f"fe__TemporalCentroid_0_1__{y_col_dist}",
     ]:
         y_col = f"{y_col_prefix}{y_col_suffix}"
         # Plot

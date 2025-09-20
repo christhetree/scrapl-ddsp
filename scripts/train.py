@@ -109,16 +109,22 @@ if __name__ == "__main__":
     # config_name = "eval_808/train_mars_808.yml"  # min = 0.000138, max = 0.024875
     # config_name = "eval_808/train_mss_micro.yml"
     # config_name = "eval_808/train_mss_meso.yml"
+    # config_name = "eval_808/train_mss_lin_micro.yml"
+    # config_name = "eval_808/train_mss_lin_meso.yml"
     # config_name = "eval_808/train_mss_log_micro.yml"
     # config_name = "eval_808/train_mss_log_meso.yml"
     # config_name = "eval_808/train_mss_rev_micro.yml"
     # config_name = "eval_808/train_mss_rev_meso.yml"
     # config_name = "eval_808/train_rand_mss_micro.yml"
-    config_name = "eval_808/train_rand_mss_meso.yml"
+    # config_name = "eval_808/train_rand_mss_meso.yml"
     # config_name = "eval_808/train_scrapl_micro.yml"
     # config_name = "eval_808/train_scrapl_meso.yml"
+    # config_name = "eval_808/train_scrapl_micro__probs_n_batches_1.yml"  # min = 0.000058, max = 0.014286
+    config_name = "eval_808/train_scrapl_meso__probs_n_batches_1.yml"  # min = 0.000058, max = 0.014280
     # config_name = "eval_808/train_scrapl_no_log1p_micro.yml"
     # config_name = "eval_808/train_scrapl_no_log1p_meso.yml"
+    # config_name = "eval_808/train_scrapl_og_micro.yml"
+    # config_name = "eval_808/train_scrapl_og_meso.yml"
     # config_name = "eval_808/train_jtfs_micro.yml"
     # config_name = "eval_808/train_jtfs_meso.yml"
 
