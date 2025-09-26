@@ -38,7 +38,7 @@ model:
     model: spectral_2dcnn_14p.yml
     synth: synth.yml
     fe: fe.yml
-    loss_func: ../eval_808/jtfst.yml
+    loss_func: ../eval_808/jtfs.yml
     use_p_loss: false
     feature_type: cqt
     cqt_eps: 1e-3

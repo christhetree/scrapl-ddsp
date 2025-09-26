@@ -58,9 +58,12 @@ def prepare_tsv_data(
     df = df[~((df["step"] == 0) & (df["stage"] == "val"))]
     log.debug(f"Number of rows after  removing warmup steps: {len(df)}")
 
+    # Wall clock times
     # if "jtfs" in tsv_path:
-    #     df["step"] = df["step"] * 18.5
+    #     df["step"] = df["step"] * (1730 / 89.8)
     #     df["step"] = df["step"] - df["step"].min() + 96.0
+    # Average recorded duration of a SCRAPL step converted to hours
+    # df["step"] = df["step"] * 0.824666 / 3600
 
     data = defaultdict(list)
     grouped = df.groupby(trial_col)
@@ -68,10 +71,6 @@ def prepare_tsv_data(
     log.info(f"Number of trials: {n}")
     tsv_col_names.append("n_trials")
     print_tsv_vals.append(n)
-
-    # if "warmup" in tsv_path:
-    #     # subtract 315 from step column
-    #     df["step"] = df["step"] - 314
 
     x_val_mins = []
     x_val_maxs = []
@@ -299,12 +298,12 @@ def plot_xy_vals(
     y_95p_vals = y_means + y_95cis
     if use_log_x:
         x_vals = np.log10(x_vals)
-    if use_log_y:
-        y_vals = np.log10(y_vals)
-        y_95n_vals = np.log10(y_95n_vals)
-        y_95p_vals = np.log10(y_95p_vals)
-        y_mins = np.log10(y_mins)
-        y_maxs = np.log10(y_maxs)
+    # if use_log_y:
+    #     y_vals = np.log10(y_vals)
+    #     y_95n_vals = np.log10(y_95n_vals)
+    #     y_95p_vals = np.log10(y_95p_vals)
+    #     y_mins = np.log10(y_mins)
+    #     y_maxs = np.log10(y_maxs)
 
     mean_label = "mean"
     if title is not None:
@@ -322,72 +321,52 @@ def plot_xy_vals(
         ax.fill_between(x_vals, y_mins, y_maxs, color="gray", alpha=0.4)
 
     # Labels and legend
+    ax.set_xlabel(f"{x_col}")
+    ax.set_ylabel(f"{y_col}")
+
     # ax.set_xlim(0, 19200)
     # ax.set_xlim(0, 80000)
+    # ax.set_xlim(0, 20)
     # ax.set_xlim(0, 4800)
-    ax.set_xlabel(f"{x_col}")
     # ax.set_xlabel(f"Steps")
     # ax.set_xticklabels([])
-    # ax.set_xlabel(f"Wall Clock Time")
+    # ax.set_xlabel(f"Wall Clock Time (hours)")
+
     # ax.set_ylim(bottom=0.0)
-    # ax.set_ylim(bottom=0.0, top=0.12)
-    ax.set_ylabel(f"{y_col}")
-    # ax.set_ylabel("$\\theta_{synth} \\; L_2$")
+    # ax.set_ylim(bottom=0.0, top=0.40)
+    # ax.set_yscale("log")
+    # ax.set_yticks([0.20, 0.1414, 0.10, 0.07071, 0.05], ["0.20", "0.14", "0.10", "0.07", "0.05"])
+    # ax.set_yticks([], minor=True)
+    # ax.set_ylim(bottom=0.05, top=0.25)
+    # ax.set_ylabel("$\\theta_{synth} \\; L_1$")
+
     ax.legend()
-    # ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.0)
-    ax.grid(True)
+    # ax.legend(fontsize=10)
+    # ax.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0.0, fontsize=12)
+
+    ax.grid(True, which="both", ls="--", alpha=0.5)
 
 
 if __name__ == "__main__":
     tsv_names_and_paths = [
-        # ("adam_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),  # TODO(cm): something is off here
-        # ("pwa_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_pwa_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("saga_adam_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_just_saga_adam_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("saga_pwa_prev", os.path.join(OUT_DIR, f"results/texture/scrapl_saga_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("saga_pwa_prev2", os.path.join(OUT_DIR, f"results_scrapl_loss/texture/scrapl_saga_pwa_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("jtfs_prev", os.path.join(OUT_DIR, f"results/texture/jtfs_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("clap_prev", os.path.join(OUT_DIR, f"results/texture/clap_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("mss_prev", os.path.join(OUT_DIR, f"results/texture/mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("rand_mss_prev", os.path.join(OUT_DIR, f"results/texture/rand_mss_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("mss_rev_prev", os.path.join(OUT_DIR, f"results/texture/mss_revisited_adamw_1e-5_b32__texture_32_32_5_meso.tsv")),
-        # ("saga_ds_w0", os.path.join(OUT_DIR, f"results/texture/scrapl_saga_ds_w0_sgd_1e-5_b32__texture_32_32_5_meso.tsv")),
-
-        # ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("Adaptive\nSCRAPL", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__adaptive_n_batches_10_n_iter_20_param_agg_none__texture_32_32_5_meso_b32.tsv")),
-        # ("jtfs", os.path.join(OUT_DIR, f"iclr_2026_done/jtfst_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("mss", os.path.join(OUT_DIR, f"iclr_2026_done/mss_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("mss_meso", os.path.join(OUT_DIR, f"mss_meso_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("MSS", os.path.join(OUT_DIR, f"mss_meso_log_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("MSS Rev.", os.path.join(OUT_DIR, f"iclr_2026_done/mss_revisited_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("Rand. MSS", os.path.join(OUT_DIR, f"iclr_2026_done/rand_mss_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("MS-CLAP", os.path.join(OUT_DIR, f"iclr_2026_done/clap_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("PANNs", os.path.join(OUT_DIR, f"iclr_2026_done/panns_wglm_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("ploss", os.path.join(OUT_DIR, f"iclr_2026_done/ploss_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-
-        # ("Adaptive\nSCRAPL", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__adaptive_n_batches_10_n_iter_20_param_agg_none__texture_32_32_5_meso_b32.tsv")),
-        # ("MSS", os.path.join(OUT_DIR, f"mss_meso_log_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("MSS Rev.", os.path.join(OUT_DIR, f"iclr_2026_done/mss_revisited_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("Rand. MSS", os.path.join(OUT_DIR, f"iclr_2026_done/rand_mss_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # Granular
+        # ("SCRAPL", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__adaptive_n_batches_10_n_iter_20_param_agg_none__texture_32_32_5_meso_b32.tsv")),
+        # ("MSS Linear", os.path.join(OUT_DIR, f"mss_meso_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("MSS Log + Lin.", os.path.join(OUT_DIR, f"mss_meso_log_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("MSS Revisited", os.path.join(OUT_DIR, f"iclr_2026_done/mss_revisited_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("MSS Random", os.path.join(OUT_DIR, f"iclr_2026_done/rand_mss_1e-5__texture_32_32_5_meso_b32.tsv")),
         # ("MS-CLAP", os.path.join(OUT_DIR, f"iclr_2026_done/clap_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
         # ("PANNs", os.path.join(OUT_DIR, f"iclr_2026_done/panns_wglm_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
 
-        # ("SCRAPL (no PWA, no SAGA)", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # # ("saga_adam", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("SCRAPL (no SAGA)", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_pwa_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("SCRAPL", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32.tsv")),
-        # ("Adaptive SCRAPL", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__adaptive_n_batches_10_n_iter_20_param_agg_none__texture_32_32_5_meso_b32.tsv")),
-        # ("JTFS", os.path.join(OUT_DIR, f"iclr_2026_done/jtfst_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
+        ("SCRAPL: no $\\mathcal{P}$-Adam, no $\\mathcal{P}$-SAGA, no $\\theta$-IS", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
+        # ("saga_adam", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
+        ("SCRAPL: no $\\mathcal{P}$-SAGA, no $\\theta$-IS", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_pwa_1e-5__texture_32_32_5_meso_b32.tsv")),
+        ("SCRAPL: no $\\theta$-Importance Sampling ($\\theta$-IS)", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32.tsv")),
+        ("SCRAPL", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__adaptive_n_batches_10_n_iter_20_param_agg_none__texture_32_32_5_meso_b32.tsv")),
+        ("JTFS", os.path.join(OUT_DIR, f"iclr_2026_done/jtfst_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
         # ("ploss", os.path.join(OUT_DIR, f"iclr_2026_done/ploss_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
 
-        # ("adam_old", os.path.join(OUT_DIR, f"iclr_2026/scrapl_adam_1e-5__texture_32_32_5_meso_b32__old.tsv")),
-        # ("saga_pwa_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__adaptive_n_batches_1_n_iter_20_param_agg_none__texture_32_32_5_meso_b32.tsv")),
-        # ("saga_pwa_b1_mean", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__adaptive_n_batches_1_n_iter_20_param_agg_mean__texture_32_32_5_meso_b32.tsv")),
-        # ("saga_pwa_b1_max", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-5__adaptive_n_batches_1_n_iter_20_param_agg_max__texture_32_32_5_meso_b32.tsv")),
-        # ("clap_2", os.path.join(OUT_DIR, f"iclr_2026/clap_adam_1e-5__texture_32_32_5_meso_b32.tsv")),
-
-        # ("saga_pwa", os.path.join(OUT_DIR, f"iclr_2026_done/scrapl_saga_pwa_1e-4__chirplet_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
-        # ("saga_pwa_b1_none", os.path.join(OUT_DIR, f"iclr_2026_raw/scrapl_saga_pwa_1e-4__adaptive_n_batches_1_n_iter_20_param_agg_none__chirplet_32_32_5_meso_b16_am_lo_fm_lo.tsv")),
-
+        # Chirplet
         # ("lo_lo", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo.tsv")),
         # ("lo_lo_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_lo__probs_n_batches_1.tsv")),
         # ("lo_med", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med.tsv")),
@@ -398,108 +377,85 @@ if __name__ == "__main__":
         # ("hi_hi_b1_none", os.path.join(OUT_DIR, f"iclr_2026_done/chirplet/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_hi_fm_hi__probs_n_batches_1.tsv")),
 
         # DDSP 808
-        # ("mss_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("scrapl_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("scrapl_probs_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro__probs_n_batches_1.tsv")),
+        # ("jtfs_mi", os.path.join(OUT_DIR, f"iclr_2026_raw/eval_808/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("mss_lin_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_meso_lin_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
         # ("mss_log_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
         # ("mss_rev_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
         # ("rand_mss_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
-        # ("scrapl_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro.tsv")),
         # ("scrapl_no_log1p_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_724k_1e-4t5__mars_808_n681_b8_micro.tsv")),
         # ("scrapl_og_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_saga_pwa_724k_1e-4t5__mars_808_n681_b8_micro.tsv")),
-        # ("jtfs_mi", os.path.join(OUT_DIR, f"iclr_2026_raw/eval_808/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
+        # ("mss_mi", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_724k_adamw_1e-4t5__mars_808_n681_b8_micro.tsv")),
 
-        ("mss_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
-        ("mss_log_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
-        ("mss_rev_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
-        ("rand_mss_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
-        ("scrapl_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
-        ("scrapl_no_log1p_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_724k_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
-        ("scrapl_og_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_saga_pwa_724k_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
-        ("jtfs_me", os.path.join(OUT_DIR, f"iclr_2026_raw/eval_808/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
-
-        # Old
-
-        # ("pwa_saga", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga_a0.25", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga_a0.125", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga_am_or_fm", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_am_or_fm_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga_bin", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_bin_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga_ds_w0", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_ds_w0_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga_d_w0", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_d_w0_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga_s_w0", os.path.join(OUT_DIR, f"results/chirplet/scrapl_saga_s_w0_sgd_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-
-        # ("saga_pwa", os.path.join(OUT_DIR, f"results_scrapl_loss/chirplet/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga_pwa_ds_up", os.path.join(OUT_DIR, f"results_scrapl_loss/chirplet/scrapl_saga_pwa_ds_update_1e-4_b32__chirplet_32_32_5_meso.tsv")),
-        # ("saga_pwa_ds", os.path.join(OUT_DIR, f"results_scrapl_loss/chirplet/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_None.tsv")),
-        # ("saga_pwa_ds_mean", os.path.join(OUT_DIR, f"results_scrapl_loss/chirplet/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_mean.tsv")),
-        # ("saga_pwa_ds_20", os.path.join(OUT_DIR, f"results_scrapl_loss/chirplet/scrapl_saga_pwa_1e-4_b32__chirplet_32_32_5_meso__probs__n_batches_20__n_iter_20__min_prob_frac_0.0__param_agg_None.tsv")),
-
-        # ("saga", os.path.join(OUT_DIR, f"results/chirplet/am/scrapl_saga_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-        # ("saga_a0.25", os.path.join(OUT_DIR, f"results/chirplet/am/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-        # ("saga_a0.125", os.path.join(OUT_DIR, f"results/chirplet/am/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-        # ("saga_am", os.path.join(OUT_DIR, f"results/chirplet/am/scrapl_saga_am_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-        # ("saga_bin", os.path.join(OUT_DIR, f"results/chirplet/am/scrapl_saga_am_bin_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-        # ("saga_w0", os.path.join(OUT_DIR, f"results/chirplet/am/scrapl_saga_w0_sgd_1e-4_b32__chirplet_am_32_32_5_meso.tsv")),
-
-        # ("saga", os.path.join(OUT_DIR, f"results/chirplet/fm/scrapl_saga_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
-        # ("saga_a0.25", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_a0.25_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
-        # ("saga_a0.125", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_a0.125_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
-        # ("saga_fm", os.path.join(OUT_DIR, f"results/chirplet/fm/scrapl_saga_fm_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
-        # ("saga_bin", os.path.join(OUT_DIR, f"chirplet/fm/scrapl_saga_fm_bin_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
-        # ("saga_w0", os.path.join(OUT_DIR, f"results/chirplet/fm/scrapl_saga_w0_sgd_1e-4_b32__chirplet_fm_32_32_5_meso.tsv")),
+        # ("scrapl_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        # ("scrapl_probs_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048__probs_n_batches_1.tsv")),
+        # ("jtfs_me", os.path.join(OUT_DIR, f"iclr_2026_raw/eval_808/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        # ("mss_lin_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_meso_lin_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        # ("mss_log_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        # ("mss_rev_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        # ("rand_mss_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        # ("scrapl_no_log1p_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_724k_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        # ("scrapl_og_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/scrapl_saga_pwa_724k_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
+        # ("mss_me", os.path.join(OUT_DIR, f"iclr_2026_done/eval_808/mss_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048.tsv")),
     ]
-
     # stage = "train"
-    # stage = "val"
-    stage = "test"
+    stage = "val"
+    # stage = "test"
     x_col = "step"
 
-    y_col_prefix = ""
+    # y_col_prefix = ""
     # y_col_prefix = "BD__"
     # y_col_prefix = "SD__"
     # y_col_prefix = "Tom__"
     # y_col_prefix = "HH__"
-    # y_col_prefix = "l1"
+    y_col_prefix = "l1"
     # y_col_prefix = "l2"
     # y_col_prefix = "rmse"
 
-    y_col_dist = "l1"
+    y_col_dist = ""
+    # y_col_dist = "l1"
     # y_col_dist = "rmse"
 
     use_log_y = False
     # use_log_y = True
 
     # colors = ["green", "orange", "black", "blue", "red"]
-    # colors = ["blue", "red", "orange", "magenta", "green", "black"]
-    # colors = ["black", "red"]
-    colors = ["black", "blue"]
+    # colors = ["blue", "cyan", "red", "orange", "magenta", "green", "black"]
+    # colors = ["red", "blue"]
+    # colors = ["black", "blue"]
 
-    # for y_col_suffix in ["_theta", "_d", "_s"]:
+    for y_col_suffix in ["_theta", "_d", "_s"]:
     # for y_col_suffix in ["_theta"]:
-    for y_col_suffix in [
-        f"audio__mss_meso_log",
-        f"audio__mel_stft",
-        f"audio__mfcc",
-        f"audio__U__{y_col_dist}",
-        f"audio__jtfs",
-        f"fe__Loudness_0_2__{y_col_dist}",
-        f"fe__Loudness_2_64__{y_col_dist}",
-        f"fe__SpectralCentroid_0_2__{y_col_dist}",
-        f"fe__SpectralCentroid_2_64__{y_col_dist}",
-        f"fe__SpectralFlatness_0_2__{y_col_dist}",
-        f"fe__SpectralFlatness_2_64__{y_col_dist}",
-        f"fe__TemporalCentroid_0_1__{y_col_dist}",
-    ]:
+    # for y_col_suffix in ["_d", "_s"]:
+    # for y_col_suffix in [
+        # f"audio__mss_meso_log",
+        # f"audio__mel_stft",
+        # f"audio__mfcc",
+        # f"audio__U__{y_col_dist}",
+        # f"audio__jtfs",
+        # f"fe__Loudness_0_2__{y_col_dist}",
+        # f"fe__Loudness_2_64__{y_col_dist}",
+        # f"fe__SpectralCentroid_0_2__{y_col_dist}",
+        # f"fe__SpectralCentroid_2_64__{y_col_dist}",
+        # f"fe__SpectralFlatness_0_2__{y_col_dist}",
+        # f"fe__SpectralFlatness_2_64__{y_col_dist}",
+        # f"fe__TemporalCentroid_0_1__{y_col_dist}",
+    # ]:
         y_col = f"{y_col_prefix}{y_col_suffix}"
+
         # Plot
-        plt.rcParams.update({"font.size": 12})
+        # plt.rcParams.update({"font.size": 12})
         # plt.rcParams.update({"font.size": 14})
-        fig, ax = plt.subplots(figsize=(6, 4), dpi=240)
-        # fig, ax = plt.subplots(figsize=(8.5, 4), dpi=240)
+        # plt.rcParams.update({"font.size": 16})
+        fig, ax = plt.subplots(figsize=(6, 4), dpi=300)
+        # fig, ax = plt.subplots(figsize=(8.5, 4), dpi=300)
         ax.set_title(f"{stage} {y_col}")
-        # ax.set_title("Chirplet Synth 315 paths:\nslow AM, slow FM")
-        # ax.set_title("Chirplet Synth 315 paths:\nslow AM, moderate FM")
-        # ax.set_title("Chirplet Synth 315 paths:\nfast AM, moderate FM")
-        # ax.set_title("Chirplet Synth 315 paths:\nfast AM, fast FM")
+        # ax.set_title("Chirplet Synth: slow AM, slow FM")
+        # ax.set_title("Chirplet Synth: slow AM, moderate FM")
+        # ax.set_title("Chirplet Synth: fast AM, moderate FM")
+        # ax.set_title("Chirplet Synth: fast AM, fast FM")
+
         df_rows = []
         df_cols = []
         for idx, (name, tsv_path) in enumerate(tsv_names_and_paths):
@@ -518,15 +474,28 @@ if __name__ == "__main__":
 
         if stage != "test":
             fig.tight_layout()
+            plt.savefig(os.path.join(OUT_DIR, f"{stage}_{y_col}_plot.pdf"))
             plt.show()
 
         df = pd.DataFrame(df_rows, columns=df_cols)
-        # if stage != "test":
-        #     df["tv_x_normed"] = df["tv_x_normed"] * 100
-        #     df["tv_x_normed_95ci"] = df["tv_x_normed_95ci"] * 100
-        # df["con_rate"] = df["con_rate"] * 100
-        # pd.set_option("display.float_format", lambda x: "%.2f" % x)
-        # pd.set_option("display.float_format", lambda x: "%.3f" % x)
-        # pd.set_option("display.float_format", lambda x: "%.0f" % x)
-        print(df.to_string(index=False))
+
+        # mult = 1
+        # if "Loudness" in y_col:
+        #     mult = 100
+        # if "Centroid" in y_col:
+        #     mult = 10
+        # formatters = {
+        #     "y_mean": lambda x: f"{x * mult:.5g}",
+        #     "y_95ci": lambda x: f"{x * mult:.5g}",
+        #     "y_mean": lambda x: f"{x * 1000:.5g}",
+        #     "y_95ci": lambda x: f"{x * 1000:.5g}",
+        #     "tv_x_normed": lambda x: f"{x * 1000:.5g}",
+        #     "tv_x_normed_95ci": lambda x: f"{x * 1000:.5g}",
+        #     "con_x_val": lambda x: f"{x:.0f}",
+        #     "con_x_95ci": lambda x: f"{x:.0f}",
+        # }
+        formatters = {}
+
+        # Apply formatting when displaying
+        print(df.to_string(formatters=formatters, index=False))
         print()

@@ -32,7 +32,7 @@ model:
     model: ../../models/spectral_2dcnn.yml
     synth: ../../synths/chirplet_8khz_2_am_lo_fm_med.yml
     loss_func: ../../losses/scrapl_saga_pwa.yml
-    scrapl_probs_path: ../data/adaptive_scrapl/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt
+    scrapl_probs_path: ../data/theta_importance_sampling/scrapl_saga_pwa_1e-4__chirplet2_32_32_5_meso_b32_am_lo_fm_med__probs__n_theta_2__n_params_28__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt
 
     use_p_loss: false
     use_train_rand_seed: false

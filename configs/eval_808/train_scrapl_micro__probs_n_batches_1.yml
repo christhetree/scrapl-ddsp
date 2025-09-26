@@ -39,7 +39,7 @@ model:
     synth: synth.yml
     fe: fe.yml
     loss_func: ../eval_808/scrapl_saga_pwa.yml
-    scrapl_probs_path: ../data/adaptive_scrapl/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b16_micro__probs__n_theta_14__n_params_88__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_420.pt
+    scrapl_probs_path: ../data/theta_importance_sampling/eval_808/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b16_micro__probs__n_theta_14__n_params_88__n_batches_1__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_420.pt
     use_p_loss: false
     feature_type: cqt
     cqt_eps: 1e-3

@@ -140,7 +140,7 @@ class DDSP808LightingModule(pl.LightningModule):
             n_mels=128,
         )
         self.jtfs = util.load_class_from_yaml(
-            os.path.join(CONFIGS_DIR, "eval_808/jtfst.yml")
+            os.path.join(CONFIGS_DIR, "eval_808/jtfs.yml")
         )
 
         if grad_mult != 1.0:

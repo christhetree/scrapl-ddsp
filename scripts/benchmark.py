@@ -1,7 +1,9 @@
 import logging
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+from nnAudio.features import CQT
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
 from typing import Callable, Any, Dict, Optional, Tuple
 import pandas as pd
@@ -11,7 +13,7 @@ from tqdm import tqdm
 from experiments import util
 from experiments.paths import CONFIGS_DIR, OUT_DIR
 
-from torch import Tensor as T
+from torch import Tensor as T, nn
 import torch as tr
 from torch.utils import benchmark
 
@@ -21,10 +23,12 @@ log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 batch_size = 4
 n_samples = 32768
+# n_samples = 2
+# n_samples = 10
 num_threads = 1
-min_run_time = 5.0
-device = "cpu"
-# device = "cuda"
+min_run_time = 15.0
+# device = "cpu"
+device = "cuda"
 
 
 def benchmark_loss_func(
@@ -65,20 +69,22 @@ def main() -> None:
     )
     tr.manual_seed(42)
 
-    mss_config_path = os.path.join(CONFIGS_DIR, "losses/mss.yml")
-    mss_loss = util.load_class_from_yaml(mss_config_path)
-    mss_rev_config_path = os.path.join(CONFIGS_DIR, "losses/mss_revisited.yml")
-    mss_rev_loss = util.load_class_from_yaml(mss_rev_config_path)
-    rand_mss_config_path = os.path.join(CONFIGS_DIR, "losses/rand_mss.yml")
-    rand_mss_loss = util.load_class_from_yaml(rand_mss_config_path)
-    clap_config_path = os.path.join(CONFIGS_DIR, "losses/clap.yml")
-    clap_loss = util.load_class_from_yaml(clap_config_path)
-    panns_wglm_config_path = os.path.join(CONFIGS_DIR, "losses/panns_wglm.yml")
-    panns_wglm_loss = util.load_class_from_yaml(panns_wglm_config_path)
-    jtfs_config_path = os.path.join(CONFIGS_DIR, "losses/jtfst.yml")
-    jtfs_loss = util.load_class_from_yaml(jtfs_config_path)
-    scrapl_config_path = os.path.join(CONFIGS_DIR, "losses/scrapl.yml")
-    scrapl_loss = util.load_class_from_yaml(scrapl_config_path)
+    config_path = os.path.join(CONFIGS_DIR, "losses/mss_meso.yml")
+    mss_lin_loss = util.load_class_from_yaml(config_path)
+    config_path = os.path.join(CONFIGS_DIR, "losses/mss_meso_log.yml")
+    mss_log_loss = util.load_class_from_yaml(config_path)
+    config_path = os.path.join(CONFIGS_DIR, "losses/mss_revisited.yml")
+    mss_rev_loss = util.load_class_from_yaml(config_path)
+    config_path = os.path.join(CONFIGS_DIR, "losses/rand_mss.yml")
+    rand_mss_loss = util.load_class_from_yaml(config_path)
+    config_path = os.path.join(CONFIGS_DIR, "losses/clap.yml")
+    clap_loss = util.load_class_from_yaml(config_path)
+    config_path = os.path.join(CONFIGS_DIR, "losses/panns_wglm.yml")
+    panns_wglm_loss = util.load_class_from_yaml(config_path)
+    config_path = os.path.join(CONFIGS_DIR, "losses/jtfs.yml")
+    jtfs_loss = util.load_class_from_yaml(config_path)
+    config_path = os.path.join(CONFIGS_DIR, "losses/scrapl.yml")
+    scrapl_loss = util.load_class_from_yaml(config_path)
     n_paths = scrapl_loss.n_paths
 
     x = tr.rand((batch_size, 1, n_samples))
@@ -96,10 +102,12 @@ def main() -> None:
         "path_idx": None,
     }
     loss_funcs = [
+        ("mse", nn.MSELoss()),
         ("jtfs", jtfs_loss),
-        ("mss", mss_loss),
+        ("mss_lin", mss_lin_loss),
+        ("mss_log", mss_log_loss),
         ("mss_rev", mss_rev_loss),
-        ("rand_mss", rand_mss_loss),
+        ("mss_rand", rand_mss_loss),
         ("clap", clap_loss),
         ("panns", panns_wglm_loss),
     ]
@@ -146,9 +154,72 @@ def main() -> None:
     )
     df = pd.DataFrame(df_rows, columns=df_cols)
     print(df.to_string(index=False))
-    save_path = os.path.join(OUT_DIR, "benchmark.csv")
+    save_path = os.path.join(OUT_DIR, "benchmark.tsv")
     df.to_csv(save_path, index=False, sep="\t")
 
 
 if __name__ == "__main__":
     main()
+
+    # TODO: cleanup
+    # Benchmark model step
+    model_config = os.path.join(CONFIGS_DIR, "models/spectral_2dcnn.yml")
+    model = util.load_class_from_yaml(model_config)
+    for p in model.parameters():
+        p.requires_grad_(True)
+        log.info(f"p.requires_grad: {p.requires_grad}")
+    model = model.to(device)
+    synth_config = os.path.join(CONFIGS_DIR, "synths/chirp_texture_8khz.yml")
+    synth = util.load_class_from_yaml(synth_config)
+    synth = synth.to(device)
+
+    cqt_params = {
+            "sr": synth.sr,
+            "bins_per_octave": synth.Q,
+            "n_bins": synth.J_cqt * synth.Q,
+            "hop_length": synth.hop_len,
+            # TODO: check this
+            "fmin": (0.4 * synth.sr) / (2**synth.J_cqt),
+            "output_format": "Magnitude",
+            "verbose": False,
+    }
+    cqt = CQT(**cqt_params)
+    cqt = cqt.to(device)
+
+    x = tr.rand((batch_size, 1, n_samples))
+    x = x.to(device)
+    seed = tr.randint(0, 999999, (batch_size,))
+    loss_func = nn.MSELoss()
+
+    def model_step(x: T, seed: T, loss_func: Callable[..., T]) -> None:
+        with tr.no_grad():
+            U = cqt(x)
+            U = tr.log1p(U / 1e-3)
+        theta_hat_d, theta_hat_s = model(U)
+        x_hat = synth(theta_hat_d, theta_hat_s, seed)
+        loss = loss_func(x_hat, x)
+        loss.backward()
+
+    globals = {
+        "x": x,
+        "seed": seed,
+        "loss_func": loss_func,
+        "fn": model_step,
+    }
+
+    if device.startswith("cuda"):
+        tr.cuda.reset_peak_memory_stats(device)
+    result: Measurement = benchmark.Timer(
+        stmt="fn(x, seed, loss_func)",
+        globals=globals,
+        num_threads=num_threads,
+    ).blocked_autorange(min_run_time=min_run_time)
+    max_mem = 0.0
+    if device.startswith("cuda"):
+        max_mem = tr.cuda.max_memory_allocated(device) / (1024**2)
+    n_runs = len(result.times)
+
+    print(
+        f"model_step: median_time={result.median}, iqr={result.iqr}, "
+        f"n_runs={n_runs}, max_mem_MB={max_mem}"
+    )

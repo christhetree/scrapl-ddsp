@@ -1,6 +1,6 @@
 custom:
   project_name: scrapl
-  model_name: mss_1e-5
+  model_name: jtfst_adam_1e-5
   dataset_name: texture_32_32_5_meso_b32
   cpu_batch_size: 3
   use_wandb_cpu: false
@@ -9,15 +9,15 @@ custom:
 trainer:
   accelerator: gpu
   benchmark: false
-  devices: [4]
+  devices: [7]
   max_epochs: 200
   num_sanity_val_steps: 1
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 5
 
 data:
   class_path: experiments.data_modules.ThetaDSDataModule
   init_args:
-    batch_size: 32
+    batch_size: 6
     num_workers: 4
     n_d: 32
     n_s: 32
@@ -31,7 +31,8 @@ model:
   init_args:
     model: ../../models/spectral_2dcnn.yml
     synth: ../../synths/chirp_texture_8khz.yml
-    loss_func: ../../losses/mss.yml
+    loss_func: ../../losses/jtfs.yml
+    grad_mult: 1e8
 
     use_p_loss: false
     use_train_rand_seed: false
@@ -45,6 +46,6 @@ model:
     log_x_hat: false
     log_val_grads: false
 
-    run_name: mss_1e-5__texture_32_32_5_meso_b32
+    run_name: jtfst_adam_1e-5__texture_32_32_5_meso_b32
 
 optimizer: ../../opt/adam_w_1e-5.yml

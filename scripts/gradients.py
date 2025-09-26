@@ -31,7 +31,7 @@ def calc_distance_grad_matrices(
     seed: int = 42,
     pbar: Optional[tqdm] = None,
 ) -> (T, T, T, T, T):
-    # TODO(cm): control meso seed
+    # TODO: control meso seed
     seed = tr.tensor(seed)
     x = synth.make_x(theta_density, theta_slope, seed)
     # J_cqt = 5
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     config_path = os.path.join(CONFIGS_DIR, "losses/scrapl.yml")
     scrapl_loss = util.load_class_from_yaml(config_path)
 
-    config_path = os.path.join(CONFIGS_DIR, "losses/jtfst.yml")
+    config_path = os.path.join(CONFIGS_DIR, "losses/jtfs.yml")
     jtfs_loss = util.load_class_from_yaml(config_path)
 
     config_path = os.path.join(CONFIGS_DIR, "losses/mss_meso_log.yml")

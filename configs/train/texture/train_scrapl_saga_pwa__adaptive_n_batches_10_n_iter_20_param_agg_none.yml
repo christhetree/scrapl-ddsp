@@ -32,7 +32,7 @@ model:
     model: ../../models/spectral_2dcnn.yml
     synth: ../../synths/chirp_texture_8khz.yml
     loss_func: ../../losses/scrapl_saga_pwa.yml
-    scrapl_probs_path: ../data/adaptive_scrapl/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__probs__n_theta_2__n_params_28__n_batches_10__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt
+    scrapl_probs_path: ../data/theta_importance_sampling/scrapl_saga_pwa_1e-5__texture_32_32_5_meso_b32__probs__n_theta_2__n_params_28__n_batches_10__n_iter_20__min_prob_frac_0.0__param_agg_none__seed_0.pt
 
     use_p_loss: false
     use_train_rand_seed: false
