@@ -26,7 +26,7 @@ log.setLevel(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class ConsoleLRMonitor(LearningRateMonitor):
-    # TODO(cm): enable every n steps
+    # TODO: enable every n steps
     def on_train_epoch_start(self, trainer: Trainer, *args: Any, **kwargs: Any) -> None:
         super().on_train_epoch_start(trainer, *args, **kwargs)
         if self.logging_interval != "step":
@@ -133,7 +133,7 @@ class LogScalogramCallback(Callback):
 
         if images:
             for logger in trainer.loggers:
-                # TODO(cm): enable for tensorboard as well
+                # TODO: enable for tensorboard as well
                 if isinstance(logger, WandbLogger):
                     logger.log_image(
                         key="spectrograms", images=images, step=trainer.global_step
@@ -349,7 +349,7 @@ class LogGradientCallback(Callback):
                 for k, v in train_out_dict.items()
             }
             if train_out_dict:
-                # TODO(cm): remove duplicate code
+                # TODO: remove duplicate code
                 d_grad = self.train_d_grads[example_idx]
                 s_grad = self.train_s_grads[example_idx]
                 d_grad = tr.cat(d_grad, dim=0)[: self.max_n_points]
@@ -428,7 +428,7 @@ class LogGradientCallback(Callback):
 
         if images:
             for logger in trainer.loggers:
-                # TODO(cm): enable for tensorboard as well
+                # TODO: enable for tensorboard as well
                 if isinstance(logger, WandbLogger):
                     logger.log_image(
                         key="xy_points_and_grads",

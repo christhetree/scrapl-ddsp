@@ -21,7 +21,7 @@ class ChirpletSynth(nn.Module):
         self,
         sr: float,
         n_samples: int,
-        bw_oct: float,  # TODO(cm)
+        bw_oct: float,  # TODO
         f0_min_hz: float,
         f0_max_hz: float,
         J_cqt: int = 5,
@@ -276,7 +276,7 @@ class ChirpTextureSynth(nn.Module):
         paddings = tr.zeros((self.n_grains, self.n_samples - self.grain_n_samples))
         self.register_buffer("paddings", paddings)
 
-        # TODO(cm): use only one generator, seems to be a PyTorch limitation
+        # TODO: use only one generator, seems to be a PyTorch limitation
         self.rand_gen_cpu = tr.Generator(device="cpu")
         self.rand_gen_gpu = None
         if tr.cuda.is_available():
@@ -289,7 +289,7 @@ class ChirpTextureSynth(nn.Module):
             return self.rand_gen_gpu
 
     def sample_onsets(self, rand_gen: tr.Generator) -> T:
-        # TODO(cm): add support for edge padding
+        # TODO: add support for edge padding
         onsets = self.onsets.uniform_(generator=rand_gen)
         onsets = onsets * (self.n_samples - self.grain_n_samples)
         onsets = onsets.long()
@@ -360,7 +360,7 @@ class ChirpTextureSynth(nn.Module):
         return x
 
     def forward(self, theta_d_0to1: T, theta_s_0to1: T, seed: T) -> T:
-        # TODO(cm): add batch support to synth
+        # TODO: add batch support to synth
         assert theta_d_0to1.min() >= 0.0
         assert theta_d_0to1.max() <= 1.0
         assert theta_s_0to1.min() >= 0.0

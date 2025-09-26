@@ -99,7 +99,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             "bins_per_octave": synth.Q,
             "n_bins": synth.J_cqt * synth.Q,
             "hop_length": synth.hop_len,
-            # TODO(cm): check this
+            # TODO: check this
             "fmin": (0.4 * synth.sr) / (2**synth.J_cqt),
             "output_format": "Magnitude",
             "verbose": False,
@@ -186,7 +186,7 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.log(f"val/l1_theta_tv", l1_theta_tv, prog_bar=False)
 
     def state_dict(self, *args, **kwargs) -> Dict[str, T]:
-        # TODO(cm): support resuming training with grad hooks
+        # TODO: support resuming training with grad hooks
         state_dict = super().state_dict(*args, **kwargs)
         excluded_keys = [
             k for k in state_dict if k.startswith("synth") or k.startswith("cqt")
@@ -271,7 +271,7 @@ class SCRAPLLightingModule(pl.LightningModule):
         for batch_idx in range(self.warmup_n_batches):
             batch = next(train_dl_iter)
             theta_d_0to1, theta_s_0to1, seed, batch_indices = batch
-            # TODO(cm): deduplicate code here
+            # TODO: deduplicate code here
             seed_range = 9999999
             seed_hat = seed
             if self.use_rand_seed_hat:
@@ -326,10 +326,10 @@ class SCRAPLLightingModule(pl.LightningModule):
             self.global_n = (
                 self.global_step * self.trainer.accumulate_grad_batches * batch_size
             )
-        # TODO(cm): check if this works for DDP
+        # TODO: check if this works for DDP
         # self.log(f"global_n", float(self.global_n))
 
-        # TODO(cm): make this cleaner
+        # TODO: make this cleaner
         seed_range = 9999999
         if stage == "train" and self.use_train_rand_seed:
             seed = tr.randint_like(seed, low=0, high=seed_range)

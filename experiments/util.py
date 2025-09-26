@@ -227,7 +227,7 @@ def sample_uniform(low: float, high: float, n: int = 1) -> Union[float, T]:
 
 
 def sample_log_uniform(low: float, high: float, n: int = 1) -> Union[float, T]:
-    # TODO(cm): replace with torch
+    # TODO: replace with torch
     if low == high:
         if n == 1:
             return low

@@ -13,9 +13,6 @@ DATA_DIR = os.path.join(ROOT_DIR, "data")
 MODELS_DIR = os.path.join(ROOT_DIR, "models")
 OUT_DIR = os.path.join(ROOT_DIR, "out")
 
-# if torch.cuda.is_available():
-#     OUT_DIR = "/import/c4dm-datasets-ext/cm007/out"
-
 assert os.path.isdir(DATA_DIR)
 assert os.path.isdir(OUT_DIR)
 
@@ -24,8 +21,8 @@ LIGHTNING_LOGS_DIR = os.path.join(OUT_DIR, "lightning_logs")
 AUDIO_SAVE_DIR = os.path.join(OUT_DIR, "eval_808_samples")
 TSV_SAVE_DIR = OUT_DIR
 
-if torch.cuda.is_available():
-#     WANDB_LOGS_DIR = "/import/c4dm-datasets-ext/cm007/out/wandb_logs"
-#     LIGHTNING_LOGS_DIR = "/import/c4dm-datasets-ext/cm007/out/lightning_logs"
-    AUDIO_SAVE_DIR = "/import/c4dm-datasets-ext/cm007/out/eval_808_samples"
-    TSV_SAVE_DIR = "/import/c4dm-datasets-ext/cm007/out"
+# if torch.cuda.is_available():
+#     WANDB_LOGS_DIR = "/import/anonymous/out/wandb_logs"
+#     LIGHTNING_LOGS_DIR = "/import/anonymous/out/lightning_logs"
+#     AUDIO_SAVE_DIR = "/import/anonymous/out/eval_808_samples"
+#     TSV_SAVE_DIR = "/import/anonymous/out"

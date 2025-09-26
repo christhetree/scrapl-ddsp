@@ -343,7 +343,7 @@ if __name__ == "__main__":
             # )
             # plt.show()
 
-        # TODO(cm): look into different aggregation techniques
+        # TODO: look into different aggregation techniques
         logits = tr.stack(logits_all, dim=0)
         assert logits.size(0) == 1
 

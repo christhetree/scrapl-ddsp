@@ -128,7 +128,7 @@ class CustomLightningCLI(LightningCLI):
                     dest = link_args["dest"]
                     self.link_arguments_if_possible(src, dest, config)
 
-            # TODO(cm): make generic
+            # TODO: make generic
             # if "shared_args" in config.data.init_args or "shared_train_args" in config.data.init_args:
             #     del config.data.init_args["train_num_examples_per_epoch"]
             #     del config.data.init_args["val_num_examples_per_epoch"]
@@ -199,7 +199,6 @@ class CustomLightningCLI(LightningCLI):
                     filename="epoch_{epoch}_step_{step}",  # Name is appended
                     auto_insert_metric_name=False,
                     monitor="val/loss",
-                    # monitor="val/l1_theta",  # TODO(cm): this might be better
                     mode="min",
                     save_last=False,
                     save_top_k=1,

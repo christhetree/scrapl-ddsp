@@ -105,7 +105,7 @@ class DDSP808LightingModule(pl.LightningModule):
             "bins_per_octave": synth.Q_cqt,
             "n_bins": synth.J_cqt * synth.Q_cqt,
             "hop_length": synth.hop_len,
-            # TODO(cm): check this
+            # TODO: check this
             "fmin": (0.4 * synth.sr) / (2**synth.J_cqt),
             "output_format": "Magnitude",
             "verbose": False,
@@ -230,7 +230,7 @@ class DDSP808LightingModule(pl.LightningModule):
         self.global_n = 0
 
     def state_dict(self, *args, **kwargs) -> Dict[str, T]:
-        # TODO(cm): support resuming training with grad hooks
+        # TODO: support resuming training with grad hooks
         state_dict = super().state_dict(*args, **kwargs)
         excluded_keys = [
             k for k in state_dict if k.startswith("synth") or k.startswith("cqt")
@@ -278,7 +278,7 @@ class DDSP808LightingModule(pl.LightningModule):
         synth_fn_kwargs = []
         for batch_idx in range(self.warmup_n_batches):
             # theta = next(train_dl_iter)
-            # TODO(cm): why is this needed here and not in the other lightning.py?
+            # TODO: why is this needed here and not in the other lightning.py?
             # theta = theta.to(self.device)
             # with tr.no_grad():
             #     x = self.synth(theta)
@@ -434,7 +434,7 @@ class DDSP808LightingModule(pl.LightningModule):
             curr_feat = feat[idx]
             curr_feat_hat = feat_hat[idx]
             assert curr_feat.size() == curr_feat_hat.size()
-            # TODO(cm): this is nasty
+            # TODO: this is nasty
             # Scale by loudness for spectral features
             if "SpectralCentroid" in feat_name or "SpectralFlatness" in feat_name:
                 loudness_min_val = self.fe.features[0].extractors[0].min_val

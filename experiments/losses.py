@@ -34,7 +34,7 @@ class JTFSTLoss(nn.Module):
         format_: str = "joint",
         p: int = 2,
         use_log1p: bool = False,
-        log1p_eps: float = 1e-3,  # TODO(cm): what's a good default here?
+        log1p_eps: float = 1e-3,  # TODO: what's a good default here?
     ):
         super().__init__()
         assert format_ in ["time", "joint"]
@@ -123,7 +123,7 @@ class Scat1DLoss(nn.Module):
 class EmbeddingLoss(ABC, nn.Module):
     def __init__(self, use_time_varying: bool = False, in_sr: int = 44100, p: int = 2):
         super().__init__()
-        assert not use_time_varying  # TODO(cm): tmp
+        assert not use_time_varying  # TODO: tmp
         self.use_time_varying = use_time_varying
         self.in_sr = in_sr
         self.p = p
@@ -179,7 +179,7 @@ class EmbeddingLoss(ABC, nn.Module):
         diff = x_target_emb - x_emb
         if self.use_time_varying:
             assert diff.ndim == 3
-            # TODO(cm): does this make sense?
+            # TODO: does this make sense?
             dist = tr.linalg.vector_norm(diff, ord=self.p, dim=(-2, -1))
         else:
             assert diff.ndim == 2
@@ -269,7 +269,7 @@ class Wav2Vec2EmbeddingLoss(EmbeddingLoss):
             x = (x - mu) / (std + self.eps)
         # assert tr.allclose(x, x2, atol=1e-3)
         emb = self.model(x).last_hidden_state
-        # TODO(cm): this results in NaN, look into minimum sample length
+        # TODO: this results in NaN, look into minimum sample length
         log.info(
             f"emb.shape = {emb.shape}, emb.min() = {emb.min().item()}, emb.max() = {emb.max().item()}"
         )

@@ -28,7 +28,7 @@ class TimeFrequencyScraplBase(TimeFrequencyScatteringBase):
             self.phi_f, self.log2_stride, self.average,
             self.filters_fr[0], self.log2_stride_fr, self.average_fr)
 
-        # TODO(cm): causing problems
+        # TODO: causing problems
         # Unpad.
         # if self.average != 'global':
         #     res = max(path['j'][-1], 0)

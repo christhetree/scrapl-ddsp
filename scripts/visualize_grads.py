@@ -127,7 +127,7 @@ def collect_indices(
 def make_segmentation_indices(
     seg_axis: str, meta: Dict[str, Any], name: str
 ) -> List[Tuple[str, List[int]]]:
-    orders = None  # TODO(cm): caution when removing this
+    orders = None  # TODO: caution when removing this
     if seg_axis == "J1":
         J1 = np.unique(meta["j"][:, 0])
         J1 = J1[~np.isnan(J1)].astype(int).tolist()

@@ -49,7 +49,7 @@ class SCRAPLLoss(nn.Module):
         F: Optional[Union[str, int]] = None,
         p: int = 2,
         use_log1p: bool = False,
-        log1p_eps: float = 1e-3,  # TODO(cm): what's a good default here?
+        log1p_eps: float = 1e-3,  # TODO: what's a good default here?
         grad_mult: float = 1e8,
         use_pwa: bool = True,
         use_saga: bool = True,
@@ -96,7 +96,7 @@ class SCRAPLLoss(nn.Module):
         self.meta = self.jtfs.meta()
         if len(self.meta["key"]) != len(self.meta["order"]):
             self.meta["key"] = self.meta["key"][1:]
-        # TODO(cm): add first order only keys too?
+        # TODO: add first order only keys too?
         self.scrapl_keys = [key for key in self.meta["key"] if len(key) == 2]
         self.n_paths = len(self.scrapl_keys)
         self.unif_prob = 1.0 / self.n_paths
@@ -202,7 +202,7 @@ class SCRAPLLoss(nn.Module):
         self._check_probs()
 
     def state_dict(self, *args, **kwargs) -> Dict[str, T]:
-        # TODO(cm): support resuming training with grad hooks
+        # TODO: support resuming training with grad hooks
         state_dict = super().state_dict(*args, **kwargs)
         global_prefix = kwargs.get("prefix", "")
         excluded_keys = []
@@ -222,7 +222,7 @@ class SCRAPLLoss(nn.Module):
         for attr in self.STATE_DICT_INCLUDED_ATTRS:
             assert f"{global_prefix}{attr}" in state_dict
             setattr(self, attr, state_dict[f"{global_prefix}{attr}"])
-        kwargs["strict"] = False  # TODO(cm): is there a better way to do this?
+        kwargs["strict"] = False  # TODO: is there a better way to do this?
         super().load_state_dict(state_dict, *args, **kwargs)
 
     def attach_params(self, params: Iterable[T]) -> None:
@@ -248,7 +248,7 @@ class SCRAPLLoss(nn.Module):
         log.info(f"Attached {len(self.prev_path_grads)} parameter tensors")
 
     def grad_hook(self, grad: T, param_idx: int) -> T:
-        # TODO(cm): check if this works
+        # TODO: check if this works
         if not self.training:
             return grad
 
@@ -313,7 +313,7 @@ class SCRAPLLoss(nn.Module):
             unsampled_idx = tr.randint(
                 0, len(self.unsampled_paths), (1,), generator=rand_gen
             ).item()
-            # TODO(cm): will this pop during validation and test?
+            # TODO: will this pop during validation and test?
             path_idx = self.unsampled_paths.pop(unsampled_idx)
         else:
             self.check_probs(self.probs, self.n_paths, self.eps, self.min_prob)
@@ -334,7 +334,7 @@ class SCRAPLLoss(nn.Module):
             Sx_target = tr.log1p(Sx_target / self.log1p_eps)
         diff = Sx_target - Sx
         dist = tr.linalg.vector_norm(diff, ord=self.p, dim=(-2, -1))
-        # TODO(cm): add reduction option
+        # TODO: add reduction option
         dist = tr.mean(dist)
         return dist, Sx, Sx_target
 
@@ -359,7 +359,7 @@ class SCRAPLLoss(nn.Module):
         dist, _, _ = self.calc_dist(x, x_target, path_idx)
 
         self.curr_path_idx = path_idx
-        if self.training:  # TODO(cm): check if this works
+        if self.training:  # TODO: check if this works
             self.path_counts[path_idx] += 1
             self.scrapl_t += 1
         return dist
@@ -597,7 +597,7 @@ class SCRAPLLoss(nn.Module):
             curr_param_hvp = self._calc_param_hvp(
                 tangent, curr_param_grad, params, retain_graph=False
             )
-            # TODO(cm): should we average here?
+            # TODO: should we average here?
             if param_hvp is None:
                 param_hvp = curr_param_hvp
             else:
@@ -726,7 +726,7 @@ class SCRAPLLoss(nn.Module):
                     synth_fn_kwargs=synth_fn_kwargs,
                     n_iter=n_iter,
                 )
-                # TODO(cm): double check this
+                # TODO: double check this
                 curr_vals = curr_vals.abs()
                 vals.append(curr_vals)
                 log.info(f"path_idx = {path_idx}, curr_vals = {curr_vals}")

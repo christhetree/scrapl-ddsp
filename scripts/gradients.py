@@ -40,7 +40,7 @@ def calc_distance_grad_matrices(
     #     "bins_per_octave": synth.Q,
     #     "n_bins": J_cqt * synth.Q,
     #     "hop_length": synth.hop_len,
-    #     # TODO(cm): check this
+    #     # TODO: check this
     #     "fmin": (0.4 * synth.sr) / (2 ** J_cqt),
     #     "output_format": "Magnitude",
     #     "verbose": False,
@@ -67,7 +67,7 @@ def calc_distance_grad_matrices(
         for theta_slope_hat in theta_slope_hats:
             seed_hat = seed
             if use_rand_seeds:
-                # TODO(cm): make cleaner
+                # TODO: make cleaner
                 seed_hat = tr.randint(seed.item(), seed.item() + 999999, (1,))
             x_hat = synth.make_x(theta_density_hat, theta_slope_hat, seed_hat)
 
@@ -104,7 +104,7 @@ def calc_distance_grad_matrices(
 
     if grad_clip_val is not None:
         assert False  # Disable for now
-        # TODO(cm): this is different from default clipping which acts on the norm
+        # TODO: this is different from default clipping which acts on the norm
         log.info(f"grad_clip_val={grad_clip_val:.2f}")
         dgm = tr.clip(dgm, -grad_clip_val, grad_clip_val)
         sgm = tr.clip(sgm, -grad_clip_val, grad_clip_val)
@@ -315,7 +315,7 @@ if __name__ == "__main__":
         tr.save(sgm, os.path.join(OUT_DIR, f"sgm__{save_name}.pt"))
 
         # if n_trials > 1:
-        #     # TODO(cm): variance measurements are currently not comparable across losses?
+        #     # TODO: variance measurements are currently not comparable across losses?
         #     dist_avg_var = dist_matrix.var(dim=0).mean()
         #     dgm_avg_var = dgm.var(dim=0).mean()
         #     sgm_avg_var = sgm.var(dim=0).mean()

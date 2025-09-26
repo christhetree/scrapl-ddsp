@@ -93,7 +93,7 @@ def plot_scalogram(
             vmax=vmax,
         )
     except IndexError as e:
-        # TODO(cm): fix this
+        # TODO: fix this
         log.warning(f"IndexError: {e}")
 
     ax.set_xlabel(x_label, fontsize=fontsize)
