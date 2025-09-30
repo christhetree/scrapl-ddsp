@@ -247,6 +247,10 @@ class WavDataModule(pl.LightningDataModule):
         drum_type_counts = dict(zip(unique, counts))
         log.info(f"Test drum type counts: {drum_type_counts}")
 
+        # for idx, dt in enumerate(test_drum_types):
+        #     print(f'{idx}: "{dt}",')
+        # exit()
+
         self.train_dataset = WavDataset(
             train_samples, train_drum_types, n_delta_per_item, delta_min, delta_max
         )

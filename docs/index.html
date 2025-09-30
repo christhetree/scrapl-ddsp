@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="en" class="h-100">
+
+<head>
+    <!-- Google tag (gtag.js) -->
+<!--    <script async src="https://www.googletagmanager.com/gtag/js?id=G-0VHJP81PQT"></script>-->
+<!--    <script>-->
+<!--        window.dataLayer = window.dataLayer || [];-->
+<!--        function gtag(){dataLayer.push(arguments);}-->
+<!--        gtag('js', new Date());-->
+
+<!--        gtag('config', 'G-0VHJP81PQT');-->
+<!--    </script>-->
+    
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="Anonymous">
+    <title>Modulation Discovery with Differentiable Digital Signal Processing</title>
+
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+          integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <meta name="theme-color" content="#563d7c">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+</head>
+
+<body>
+<!-- Page Content -->
+<div class="text-center">
+    <div class="row">
+        <div class="col-lg-12">
+            <br>
+            <h1 class="mt-5 mb-3"><b>SCRAPL: Sc</b>attering Transform with <b>Ra</b>ndom <b>P</b>aths for Machine <b>L</b>earning</h1>
+            <p class="lead">
+                Anonymous submission to ICLR 2026.
+            </p>
+
+            <div>
+                <a class="btn btn-outline-dark" href="docs/iclr_2026_scrapl.pdf" target=”_blank” type="button">
+                    <i class="bi bi-newspaper"></i> Paper
+                </a>
+                <a class="btn btn-outline-dark" href="https://github.com/icewithfrosting/scrapl" target=”_blank” type="button">
+                    <i class="bi bi-code-slash"></i> Code
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="section mt-5 mb-5">
+        <div class="abstract">
+            <h2>Abstract</h2>
+            <hr>
+            <p>
+                The Euclidean distance between differentiable wavelet scattering transform coefficients (known as paths) provides informative gradients for perceptual quality assessment of deep inverse problems in computer vision, speech, and audio processing.
+                However, these transforms are computationally expensive when employed as differentiable loss functions for stochastic gradient descent due to their numerous paths, which significantly limits their use in neural network training.
+                Against this problem, we propose "<b>Sc</b>attering transform with <b>Ra</b>ndom <b>P</b>aths for machine <b>L</b>earning" (SCRAPL): a stochastic optimization scheme for efficient evaluation of multivariable scattering transforms.
+                We implement SCRAPL for the joint time–frequency scattering transform (JTFS) which demodulates spectrotemporal patterns at multiple scales and rates, allowing a fine characterization of intermittent auditory textures.
+                We apply SCRAPL to differentiable digital signal processing (DDSP), specifically, unsupervised sound matching of a granular synthesizer and the Roland TR-808 drum machine.
+                We also propose an initialization heuristic based on importance sampling, which adapts SCRAPL to the perceptual content of the dataset, improving neural network convergence and evaluation performance.
+                We make our audio samples available and provide SCRAPL as a Python package.
+            </p>
+            <br>
+            <img class="img-fluid w-100 mx-auto d-block" src="figs/relative_error_vs_computation.svg">
+            <br>
+            <br>
+            <p class="text-center">Figure 1: <em>Mean average error (y-axis) versus computational cost (x-axis) of unsupervised sound matching models for the granular synthesis task. Both axes are rescaled by the performance of a supervised model with same number of parameters. Whiskers denote 95% CI, estimated over 20 random seeds. Due to computational limitations, JTFS-based sound matching is evaluated only once.</em></p>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2 class="">Experiment 3: Roland TR-303 Sound Matching</h2>
+        <hr>
+        <div class="section mb-5">
+            <p>
+                Below, we provide listening examples for aligned (<em>micro</em>, Table 1) and unaligned (<em>meso</em>, Table 2) unsupervised sound matching for a <a href="https://jordieshier.com/projects/nime2024/" target=”_blank”>DDSP synth implementation</a> of the Roland TR-808 drum machine.
+                Please refer to Sections 4.4 and 5.3 of the paper for details.
+                <br>
+                There are four different drum types: snare drum (SD), bass drum (BD), tom (Tom), and hi-hat (HH).
+                <br>
+                Tables can be randomized by clicking the button beneath them.
+            </p>
+        </div>
+
+        <p style="text-align: center;">
+            Table 1: <em>Aligned (micro) unsupervised Roland TR-808 sound matching listening samples. </em>
+        </p>
+        <div id="micro-table" class="table-wrapper-3" data-n="128">
+            <table class="table table-sm text-center" style="vertical-align: middle;">
+                <colgroup>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+                <tr>
+                    <th>Idx</th>
+                    <th>Drum<br>Type</th>
+                    <th class="audio-col">Target</th>
+                    <th class="audio-col">JTFS</th>
+                    <th class="audio-col">SCRAPL</th>
+                    <th class="audio-col">SCRAPL<br>(no θ-IS)</th>
+                    <th class="audio-col">MSS<br>Linear</th>
+                    <th class="audio-col">MSS<br>Log + Lin.</th>
+                    <th class="audio-col">MSS<br>Random</th>
+                    <th class="audio-col">MSS<br>Revisited</th>
+                </tr>
+                <tr>
+                    <td>42</td>
+                    <td>SD</td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__42.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__42__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro__probs_n_batches_1__test__42__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro__test__42__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_meso_lin_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__42__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__42__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__42__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__42__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                </tr>
+                <tr>
+                    <td>94</td>
+                    <td>BD</td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__94.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__94__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro__probs_n_batches_1__test__94__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro__test__94__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_meso_lin_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__94__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__94__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__94__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__94__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                </tr>
+                <tr>
+                    <td>21</td>
+                    <td>Tom</td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__21.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__21__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro__probs_n_batches_1__test__21__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro__test__21__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_meso_lin_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__21__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__21__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__21__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__21__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                </tr>
+                <tr>
+                    <td>7</td>
+                    <td>HH</td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__7.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__7__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro__probs_n_batches_1__test__7__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_micro__test__7__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_meso_lin_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__7__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__7__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__7__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/micro/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_micro__test__7__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                </tr>
+            </table>
+            <div class="text-center">
+                <button class="random-btn" style="margin-bottom: 0.5rem;">Randomize Table</button>
+                <p style="margin-bottom: 3.0rem;">Table scrolls horizontally if space is limited.</p>
+            </div>
+        </div>
+
+        <p style="text-align: center;">
+            Table 2: <em>Unaligned (meso) unsupervised Roland TR-808 sound matching listening samples. </em>
+        </p>
+        <div id="meso-table" class="table-wrapper-3" data-n="128">
+            <table class="table table-sm text-center" style="vertical-align: middle;">
+                <colgroup>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+                <tr>
+                    <th>Idx</th>
+                    <th>Drum<br>Type</th>
+                    <th class="audio-col">Target</th>
+                    <th class="audio-col">JTFS</th>
+                    <th class="audio-col">SCRAPL</th>
+                    <th class="audio-col">SCRAPL<br>(no θ-IS)</th>
+                    <th class="audio-col">MSS<br>Linear</th>
+                    <th class="audio-col">MSS<br>Log + Lin.</th>
+                    <th class="audio-col">MSS<br>Random</th>
+                    <th class="audio-col">MSS<br>Revisited</th>
+                </tr>
+                <tr>
+                    <td>22</td>
+                    <td>SD</td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__22.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__22__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048__probs_n_batches_1__test__22__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048__test__22__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_meso_lin_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__22__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__22__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__22__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__22__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                </tr>
+                <tr>
+                    <td>67</td>
+                    <td>BD</td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__67.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__67__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048__probs_n_batches_1__test__67__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048__test__67__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_meso_lin_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__67__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__67__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__67__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__67__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                </tr>
+                <tr>
+                    <td>53</td>
+                    <td>Tom</td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__53.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__53__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048__probs_n_batches_1__test__53__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048__test__53__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_meso_lin_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__53__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__53__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__53__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__53__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                </tr>
+                <tr>
+                    <td>57</td>
+                    <td>HH</td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__57.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/jtfs_Jfr5_T2048_F1_log1p_nogm_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__57__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048__probs_n_batches_1__test__57__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/scrapl_Jfr5_T2048_F1_saga_pwa_log1p_nogm_724k_1e-4t5__mars_808_n681_b8_meso2048__test__57__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_meso_lin_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__57__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_meso_log_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__57__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/rand_mss_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__57__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                    <td>
+                        <audio controls="controls" class="player" preload="metadata">
+                            <source src="exp_3/meso/mss_rev_724k_adamw_1e-4t5__mars_808_n681_b8_meso2048__test__57__hat.wav" type="audio/wav">
+                            Unsupported browser.
+                        </audio>
+                    </td>
+                </tr>
+            </table>
+            <div class="text-center">
+                <button class="random-btn" style="margin-bottom: 0.5rem;">Randomize Table</button>
+                <p style="margin-bottom: 3.0rem;">Table scrolls horizontally if space is limited.</p>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+    <footer>
+        <p>
+            <br>Scroll to <a href="#">top</a>.
+        </p>
+        <p><br></p>
+    </footer>
+</div>
+
+<!--Micro table randomizer-->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const wrapper = document.getElementById("micro-table");
+    const dataN = parseInt(wrapper.getAttribute("data-n"), 10);
+    const table = wrapper.querySelector("table");
+    const rows = Array.from(table.querySelectorAll("tr")).slice(1); // skip header
+
+    // Example: your dictionary mapping idx → drum type
+    const drumTypeMap = {
+        0: "SD",
+        1: "Tom",
+        2: "SD",
+        3: "BD",
+        4: "SD",
+        5: "SD",
+        6: "Tom",
+        7: "HH",
+        8: "SD",
+        9: "Tom",
+        10: "HH",
+        11: "SD",
+        12: "SD",
+        13: "SD",
+        14: "SD",
+        15: "BD",
+        16: "Tom",
+        17: "BD",
+        18: "SD",
+        19: "SD",
+        20: "BD",
+        21: "Tom",
+        22: "BD",
+        23: "Tom",
+        24: "BD",
+        25: "SD",
+        26: "SD",
+        27: "BD",
+        28: "BD",
+        29: "Tom",
+        30: "BD",
+        31: "BD",
+        32: "BD",
+        33: "SD",
+        34: "SD",
+        35: "SD",
+        36: "BD",
+        37: "SD",
+        38: "SD",
+        39: "Tom",
+        40: "HH",
+        41: "SD",
+        42: "SD",
+        43: "BD",
+        44: "BD",
+        45: "BD",
+        46: "SD",
+        47: "SD",
+        48: "SD",
+        49: "SD",
+        50: "SD",
+        51: "Tom",
+        52: "BD",
+        53: "BD",
+        54: "SD",
+        55: "Tom",
+        56: "SD",
+        57: "SD",
+        58: "Tom",
+        59: "SD",
+        60: "SD",
+        61: "BD",
+        62: "Tom",
+        63: "SD",
+        64: "Tom",
+        65: "SD",
+        66: "BD",
+        67: "Tom",
+        68: "Tom",
+        69: "BD",
+        70: "BD",
+        71: "Tom",
+        72: "HH",
+        73: "HH",
+        74: "SD",
+        75: "Tom",
+        76: "SD",
+        77: "BD",
+        78: "SD",
+        79: "BD",
+        80: "Tom",
+        81: "SD",
+        82: "SD",
+        83: "HH",
+        84: "SD",
+        85: "Tom",
+        86: "SD",
+        87: "SD",
+        88: "SD",
+        89: "HH",
+        90: "BD",
+        91: "SD",
+        92: "SD",
+        93: "SD",
+        94: "BD",
+        95: "Tom",
+        96: "BD",
+        97: "SD",
+        98: "Tom",
+        99: "SD",
+        100: "SD",
+        101: "SD",
+        102: "SD",
+        103: "Tom",
+        104: "BD",
+        105: "BD",
+        106: "BD",
+        107: "BD",
+        108: "BD",
+        109: "SD",
+        110: "BD",
+        111: "BD",
+        112: "BD",
+        113: "BD",
+        114: "BD",
+        115: "SD",
+        116: "SD",
+        117: "BD",
+        118: "BD",
+        119: "HH",
+        120: "Tom",
+        121: "BD",
+        122: "BD",
+        123: "Tom",
+        124: "BD",
+        125: "SD",
+        126: "Tom",
+        127: "SD",
+    };
+
+    // Generate m unique random numbers in [0, max-1]
+    function getUniqueRandomNumbers(count, max) {
+        const arr = Array.from({ length: max }, (_, i) => i);
+
+        // Fisher–Yates shuffle
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+
+        return arr.slice(0, count);
+    }
+
+    function randomizeTable() {
+        const randomIndices = getUniqueRandomNumbers(rows.length, dataN);
+
+        rows.forEach((row, i) => {
+            const newIdx = randomIndices[i];
+
+            // update index cell
+            row.cells[0].textContent = newIdx;
+
+            // update drum type cell (2nd col)
+            row.cells[1].textContent = drumTypeMap[newIdx] ?? "???";
+
+            // update all <source src="...test__X.wav">
+            row.querySelectorAll("source").forEach(source => {
+                source.src = source.src.replace(/test__\d+/, `test__${newIdx}`);
+            });
+
+            // reload audio elements
+            row.querySelectorAll("audio").forEach(audio => {
+                audio.load();
+            });
+        });
+    }
+
+    wrapper.querySelector(".random-btn").addEventListener("click", randomizeTable);
+});
+</script>
+
+<!--Meso table randomizer-->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const wrapper = document.getElementById("meso-table");
+    const dataN = parseInt(wrapper.getAttribute("data-n"), 10);
+    const table = wrapper.querySelector("table");
+    const rows = Array.from(table.querySelectorAll("tr")).slice(1); // skip header
+
+    // Example: your dictionary mapping idx → drum type
+    const drumTypeMap = {
+        0: "BD",
+        1: "Tom",
+        2: "BD",
+        3: "BD",
+        4: "Tom",
+        5: "BD",
+        6: "Tom",
+        7: "SD",
+        8: "BD",
+        9: "Tom",
+        10: "Tom",
+        11: "SD",
+        12: "BD",
+        13: "BD",
+        14: "SD",
+        15: "HH",
+        16: "BD",
+        17: "Tom",
+        18: "BD",
+        19: "BD",
+        20: "BD",
+        21: "SD",
+        22: "SD",
+        23: "BD",
+        24: "SD",
+        25: "BD",
+        26: "Tom",
+        27: "SD",
+        28: "SD",
+        29: "BD",
+        30: "HH",
+        31: "BD",
+        32: "SD",
+        33: "Tom",
+        34: "BD",
+        35: "BD",
+        36: "Tom",
+        37: "SD",
+        38: "HH",
+        39: "Tom",
+        40: "Tom",
+        41: "BD",
+        42: "BD",
+        43: "BD",
+        44: "Tom",
+        45: "BD",
+        46: "HH",
+        47: "BD",
+        48: "SD",
+        49: "SD",
+        50: "BD",
+        51: "SD",
+        52: "BD",
+        53: "Tom",
+        54: "HH",
+        55: "BD",
+        56: "BD",
+        57: "HH",
+        58: "BD",
+        59: "SD",
+        60: "Tom",
+        61: "BD",
+        62: "SD",
+        63: "BD",
+        64: "SD",
+        65: "SD",
+        66: "SD",
+        67: "BD",
+        68: "Tom",
+        69: "BD",
+        70: "SD",
+        71: "Tom",
+        72: "Tom",
+        73: "SD",
+        74: "BD",
+        75: "Tom",
+        76: "SD",
+        77: "SD",
+        78: "BD",
+        79: "SD",
+        80: "BD",
+        81: "Tom",
+        82: "BD",
+        83: "Tom",
+        84: "SD",
+        85: "BD",
+        86: "Tom",
+        87: "Tom",
+        88: "SD",
+        89: "Tom",
+        90: "SD",
+        91: "SD",
+        92: "BD",
+        93: "BD",
+        94: "SD",
+        95: "BD",
+        96: "SD",
+        97: "Tom",
+        98: "SD",
+        99: "Tom",
+        100: "Tom",
+        101: "Tom",
+        102: "BD",
+        103: "Tom",
+        104: "SD",
+        105: "BD",
+        106: "BD",
+        107: "SD",
+        108: "SD",
+        109: "SD",
+        110: "HH",
+        111: "Tom",
+        112: "BD",
+        113: "Tom",
+        114: "SD",
+        115: "BD",
+        116: "SD",
+        117: "BD",
+        118: "HH",
+        119: "BD",
+        120: "Tom",
+        121: "BD",
+        122: "BD",
+        123: "Tom",
+        124: "BD",
+        125: "SD",
+        126: "Tom",
+        127: "BD",
+    };
+
+    // Generate m unique random numbers in [0, max-1]
+    function getUniqueRandomNumbers(count, max) {
+        const arr = Array.from({ length: max }, (_, i) => i);
+
+        // Fisher–Yates shuffle
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+
+        return arr.slice(0, count);
+    }
+
+    function randomizeTable() {
+        const randomIndices = getUniqueRandomNumbers(rows.length, dataN);
+
+        rows.forEach((row, i) => {
+            const newIdx = randomIndices[i];
+
+            // update index cell
+            row.cells[0].textContent = newIdx;
+
+            // update drum type cell (2nd col)
+            row.cells[1].textContent = drumTypeMap[newIdx] ?? "???";
+
+            // update all <source src="...test__X.wav">
+            row.querySelectorAll("source").forEach(source => {
+                source.src = source.src.replace(/test__\d+/, `test__${newIdx}`);
+            });
+
+            // reload audio elements
+            row.querySelectorAll("audio").forEach(audio => {
+                audio.load();
+            });
+        });
+    }
+
+    wrapper.querySelector(".random-btn").addEventListener("click", randomizeTable);
+});
+</script>
+
+<!-- Bootstrap core JavaScript -->
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"
+        integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+        integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
+        crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"
+        integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI"
+        crossorigin="anonymous"></script>
+<script src="js/slider.js"></script>
+</body>
+
+</html>

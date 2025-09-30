@@ -1,0 +1,93 @@
+.player {
+    width: 100%;
+}
+
+.passage {
+    width: 100px;
+    font-weight: 600;
+}
+
+.params {
+    font-weight: 400;
+    margin: 0;
+}
+
+/*.table {*/
+/*    table-layout: fixed;*/
+/*    vertical-align: middle;*/
+/*}*/
+
+.table {
+    display: block;
+    vertical-align: middle;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.table td {
+    vertical-align: middle !important;
+}
+
+.audio-col {
+    min-width: 120px;
+    width: 280px;
+}
+
+.row-grey {
+    background-color: #eeeeee;
+}
+
+.iframe-container {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  padding-top: 56.25%; /* 16:9 Aspect Ratio (divide 9 by 16 = 0.5625) */
+}
+
+/* Then style the iframe to fit in the container div with full height and width */
+.responsive-iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.abstract {
+    margin: 0;
+    max-width: 70%;
+    margin: 0 auto !important; 
+	float: none !important; 
+}
+
+.target {
+    color: rgb(126, 126, 126);
+    font-weight: 600;
+}
+
+.others {
+    color: rgb(67,74,101);
+    font-weight: 600;
+}
+
+.tcn {
+    color: rgb(227, 126, 35);
+    font-weight: 600;
+}
+
+.ours {
+    color: rgb(89, 146, 54);
+    font-weight: 600;
+}
+
+.detail {
+    font-size: small;
+    font-weight: 500;
+}
+
+.btn {
+    border-radius: 20px;
+}
