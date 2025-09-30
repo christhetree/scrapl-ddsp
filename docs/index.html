@@ -16,7 +16,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="">
     <meta name="author" content="Anonymous">
-    <title>Modulation Discovery with Differentiable Digital Signal Processing</title>
+    <title>SCRAPL</title>
 
     <!-- Bootstrap core CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
@@ -82,6 +82,8 @@
                 There are four different drum types: snare drum (SD), bass drum (BD), tom (Tom), and hi-hat (HH).
                 <br>
                 Tables can be randomized by clicking the button beneath them.
+                <br>
+                Loudness peak normalization (applied to original samples individually as a post-processing step) can be toggled on and off.
             </p>
         </div>
 
@@ -325,6 +327,10 @@
             </table>
             <div class="text-center">
                 <button class="random-btn" style="margin-bottom: 0.5rem;">Randomize Table</button>
+                <!-- Loudness Normalize Toggle -->
+                <label style="margin-left: 1rem; user-select: none;">
+                    <input type="checkbox" id="micro-normalize-toggle"> Peak Normalize
+                </label>
                 <p style="margin-bottom: 3.0rem;">Table scrolls horizontally if space is limited.</p>
             </div>
         </div>
@@ -569,6 +575,10 @@
             </table>
             <div class="text-center">
                 <button class="random-btn" style="margin-bottom: 0.5rem;">Randomize Table</button>
+                <!-- Loudness Normalize Toggle -->
+                <label style="margin-left: 1rem; user-select: none;">
+                    <input type="checkbox" id="meso-normalize-toggle"> Peak Normalize
+                </label>
                 <p style="margin-bottom: 3.0rem;">Table scrolls horizontally if space is limited.</p>
             </div>
         </div>
@@ -590,8 +600,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const dataN = parseInt(wrapper.getAttribute("data-n"), 10);
     const table = wrapper.querySelector("table");
     const rows = Array.from(table.querySelectorAll("tr")).slice(1); // skip header
+    const normalizeToggle = document.getElementById("micro-normalize-toggle");
 
-    // Example: your dictionary mapping idx → drum type
     const drumTypeMap = {
         0: "SD",
         1: "Tom",
@@ -726,39 +736,42 @@ document.addEventListener("DOMContentLoaded", function () {
     // Generate m unique random numbers in [0, max-1]
     function getUniqueRandomNumbers(count, max) {
         const arr = Array.from({ length: max }, (_, i) => i);
-
-        // Fisher–Yates shuffle
         for (let i = arr.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [arr[i], arr[j]] = [arr[j], arr[i]];
         }
-
         return arr.slice(0, count);
     }
 
+    // Update audio file paths for a given row/index
+    function updateAudioPaths(row, newIdx) {
+        const useNorm = normalizeToggle.checked;
+        row.querySelectorAll("source").forEach(source => {
+            source.src = source.src
+                .replace(/micro_peak_normalized|micro/, useNorm ? "micro_peak_normalized" : "micro")
+                .replace(/test__\d+/, `test__${newIdx}`);
+        });
+        row.querySelectorAll("audio").forEach(audio => audio.load());
+    }
+
+    // Randomize indices in table
     function randomizeTable() {
         const randomIndices = getUniqueRandomNumbers(rows.length, dataN);
-
         rows.forEach((row, i) => {
             const newIdx = randomIndices[i];
-
-            // update index cell
             row.cells[0].textContent = newIdx;
-
-            // update drum type cell (2nd col)
             row.cells[1].textContent = drumTypeMap[newIdx] ?? "???";
-
-            // update all <source src="...test__X.wav">
-            row.querySelectorAll("source").forEach(source => {
-                source.src = source.src.replace(/test__\d+/, `test__${newIdx}`);
-            });
-
-            // reload audio elements
-            row.querySelectorAll("audio").forEach(audio => {
-                audio.load();
-            });
+            updateAudioPaths(row, newIdx);
         });
     }
+
+    // Re-apply normalization when toggled
+    normalizeToggle.addEventListener("change", () => {
+        rows.forEach(row => {
+            const idx = parseInt(row.cells[0].textContent, 10);
+            updateAudioPaths(row, idx);
+        });
+    });
 
     wrapper.querySelector(".random-btn").addEventListener("click", randomizeTable);
 });
@@ -771,8 +784,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const dataN = parseInt(wrapper.getAttribute("data-n"), 10);
     const table = wrapper.querySelector("table");
     const rows = Array.from(table.querySelectorAll("tr")).slice(1); // skip header
+    const normalizeToggle = document.getElementById("meso-normalize-toggle");
 
-    // Example: your dictionary mapping idx → drum type
     const drumTypeMap = {
         0: "BD",
         1: "Tom",
@@ -907,39 +920,42 @@ document.addEventListener("DOMContentLoaded", function () {
     // Generate m unique random numbers in [0, max-1]
     function getUniqueRandomNumbers(count, max) {
         const arr = Array.from({ length: max }, (_, i) => i);
-
-        // Fisher–Yates shuffle
         for (let i = arr.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [arr[i], arr[j]] = [arr[j], arr[i]];
         }
-
         return arr.slice(0, count);
     }
 
+    // Update audio file paths for a given row/index
+    function updateAudioPaths(row, newIdx) {
+        const useNorm = normalizeToggle.checked;
+        row.querySelectorAll("source").forEach(source => {
+            source.src = source.src
+                .replace(/meso_peak_normalized|meso/, useNorm ? "meso_peak_normalized" : "meso")
+                .replace(/test__\d+/, `test__${newIdx}`);
+        });
+        row.querySelectorAll("audio").forEach(audio => audio.load());
+    }
+
+    // Randomize indices in table
     function randomizeTable() {
         const randomIndices = getUniqueRandomNumbers(rows.length, dataN);
-
         rows.forEach((row, i) => {
             const newIdx = randomIndices[i];
-
-            // update index cell
             row.cells[0].textContent = newIdx;
-
-            // update drum type cell (2nd col)
             row.cells[1].textContent = drumTypeMap[newIdx] ?? "???";
-
-            // update all <source src="...test__X.wav">
-            row.querySelectorAll("source").forEach(source => {
-                source.src = source.src.replace(/test__\d+/, `test__${newIdx}`);
-            });
-
-            // reload audio elements
-            row.querySelectorAll("audio").forEach(audio => {
-                audio.load();
-            });
+            updateAudioPaths(row, newIdx);
         });
     }
+
+    // Re-apply normalization when toggled
+    normalizeToggle.addEventListener("change", () => {
+        rows.forEach(row => {
+            const idx = parseInt(row.cells[0].textContent, 10);
+            updateAudioPaths(row, idx);
+        });
+    });
 
     wrapper.querySelector(".random-btn").addEventListener("click", randomizeTable);
 });

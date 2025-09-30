@@ -568,7 +568,3 @@ scratch.py
 checkpoints/
 ckpt/
 data/
-DSD100subset.zip
-DSD100subset/
-drums-test-rock.zip
-drums-test-rock/
