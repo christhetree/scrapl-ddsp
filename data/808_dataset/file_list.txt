@@ -1,0 +1,681 @@
+BD 808 01 MPC60 Click E.wav
+BD 808 01 MPC60 Nice E.wav
+BD 808 01 MPC60 Noise E.wav
+BD 808 01 MPC60 Smooth E.wav
+BD 808 01 SP1200 E.wav
+BD 808 02 MPC60 Click F.wav
+BD 808 02 MPC60 Nice F.wav
+BD 808 02 MPC60 Noise F.wav
+BD 808 02 MPC60 Smooth F.wav
+BD 808 02 SP1200 F.wav
+BD 808 03 MPC60 Click F#.wav
+BD 808 03 MPC60 Nice F#.wav
+BD 808 03 MPC60 Noise F#.wav
+BD 808 03 MPC60 Smooth F#.wav
+BD 808 03 SP1200 F#.wav
+BD 808 04 MPC60 Click G.wav
+BD 808 04 MPC60 Nice G.wav
+BD 808 04 MPC60 Noise G.wav
+BD 808 04 MPC60 Smooth G.wav
+BD 808 04 SP1200 G.wav
+BD 808 05 MPC60 Click G#.wav
+BD 808 05 MPC60 Nice G#.wav
+BD 808 05 MPC60 Noise G#.wav
+BD 808 05 MPC60 Smooth G#.wav
+BD 808 05 SP1200 G#.wav
+BD 808 06 MPC60 Click A.wav
+BD 808 06 MPC60 Nice A.wav
+BD 808 06 MPC60 Noise A.wav
+BD 808 06 MPC60 Smooth A.wav
+BD 808 06 SP1200 A.wav
+BD 808 07 MPC60 Click A#.wav
+BD 808 07 MPC60 Nice A#.wav
+BD 808 07 MPC60 Noise A#.wav
+BD 808 07 MPC60 Smooth A#.wav
+BD 808 08 MPC60 Click B.wav
+BD 808 08 MPC60 Nice B.wav
+BD 808 08 MPC60 Noise B.wav
+BD 808 08 MPC60 Smooth B.wav
+BD 808 09 MPC60 Click C.wav
+BD 808 09 MPC60 Nice C.wav
+BD 808 09 MPC60 Noise C.wav
+BD 808 09 MPC60 Smooth C.wav
+BD 808 10 MPC60 Click C#.wav
+BD 808 10 MPC60 Nice C#.wav
+BD 808 10 MPC60 Noise C#.wav
+BD 808 10 MPC60 Smooth C#.wav
+BD 808 Click Color 01.wav
+BD 808 Click Color 02.wav
+BD 808 Click Color 03.wav
+BD 808 Click Color 04.wav
+BD 808 Click Color 05.wav
+BD 808 Click Color 06.wav
+BD 808 Deep 01.wav
+BD 808 Deep 02.wav
+BD 808 Deep 03.wav
+BD 808 Deep 04.wav
+BD 808 Deep 05.wav
+BD 808 Deep 06.wav
+BD 808 Deep 07.wav
+BD 808 Lo Color 01.wav
+BD 808 Lo Color 02.wav
+BD 808 Lo Color 03.wav
+BD 808 Mid Color A 01.wav
+BD 808 Mid Color A 02.wav
+BD 808 Mid Color A 03.wav
+BD 808 Mid Color A 04.wav
+BD 808 Mid Color A 05.wav
+BD 808 Mid Color A 06.wav
+BD 808 Mid Color B 01.wav
+BD 808 Mid Color B 02.wav
+BD 808 Mid Color B 03.wav
+BD 808 Mid Color B 04.wav
+BD 808 Moog 01.wav
+BD 808 Moog 02.wav
+BD 808 Moog 03.wav
+BD 808 Moog 04.wav
+BD 808 Noise 01.wav
+BD 808 Noise 02.wav
+BD 808 Noise 03.wav
+BD 808 Noise 04.wav
+BD 808 Noise 05.wav
+BD 808 Noise 06.wav
+BD 808 Noise 07.wav
+BD 808 Sat Click Decay A 01.wav
+BD 808 Sat Click Decay A 02.wav
+BD 808 Sat Click Decay A 03.wav
+BD 808 Sat Click Decay A 04.wav
+BD 808 Sat Click Decay B 01.wav
+BD 808 Sat Click Decay B 02.wav
+BD 808 Sat Click Decay B 03.wav
+BD 808 Sat Click Decay B 04.wav
+BD 808 Sat Click Decay C 01.wav
+BD 808 Sat Click Decay C 02.wav
+BD 808 Sat Click Decay C 03.wav
+BD 808 Sat Click Decay C 04.wav
+BD 808 Sat Lo Decay A 01.wav
+BD 808 Sat Lo Decay A 02.wav
+BD 808 Sat Lo Decay A 03.wav
+BD 808 Sat Lo Decay A 04.wav
+BD 808 Sat Lo Decay B 01.wav
+BD 808 Sat Lo Decay B 02.wav
+BD 808 Sat Lo Decay B 03.wav
+BD 808 Sat Lo Decay B 04.wav
+BD 808 Sat Lo Decay C 01.wav
+BD 808 Sat Lo Decay C 02.wav
+BD 808 Sat Lo Decay C 03.wav
+BD 808 Sat Lo Decay C 04.wav
+BD 808 Sat Mid Decay A 01.wav
+BD 808 Sat Mid Decay A 02.wav
+BD 808 Sat Mid Decay A 03.wav
+BD 808 Sat Mid Decay A 04.wav
+BD 808 Sat Mid Decay B 01.wav
+BD 808 Sat Mid Decay B 02.wav
+BD 808 Sat Mid Decay B 03.wav
+BD 808 Sat Mid Decay B 04.wav
+BD 808 Sat Mid Decay C 01.wav
+BD 808 Sat Mid Decay C 02.wav
+BD 808 Sat Mid Decay C 03.wav
+BD 808 Sat Mid Decay C 04.wav
+BD 808 Smooth A 01.wav
+BD 808 Smooth A 02.wav
+BD 808 Smooth A 03.wav
+BD 808 Smooth B 01.wav
+BD 808 Smooth B 02.wav
+BD 808 Smooth B 03.wav
+BD 808 Smooth C 01.wav
+BD 808 Smooth C 02.wav
+BD 808 Smooth C 03.wav
+BD 808 Smooth C 04.wav
+BD 808 Smooth C 05.wav
+BD 808 Smooth C 06.wav
+BD 808 Smooth C 07.wav
+BD 808 Smooth C 08.wav
+BD 808 Smooth C 09.wav
+BD 808 Tube 01.wav
+BD 808 Tube 02.wav
+BD 808 Tube 03.wav
+BD 808 Tube 04.wav
+BD 808 Tube 05.wav
+BD 808 Tube 06.wav
+BD 808 Tube 07.wav
+BD 808 Tube 08.wav
+BD 808 Tube 09.wav
+BD A 808 Decay A 01.wav
+BD A 808 Decay A 02.wav
+BD A 808 Decay A 03.wav
+BD A 808 Decay A 04.wav
+BD A 808 Decay A 05.wav
+BD A 808 Decay A 06.wav
+BD A 808 Decay B 01.wav
+BD A 808 Decay B 02.wav
+BD A 808 Decay B 03.wav
+BD A 808 Decay B 04.wav
+BD A 808 Decay B 05.wav
+BD A 808 Decay B 06.wav
+BD A 808 Decay C 01.wav
+BD A 808 Decay C 02.wav
+BD A 808 Decay C 03.wav
+BD A 808 Decay C 04.wav
+BD A 808 Decay C 05.wav
+BD A 808 Decay C 06.wav
+BD A 808 Decay D 01.wav
+BD A 808 Decay D 02.wav
+BD A 808 Decay D 03.wav
+BD A 808 Decay D 04.wav
+BD A 808 Decay D 05.wav
+BD A 808 Decay D 06.wav
+BD A 808 Decay E 01.wav
+BD A 808 Decay E 02.wav
+BD A 808 Decay E 03.wav
+BD A 808 Decay E 04.wav
+BD A 808 Decay E 05.wav
+BD A 808 Decay E 06.wav
+BD A 808 Decay F 01.wav
+BD A 808 Decay F 02.wav
+BD A 808 Decay F 03.wav
+BD A 808 Decay F 04.wav
+BD A 808 Decay F 05.wav
+BD A 808 Decay F 06.wav
+BD B 808 Decay A 01.wav
+BD B 808 Decay A 02.wav
+BD B 808 Decay A 03.wav
+BD B 808 Decay A 04.wav
+BD B 808 Decay A 05.wav
+BD B 808 Decay A 06.wav
+BD B 808 Decay B 01.wav
+BD B 808 Decay B 02.wav
+BD B 808 Decay B 03.wav
+BD B 808 Decay B 04.wav
+BD B 808 Decay B 05.wav
+BD B 808 Decay B 06.wav
+BD B 808 Decay C 01.wav
+BD B 808 Decay C 02.wav
+BD B 808 Decay C 03.wav
+BD B 808 Decay C 04.wav
+BD B 808 Decay C 05.wav
+BD B 808 Decay C 06.wav
+BD B 808 Decay D 01.wav
+BD B 808 Decay D 02.wav
+BD B 808 Decay D 03.wav
+BD B 808 Decay D 04.wav
+BD B 808 Decay D 05.wav
+BD B 808 Decay D 06.wav
+BD B 808 Decay E 01.wav
+BD B 808 Decay E 02.wav
+BD B 808 Decay E 03.wav
+BD B 808 Decay E 04.wav
+BD B 808 Decay E 05.wav
+BD B 808 Decay E 06.wav
+BD B 808 Decay F 01.wav
+BD B 808 Decay F 02.wav
+BD B 808 Decay F 03.wav
+BD B 808 Decay F 04.wav
+BD B 808 Decay F 05.wav
+BD B 808 Decay F 06.wav
+CH 808 Color A 01.wav
+CH 808 Color A 02.wav
+CH 808 Color A 03.wav
+CH 808 Color A 04.wav
+CH 808 Color A 05.wav
+CH 808 Color A 06.wav
+CH 808 Color B 01.wav
+CH 808 Color B 02.wav
+CH 808 Color B 03.wav
+CH 808 Color B 04.wav
+CH A 808.wav
+CH B 808.wav
+CH Combo 808.wav
+OH 808 Color A 01.wav
+OH 808 Color A 02.wav
+OH 808 Color A 03.wav
+OH 808 Color A 04.wav
+OH 808 Color A 05.wav
+OH 808 Color A 06.wav
+OH 808 Color B 01.wav
+OH 808 Color B 02.wav
+OH 808 Color B 03.wav
+OH 808 Color B 04.wav
+OH 808 Color B 05.wav
+OH 808 Color B 06.wav
+OH 808 Decay 01.wav
+OH 808 Decay 02.wav
+OH 808 Decay 03.wav
+OH 808 Decay 04.wav
+OH 808 Decay 05.wav
+OH 808 Sat 01.wav
+OH 808 Sat 02.wav
+OH 808 Sat 03.wav
+OH 808 Sat 04.wav
+OH 808 Sat 05.wav
+OH 808 Sat 06.wav
+OH Combo 808.wav
+SD 808 Air 01.wav
+SD 808 Air 02.wav
+SD 808 Air 03.wav
+SD 808 Air 04.wav
+SD 808 Air 05.wav
+SD 808 Air 06.wav
+SD 808 Body 01.wav
+SD 808 Body 02.wav
+SD 808 Body 03.wav
+SD 808 Body 04.wav
+SD 808 Body 05.wav
+SD 808 Classic 01.wav
+SD 808 Classic 02.wav
+SD 808 Classic 03.wav
+SD 808 Classic 04.wav
+SD 808 Classic 05.wav
+SD 808 Classic 06.wav
+SD 808 Classic 07.wav
+SD 808 Crisp A 01.wav
+SD 808 Crisp A 02.wav
+SD 808 Crisp A 03.wav
+SD 808 Crisp A 04.wav
+SD 808 Crisp A 05.wav
+SD 808 Crisp A 06.wav
+SD 808 Crisp A 07.wav
+SD 808 Crisp A 08.wav
+SD 808 Crisp B 01.wav
+SD 808 Crisp B 02.wav
+SD 808 Crisp B 03.wav
+SD 808 Crisp B 04.wav
+SD 808 Crisp B 05.wav
+SD 808 Crushed 01.wav
+SD 808 Crushed 02.wav
+SD 808 Crushed 03.wav
+SD 808 Crushed 04.wav
+SD 808 Crushed 05.wav
+SD 808 Filtered 01.wav
+SD 808 Filtered 02.wav
+SD 808 Filtered 03.wav
+SD 808 MPC60 Body.wav
+SD 808 MPC60 Snap.wav
+SD 808 MPC60 Tite.wav
+SD 808 Pitched 01.wav
+SD 808 Pitched 02.wav
+SD 808 Pitched 03.wav
+SD 808 Pitched 04.wav
+SD 808 Pitched 05.wav
+SD 808 Pitched 06.wav
+SD 808 Pitched 07.wav
+SD 808 Pitched 08.wav
+SD 808 Pitched 09.wav
+SD 808 Pitched 10.wav
+SD 808 Pitched 11.wav
+SD 808 Pitched 12.wav
+SD 808 Pitched 13.wav
+SD 808 Pitched 14.wav
+SD 808 Pitched 15.wav
+SD 808 Pitched 16.wav
+SD 808 Pitched 17.wav
+SD 808 Pitched 18.wav
+SD 808 Pitched 19.wav
+SD 808 Pitched 20.wav
+SD 808 Pitched 21.wav
+SD 808 Pitched 22.wav
+SD 808 Pitched 23.wav
+SD 808 Pitched 24.wav
+SD 808 Pitched 25.wav
+SD 808 Pitched 26.wav
+SD 808 Pitched 27.wav
+SD 808 Pitched 28.wav
+SD 808 Pitched 29.wav
+SD 808 Pitched 30.wav
+SD 808 Pitched 31.wav
+SD 808 Pitched 32.wav
+SD 808 Pitched 33.wav
+SD 808 Pitched 34.wav
+SD 808 Pitched 35.wav
+SD 808 Pitched 36.wav
+SD 808 Pitched 37.wav
+SD 808 Pitched 38.wav
+SD 808 Pitched 39.wav
+SD 808 Pitched 40.wav
+SD 808 Punch A 01.wav
+SD 808 Punch A 02.wav
+SD 808 Punch A 03.wav
+SD 808 Punch A 04.wav
+SD 808 Punch A 05.wav
+SD 808 Punch A 06.wav
+SD 808 Punch A 07.wav
+SD 808 Punch B 01.wav
+SD 808 Punch B 02.wav
+SD 808 Punch B 03.wav
+SD 808 Punch B 04.wav
+SD 808 Tail 01.wav
+SD 808 Tail 02.wav
+SD 808 Tail 03.wav
+SD A 808 Sat A 01.wav
+SD A 808 Sat A 02.wav
+SD A 808 Sat A 03.wav
+SD A 808 Sat A 04.wav
+SD A 808 Sat B 01.wav
+SD A 808 Sat B 02.wav
+SD A 808 Sat B 03.wav
+SD A 808 Sat B 04.wav
+SD A 808 Sat C 01.wav
+SD A 808 Sat C 02.wav
+SD A 808 Sat C 03.wav
+SD A 808 Sat C 04.wav
+SD A 808 Sat D 01.wav
+SD A 808 Sat D 02.wav
+SD A 808 Sat D 03.wav
+SD A 808 Sat D 04.wav
+SD A 808 Sat E 01.wav
+SD A 808 Sat E 02.wav
+SD A 808 Sat E 03.wav
+SD A 808 Sat E 04.wav
+SD A 808 Tone A 01.wav
+SD A 808 Tone A 02.wav
+SD A 808 Tone A 03.wav
+SD A 808 Tone A 04.wav
+SD A 808 Tone A 05.wav
+SD A 808 Tone A 06.wav
+SD A 808 Tone B 01.wav
+SD A 808 Tone B 02.wav
+SD A 808 Tone B 03.wav
+SD A 808 Tone B 04.wav
+SD A 808 Tone B 05.wav
+SD A 808 Tone B 06.wav
+SD A 808 Tone C 01.wav
+SD A 808 Tone C 02.wav
+SD A 808 Tone C 03.wav
+SD A 808 Tone C 04.wav
+SD A 808 Tone C 05.wav
+SD A 808 Tone C 06.wav
+SD A 808 Tone D 01.wav
+SD A 808 Tone D 02.wav
+SD A 808 Tone D 03.wav
+SD A 808 Tone D 04.wav
+SD A 808 Tone D 05.wav
+SD A 808 Tone D 06.wav
+SD A 808 Tone E 01.wav
+SD A 808 Tone E 02.wav
+SD A 808 Tone E 03.wav
+SD A 808 Tone E 04.wav
+SD A 808 Tone E 05.wav
+SD A 808 Tone E 06.wav
+SD A 808 Tone F 01.wav
+SD A 808 Tone F 02.wav
+SD A 808 Tone F 03.wav
+SD A 808 Tone F 04.wav
+SD A 808 Tone F 05.wav
+SD A 808 Tone F 06.wav
+SD B 808 Sat A 01.wav
+SD B 808 Sat A 02.wav
+SD B 808 Sat A 03.wav
+SD B 808 Sat A 04.wav
+SD B 808 Sat B 01.wav
+SD B 808 Sat B 02.wav
+SD B 808 Sat B 03.wav
+SD B 808 Sat B 04.wav
+SD B 808 Sat C 01.wav
+SD B 808 Sat C 02.wav
+SD B 808 Sat C 03.wav
+SD B 808 Sat C 04.wav
+SD B 808 Sat D 01.wav
+SD B 808 Sat D 02.wav
+SD B 808 Sat D 03.wav
+SD B 808 Sat D 04.wav
+SD B 808 Tone A 01.wav
+SD B 808 Tone A 02.wav
+SD B 808 Tone A 03.wav
+SD B 808 Tone A 04.wav
+SD B 808 Tone A 05.wav
+SD B 808 Tone A 06.wav
+SD B 808 Tone B 01.wav
+SD B 808 Tone B 02.wav
+SD B 808 Tone B 03.wav
+SD B 808 Tone B 04.wav
+SD B 808 Tone B 05.wav
+SD B 808 Tone B 06.wav
+SD B 808 Tone C 01.wav
+SD B 808 Tone C 02.wav
+SD B 808 Tone C 03.wav
+SD B 808 Tone C 04.wav
+SD B 808 Tone C 05.wav
+SD B 808 Tone C 06.wav
+SD B 808 Tone D 01.wav
+SD B 808 Tone D 02.wav
+SD B 808 Tone D 03.wav
+SD B 808 Tone D 04.wav
+SD B 808 Tone D 05.wav
+SD B 808 Tone D 06.wav
+SD B 808 Tone E 01.wav
+SD B 808 Tone E 02.wav
+SD B 808 Tone E 03.wav
+SD B 808 Tone E 04.wav
+SD B 808 Tone E 05.wav
+SD B 808 Tone E 06.wav
+SD B 808 Tone F 01.wav
+SD B 808 Tone F 02.wav
+SD B 808 Tone F 03.wav
+SD B 808 Tone F 04.wav
+SD B 808 Tone F 05.wav
+SD B 808 Tone F 06.wav
+SD C 808 Tone A 01.wav
+SD C 808 Tone A 02.wav
+SD C 808 Tone A 03.wav
+SD C 808 Tone A 04.wav
+SD C 808 Tone A 05.wav
+SD C 808 Tone A 06.wav
+SD C 808 Tone B 01.wav
+SD C 808 Tone B 02.wav
+SD C 808 Tone B 03.wav
+SD C 808 Tone B 04.wav
+SD C 808 Tone B 05.wav
+SD C 808 Tone B 06.wav
+SD C 808 Tone C 01.wav
+SD C 808 Tone C 02.wav
+SD C 808 Tone C 03.wav
+SD C 808 Tone C 04.wav
+SD C 808 Tone C 05.wav
+SD C 808 Tone C 06.wav
+SD C 808 Tone D 01.wav
+SD C 808 Tone D 02.wav
+SD C 808 Tone D 03.wav
+SD C 808 Tone D 04.wav
+SD C 808 Tone D 05.wav
+SD C 808 Tone D 06.wav
+SD C 808 Tone E 01.wav
+SD C 808 Tone E 02.wav
+SD C 808 Tone E 03.wav
+SD C 808 Tone E 04.wav
+SD C 808 Tone E 05.wav
+SD C 808 Tone E 06.wav
+SD C 808 Tone F 01.wav
+SD C 808 Tone F 02.wav
+SD C 808 Tone F 03.wav
+SD C 808 Tone F 04.wav
+SD C 808 Tone F 05.wav
+SD C 808 Tone F 06.wav
+Tom Hi 808 Color 01.wav
+Tom Hi 808 Color 02.wav
+Tom Hi 808 Color 03.wav
+Tom Hi 808 Color 04.wav
+Tom Hi 808 Color 05.wav
+Tom Hi 808 Color 06.wav
+Tom Hi 808 Color 07.wav
+Tom Hi 808 Color 08.wav
+Tom Hi 808 Sat A 01.wav
+Tom Hi 808 Sat A 02.wav
+Tom Hi 808 Sat A 03.wav
+Tom Hi 808 Sat A 04.wav
+Tom Hi 808 Sat A 05.wav
+Tom Hi 808 Sat A 06.wav
+Tom Hi 808 Sat A 07.wav
+Tom Hi 808 Sat A 08.wav
+Tom Hi 808 Sat A 09.wav
+Tom Hi 808 Sat A 10.wav
+Tom Hi 808 Sat A 11.wav
+Tom Hi 808 Sat B 01.wav
+Tom Hi 808 Sat B 02.wav
+Tom Hi 808 Sat B 03.wav
+Tom Hi 808 Sat B 04.wav
+Tom Hi 808 Sat B 05.wav
+Tom Hi 808 Sat B 06.wav
+Tom Hi 808 Sat B 07.wav
+Tom Hi 808 Sat B 08.wav
+Tom Hi 808 Sat B 09.wav
+Tom Hi 808 Sat B 10.wav
+Tom Hi 808 Sat B 11.wav
+Tom Hi A 808 01.wav
+Tom Hi A 808 02.wav
+Tom Hi A 808 03.wav
+Tom Hi A 808 04.wav
+Tom Hi A 808 05.wav
+Tom Hi A 808 06.wav
+Tom Hi A 808 07.wav
+Tom Hi A 808 08.wav
+Tom Hi A 808 09.wav
+Tom Hi A 808 10.wav
+Tom Hi A 808 11.wav
+Tom Hi B 808 01.wav
+Tom Hi B 808 02.wav
+Tom Hi B 808 03.wav
+Tom Hi B 808 04.wav
+Tom Hi B 808 05.wav
+Tom Hi B 808 06.wav
+Tom Hi B 808 07.wav
+Tom Hi B 808 08.wav
+Tom Hi B 808 09.wav
+Tom Hi B 808 10.wav
+Tom Hi B 808 11.wav
+Tom Hi C 808 01.wav
+Tom Hi C 808 02.wav
+Tom Hi C 808 03.wav
+Tom Hi C 808 04.wav
+Tom Hi C 808 05.wav
+Tom Hi C 808 06.wav
+Tom Hi C 808 07.wav
+Tom Hi C 808 08.wav
+Tom Hi C 808 09.wav
+Tom Hi C 808 10.wav
+Tom Hi C 808 11.wav
+Tom Low 808 Color 01.wav
+Tom Low 808 Color 02.wav
+Tom Low 808 Color 03.wav
+Tom Low 808 Color 04.wav
+Tom Low 808 Color 05.wav
+Tom Low 808 Color 06.wav
+Tom Low 808 Color 07.wav
+Tom Low 808 Color 08.wav
+Tom Low 808 Sat A 01.wav
+Tom Low 808 Sat A 02.wav
+Tom Low 808 Sat A 03.wav
+Tom Low 808 Sat A 04.wav
+Tom Low 808 Sat A 05.wav
+Tom Low 808 Sat A 06.wav
+Tom Low 808 Sat A 07.wav
+Tom Low 808 Sat A 08.wav
+Tom Low 808 Sat A 09.wav
+Tom Low 808 Sat A 10.wav
+Tom Low 808 Sat A 11.wav
+Tom Low 808 Sat B 01.wav
+Tom Low 808 Sat B 02.wav
+Tom Low 808 Sat B 03.wav
+Tom Low 808 Sat B 04.wav
+Tom Low 808 Sat B 05.wav
+Tom Low 808 Sat B 06.wav
+Tom Low 808 Sat B 07.wav
+Tom Low 808 Sat B 08.wav
+Tom Low 808 Sat B 09.wav
+Tom Low 808 Sat B 10.wav
+Tom Low 808 Sat B 11.wav
+Tom Low A 808 01.wav
+Tom Low A 808 02.wav
+Tom Low A 808 03.wav
+Tom Low A 808 04.wav
+Tom Low A 808 05.wav
+Tom Low A 808 06.wav
+Tom Low A 808 07.wav
+Tom Low A 808 08.wav
+Tom Low A 808 09.wav
+Tom Low A 808 10.wav
+Tom Low A 808 11.wav
+Tom Low B 808 01.wav
+Tom Low B 808 02.wav
+Tom Low B 808 03.wav
+Tom Low B 808 04.wav
+Tom Low B 808 05.wav
+Tom Low B 808 06.wav
+Tom Low B 808 07.wav
+Tom Low B 808 08.wav
+Tom Low B 808 09.wav
+Tom Low B 808 10.wav
+Tom Low B 808 11.wav
+Tom Low C 808 01.wav
+Tom Low C 808 02.wav
+Tom Low C 808 03.wav
+Tom Low C 808 04.wav
+Tom Low C 808 05.wav
+Tom Low C 808 06.wav
+Tom Low C 808 07.wav
+Tom Low C 808 08.wav
+Tom Low C 808 09.wav
+Tom Low C 808 10.wav
+Tom Low C 808 11.wav
+Tom Mid 808 Color 01.wav
+Tom Mid 808 Color 02.wav
+Tom Mid 808 Color 03.wav
+Tom Mid 808 Color 04.wav
+Tom Mid 808 Color 05.wav
+Tom Mid 808 Color 06.wav
+Tom Mid 808 Color 07.wav
+Tom Mid 808 Color 08.wav
+Tom Mid 808 Sat A 01.wav
+Tom Mid 808 Sat A 02.wav
+Tom Mid 808 Sat A 03.wav
+Tom Mid 808 Sat A 04.wav
+Tom Mid 808 Sat A 05.wav
+Tom Mid 808 Sat A 06.wav
+Tom Mid 808 Sat A 07.wav
+Tom Mid 808 Sat A 08.wav
+Tom Mid 808 Sat A 09.wav
+Tom Mid 808 Sat A 10.wav
+Tom Mid 808 Sat A 11.wav
+Tom Mid 808 Sat B 01.wav
+Tom Mid 808 Sat B 02.wav
+Tom Mid 808 Sat B 03.wav
+Tom Mid 808 Sat B 04.wav
+Tom Mid 808 Sat B 05.wav
+Tom Mid 808 Sat B 06.wav
+Tom Mid 808 Sat B 07.wav
+Tom Mid 808 Sat B 08.wav
+Tom Mid 808 Sat B 09.wav
+Tom Mid 808 Sat B 10.wav
+Tom Mid 808 Sat B 11.wav
+Tom Mid A 808 01.wav
+Tom Mid A 808 02.wav
+Tom Mid A 808 03.wav
+Tom Mid A 808 04.wav
+Tom Mid A 808 05.wav
+Tom Mid A 808 06.wav
+Tom Mid A 808 07.wav
+Tom Mid A 808 08.wav
+Tom Mid A 808 09.wav
+Tom Mid A 808 10.wav
+Tom Mid A 808 11.wav
+Tom Mid B 808 01.wav
+Tom Mid B 808 02.wav
+Tom Mid B 808 03.wav
+Tom Mid B 808 04.wav
+Tom Mid B 808 05.wav
+Tom Mid B 808 06.wav
+Tom Mid B 808 07.wav
+Tom Mid B 808 08.wav
+Tom Mid B 808 09.wav
+Tom Mid B 808 10.wav
+Tom Mid B 808 11.wav
+Tom Mid C 808 01.wav
+Tom Mid C 808 02.wav
+Tom Mid C 808 03.wav
+Tom Mid C 808 04.wav
+Tom Mid C 808 05.wav
+Tom Mid C 808 06.wav
+Tom Mid C 808 07.wav
+Tom Mid C 808 08.wav
+Tom Mid C 808 09.wav
+Tom Mid C 808 10.wav
+Tom Mid C 808 11.wav

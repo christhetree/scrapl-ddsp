@@ -7,17 +7,20 @@ dependencies:
   - pip:
     - auraloss
     - black
-    - jsonargparse[signatures]>=4.27.7
+    - dasp-pytorch
+    - einops
+    - hypy-utils
+    - jsonargparse[signatures]
     - librosa
     - lightning
     - matplotlib
     - msclap
     - nnaudio
-    - numpy<2.0.0
+    - numpy
     - nvitop
     - pandas
     - pip-chill
-    - schedulefree
+    - pyloudnorm
     - scipy
     - torch
     - torchaudio
@@ -25,5 +28,4 @@ dependencies:
     - tensorboard
     - uv
     - wandb
-    - git+https://github.com/kymatio/kymatio.git
     - git+https://github.com/noahgolmant/pytorch-hessian-eigenthings.git
